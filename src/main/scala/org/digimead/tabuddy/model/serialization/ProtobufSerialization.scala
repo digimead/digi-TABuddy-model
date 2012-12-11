@@ -66,6 +66,8 @@ import org.digimead.tabuddy.model.Stash
 import org.digimead.tabuddy.model.Stash.Data
 import org.digimead.tabuddy.model.StashProtos
 import org.digimead.tabuddy.model.Value
+import org.digimead.tabuddy.model.dsltype.DSLType
+import org.digimead.tabuddy.model.dsltype.DSLType.dsltype2implementation
 
 class ProtobufSerialization extends Loggable {
   /** Load element from Array[Byte]. */
@@ -168,12 +170,12 @@ class ProtobufSerialization extends Loggable {
   protected def packProperties(property: Stash.Data): Iterable[PropertyProtos.Property.Bundle] =
     property.keys.flatMap { keyType =>
       val properyBundleBuilder = PropertyProtos.Property.Bundle.newBuilder()
-      Value.kind(Class.forName(keyType)) match {
+      DSLType.getTypeSignature(Class.forName(keyType)) match {
         case Some(signature) =>
           properyBundleBuilder.setType(signature)
           property(keyType).foreach {
             case (valueID, value) =>
-              Value.convert(value.get) match {
+              DSLType.save(value.get) match {
                 case Some((valueType, valueData)) =>
                   properyBundleBuilder.addProperty(PropertyProtos.Property.newBuilder().
                     setContext(packContext(value.context)).
@@ -219,7 +221,7 @@ class ProtobufSerialization extends Loggable {
     builder.build()
   }
   protected def unpackAxis(proto: CoordinateProtos.Coordinate.Axis): Option[Element.Axis[_ <: java.io.Serializable]] = {
-    Value.convert(proto.getType(), proto.getValue()).map(value =>
+    DSLType.load(proto.getType(), proto.getValue()).map(value =>
       Element.Axis(Symbol(proto.getId()), proto.getValue()))
   }
   protected def unpackContext(proto: ContextProtos.Context): Option[Element.Context] = {
@@ -260,18 +262,18 @@ class ProtobufSerialization extends Loggable {
     val property = new org.digimead.tabuddy.model.Stash.Data
     list.foreach { protoBundle =>
       val valueType = protoBundle.getType()
-      Value.kind(valueType) match {
-        case Some(kind) =>
-          val kindJVM = kind.getName()
-          property(kindJVM) = new mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]] with mutable.SynchronizedMap[Symbol, Value[_ <: java.io.Serializable]]
+      DSLType.getTypeClass(valueType) match {
+        case Some(typeJVM) =>
+          val typeJVMName = typeJVM.getName()
+          property(typeJVMName) = new mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]] with mutable.SynchronizedMap[Symbol, Value[_ <: java.io.Serializable]]
           protoBundle.getPropertyList().foreach { protoProperty =>
             val result = for {
               context <- unpackContext(protoProperty.getContext())
-              data <- Value.convert(valueType, protoProperty.getData()).asInstanceOf[Option[java.io.Serializable]]
+              data <- DSLType.load(valueType, protoProperty.getData()).asInstanceOf[Option[java.io.Serializable]]
             } yield if (protoProperty.getStatic())
-              property(kindJVM)(Symbol(protoProperty.getId())) = new Value.Static(data, context)
+              property(typeJVMName)(Symbol(protoProperty.getId())) = new Value.Static(data, context)
             else
-              property(kindJVM)(Symbol(protoProperty.getId())) = new Value.Dynamic(() => data, context)
+              property(typeJVMName)(Symbol(protoProperty.getId())) = new Value.Dynamic(() => data, context)
             if (result.isEmpty)
               log.error("unable to unpack value '%s=%s".format(protoProperty.getId(), protoProperty.getData()))
           }

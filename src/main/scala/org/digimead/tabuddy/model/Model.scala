@@ -78,7 +78,7 @@ class Model[A <: Model.Stash](s: A) extends Model.Interface {
 object Model extends DependencyInjection.PersistentInjectable with Loggable {
   implicit def model2implementation(m: Model.type): Interface = m.implementation
   implicit def bindingModule = DependencyInjection()
-  @volatile var implementation: Interface = inject[Interface]
+  @volatile private var implementation: Interface = inject[Interface]
 
   def inner() = implementation
   def commitInjection() {}

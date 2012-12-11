@@ -41,23 +41,13 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model.value
+package org.digimead.tabuddy.model
 
-trait Converter {
-  /**
-   * Load value from string
-   */
-  def load: PartialFunction[(String, String), _ <: java.io.Serializable]
-  /**
-   * Save value to string
-   */
-  def save[T <: java.io.Serializable]: PartialFunction[T, (String, String)]
-  /**
-   * Convert JVM type to string signature
-   */
-  def kind(kind: Class[_]): Option[String]
-  /**
-   * Convert string signature to JVM type
-   */
-  def kind(kind: String): Option[Class[_]]
+import com.escalatesoft.subcut.inject.NewBindingModule
+
+package object dsltype {
+  lazy val default = new NewBindingModule(module => {
+    module.bind[Seq[DSLType]] toSingle { Seq(new DefaultDSLTypes) }
+    module.bind[DSLType.Interface] toSingle { new DSLType.Interface {} }
+  })
 }

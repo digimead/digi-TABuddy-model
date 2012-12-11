@@ -49,5 +49,5 @@ import java.util.UUID
 package object model {
   lazy val default = new NewBindingModule(module => {
     module.bind[Model.Interface] toProvider { new Model(new Model.Stash('Model, UUID.randomUUID())) }
-  }) ~ org.digimead.tabuddy.model.value.default
+  }) ~ org.digimead.tabuddy.model.dsltype.default
 }

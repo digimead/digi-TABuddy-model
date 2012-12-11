@@ -41,12 +41,12 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model.value
+package org.digimead.tabuddy.model.dsltype
 
 import scala.collection.immutable
 
-class DefaultConverter extends Converter {
-  protected val kindClassSignatureMap = immutable.HashMap[Class[_], String](
+class DefaultDSLTypes extends DSLType {
+  protected lazy val typeClassSignatureMap = immutable.HashMap[Class[_], String](
     classOf[java.lang.Byte] -> "Byte",
     classOf[java.lang.Double] -> "Double",
     classOf[java.lang.Float] -> "Float",
@@ -55,7 +55,7 @@ class DefaultConverter extends Converter {
     classOf[java.lang.Short] -> "Short",
     classOf[java.lang.Boolean] -> "Boolean",
     classOf[java.lang.String] -> "String")
-  protected val kindSignatureClassMap = immutable.HashMap[String, Class[_]](kindClassSignatureMap.map(t => (t._2, t._1)).toSeq: _*)
+  protected lazy val typeSignatureClassMap = immutable.HashMap[String, Class[_]](typeClassSignatureMap.map(t => (t._2, t._1)).toSeq: _*)
   /**
    * Load value from string
    */
@@ -85,9 +85,13 @@ class DefaultConverter extends Converter {
   /**
    * Convert JVM type to string signature
    */
-  def kind(kind: Class[_]): Option[String] = kindClassSignatureMap.get(kind)
+  def getTypeSignature(clazz: Class[_]): Option[String] = typeClassSignatureMap.get(clazz)
   /**
    * Convert string signature to JVM type
    */
-  def kind(kind: String): Option[Class[_]] = kindSignatureClassMap.get(kind)
+  def getTypeClass(signature: String): Option[Class[_]] = typeSignatureClassMap.get(signature)
+  /**
+   * Returns all known types
+   */
+  def getTypes(): Seq[String] = typeSignatureClassMap.keys.toSeq
 }

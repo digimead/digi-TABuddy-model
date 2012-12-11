@@ -48,7 +48,6 @@ import scala.ref.WeakReference
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.Loggable
 import org.digimead.tabuddy.model.Model.model2implementation
-import org.digimead.tabuddy.model.value.Converter
 
 /**
  * Trait that provide general interface for Value implementation
@@ -79,7 +78,7 @@ sealed trait Value[T <: java.io.Serializable] extends java.io.Serializable {
 /**
  * Singleton that contain Static and Dynamic Value implementation.
  */
-object Value extends DependencyInjection.PersistentInjectable with Loggable {
+object Value extends Loggable {
   implicit def byte2value(x: Byte)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Byte.box(x))
   implicit def double2value(x: Double)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Double.box(x))
   implicit def float2value(x: Float)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Float.box(x))
@@ -89,57 +88,7 @@ object Value extends DependencyInjection.PersistentInjectable with Loggable {
   implicit def bool2value(x: Boolean)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Boolean.box(x))
   implicit def serializable2value[T <: java.io.Serializable](x: T)(implicit weakContainer: WeakReference[_ <: Element.Generic], m: Manifest[T]) = x2staticValue(x)
   implicit def value2x[T <: java.io.Serializable](x: Value[T]): T = x.get()
-  implicit def bindingModule = DependencyInjection()
-  @volatile var converter = inject[Seq[Converter]]
 
-  /**
-   * Load value from string
-   */
-  def convert(valueType: String, valueData: String): Option[_ <: java.io.Serializable] = {
-    converter.foreach(converter =>
-      try {
-        return Some(converter.load(valueType, valueData))
-      } catch {
-        case e: MatchError =>
-      })
-    None
-  }
-  /**
-   * Save value to string
-   */
-  def convert[T <: java.io.Serializable](value: T): Option[(String, String)] = {
-    converter.foreach(converter =>
-      try {
-        return Some(converter.save(value))
-      } catch {
-        case e: MatchError =>
-      })
-    None
-  }
-  /**
-   * Convert JVM type to string signature
-   */
-  def kind(kind: Class[_]): Option[String] = {
-    converter.foreach(converter =>
-      try {
-        converter.kind(kind).map(sig => return Some(sig))
-      } catch {
-        case e: MatchError =>
-      })
-    None
-  }
-  /**
-   * Convert string signature to JVM type
-   */
-  def kind(signature: String): Option[Class[_]] = {
-    converter.foreach(converter =>
-      try {
-        converter.kind(signature).map(kind => return Some(kind))
-      } catch {
-        case e: MatchError =>
-      })
-    None
-  }
   /**
    * Convert [T] to Value.Static
    */
@@ -155,8 +104,6 @@ object Value extends DependencyInjection.PersistentInjectable with Loggable {
         log.fatal("container lost")
         None
     }
-  def commitInjection() {}
-  def updateInjection() { converter = inject[Seq[Converter]] }
 
   /**
    * Dynamic value implementation
