@@ -72,6 +72,8 @@ import org.digimead.tabuddy.model.dsltype.DSLType.dsltype2implementation
 class ProtobufSerialization extends Loggable {
   /** Load element from Array[Byte]. */
   def acquire[A <: Element.Generic](frozen: Array[Byte]): Option[A] = try {
+    implicit val snapshot = Element.Snapshot(0)
+
     log.debug("acuire elements from bundle with size %d byte(s)".format(frozen.length))
     val protoElements = ElementProtos.Element.Bundle.parseFrom(frozen)
     log.debug("%d element(s) extracted".format(protoElements.getElementCount()))
@@ -95,7 +97,7 @@ class ProtobufSerialization extends Loggable {
       elements.get(element.stash.context.container) match {
         case Some(parent) =>
           if (!parent.eq(element))
-            parent.children = parent.children :+ element
+            parent.stash.children = parent.stash.children :+ element
         case None if Some[Element.Generic](element) != head =>
           log.error("lost parent for " + element)
         case None =>
@@ -117,7 +119,7 @@ class ProtobufSerialization extends Loggable {
       None
   }
   /** Save element to Array[Byte]. */
-  def freeze(element: Element.Generic): Array[Byte] = {
+  def freeze(element: Element.Generic)(implicit snapshot: Element.Snapshot): Array[Byte] = {
     val elementsBundleBuilder = ElementProtos.Element.Bundle.newBuilder()
     val elements = (element +: element.filter(_ => true))
     log.debug("freeze %d elements to bundle".format(elements.length))
@@ -158,7 +160,7 @@ class ProtobufSerialization extends Loggable {
   /**
    * Pack Element.Generic to ElementProtos.Element
    */
-  protected def packElement(element: Element.Generic): ElementProtos.Element = {
+  protected def packElement(element: Element.Generic)(implicit snapshot: Element.Snapshot): ElementProtos.Element = {
     ElementProtos.Element.newBuilder().
       setType(element.getClass().getName()).
       setStash(packStash(element.stash)).

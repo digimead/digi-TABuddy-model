@@ -72,6 +72,7 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Value") {
     it("should have a proper equality") {
       config =>
+                implicit val snapshot = Element.Snapshot(0)
         val container = Model.record('test) { record => }
         new Value.Static("123", Element.virtualContext(container)) === new Value.Static("123", Element.virtualContext(container)) should be(true)
         new Value.Static("123", Element.virtualContext(container)) == new Value.Static("123", Element.virtualContext(container)) should be(true)
@@ -84,6 +85,7 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
     }
     it("should should be affected by implicit conversions") {
       config =>
+                implicit val snapshot = Element.Snapshot(0)
         val rootWorkspace = Model.record('test) { record => }
         implicit val container = new WeakReference(rootWorkspace)
         // x2value: convert T -> Option[Value[T]]
@@ -98,6 +100,7 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
     }
     it("should search default value at root node") {
       config =>
+                implicit val snapshot = Element.Snapshot(0)
         val rootWorkspace = Model.record('test) { record => }
         rootWorkspace.stash.coordinate.isRoot should be(true)
         rootWorkspace.description should be("")
@@ -120,6 +123,7 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Value.Context") {
     it("should have a proper equality") {
       config =>
+                implicit val snapshot = Element.Snapshot(0)
         val rootWorkspace = Model.record('test) { record => }
         Element.Context(rootWorkspace.reference, None, None, None) should be(Element.Context(rootWorkspace.reference, None, None, None))
         Element.Context(null, None, None, None) should not be (Element.Context(rootWorkspace.reference, None, None, None))

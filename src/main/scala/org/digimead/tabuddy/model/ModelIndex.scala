@@ -63,7 +63,7 @@ trait ModelIndex {
   @transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
 
   /** Get element for unique id at the specific coordinate and default origin */
-  def e(unique: UUID, coordinate: Element.Axis[_ <: java.io.Serializable]*): Option[Element.Generic] =
+  def e(unique: UUID, coordinate: Element.Axis[_ <: java.io.Serializable]*)(implicit snapshot: Element.Snapshot): Option[Element.Generic] =
     e(Element.Reference(stash.id, unique, Element.Coordinate(coordinate: _*)))
   /** Get element for unique id at the specific coordinate and origin */
   def e(origin: Symbol, unique: UUID, coordinate: Element.Axis[_ <: java.io.Serializable]*): Option[Element.Generic] =
@@ -72,7 +72,7 @@ trait ModelIndex {
   def e(origin: Symbol, unique: UUID, coordinate: Element.Coordinate): Option[Element.Generic] =
     e(Element.Reference(origin, unique, coordinate))
   /** Get element for unique id at the specific coordinate and default origin */
-  def e(unique: UUID, coordinate: Element.Coordinate): Option[Element.Generic] =
+  def e(unique: UUID, coordinate: Element.Coordinate)(implicit snapshot: Element.Snapshot): Option[Element.Generic] =
     e(Element.Reference(stash.id, unique, coordinate))
   /** Get element for unique id at the specific coordinate and origin */
   def e(reference: Element.Reference): Option[Element.Generic] = {
@@ -85,6 +85,8 @@ trait ModelIndex {
   /** Add/replace element to index. */
   @tailrec
   final def eRegister(elements: Element.Generic*) {
+    implicit val shapshot = Element.Snapshot(snapshotPointer.value)
+
     val children = elements.map { element =>
       log.debug("register %s at elements index".format(element))
       val Element.Reference(origin, unique, coordinate) = element.reference
@@ -99,7 +101,7 @@ trait ModelIndex {
         field
       }
       originField(origin) = new WeakReference[Element.Generic](element)
-      element.children
+      element.stash.children
     }
     if (children.isEmpty) return
     eRegister(children.flatten: _*)
@@ -108,6 +110,8 @@ trait ModelIndex {
    * Rebuild index.
    */
   def eIndexRebuid() {
+    implicit val shapshot = Element.Snapshot(snapshotPointer.value)
+
     log.debug("rebuild index for " + this.model)
     index.clear
     eRegister(model)

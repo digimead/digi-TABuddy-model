@@ -51,6 +51,8 @@ import scala.collection.mutable
  * Element actual data.
  */
 trait Stash extends java.io.Serializable {
+  /** child elements */
+  @volatile var children = List[Element.Generic]()
   /** Element context. */
   val context: Element.Context
   /** List of axes(tags). */

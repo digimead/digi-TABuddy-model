@@ -59,7 +59,9 @@ import org.digimead.tabuddy.model.Value.serializable2value
 /**
  * Class that implements Record interface.
  */
-class Record[A <: Record.Stash](@volatile var stash: A) extends Record.Interface[A]
+class Record[A <: Record.Stash](stashArg: A) extends Record.Interface[A] {
+  stashMap = stashMap.updated(0L, stashArg)
+}
 
 /**
  * Record companion object that provide ability
@@ -68,10 +70,11 @@ class Record[A <: Record.Stash](@volatile var stash: A) extends Record.Interface
  * to store the records in index
  */
 object Record extends Loggable {
+  type Generic = Record[_ <: Stash]
   /**
    * Create an element with standard Record class
    */
-  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Record[Stash]) => T): Record[Stash] =
+  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Record[Stash]) => T)(implicit snapshot: Element.Snapshot): Record[Stash] =
     apply(classOf[Record[Stash]], classOf[Record.Stash], container, id, rawCoordinate, f)
   /**
    * Get exists or create a new record.
@@ -83,7 +86,7 @@ object Record extends Loggable {
    */
   @log
   def apply[A <: Stash, B <: Interface[A], C, D >: B <: B](elementClass: Class[B], stashClass: Class[A], container: Element.Generic, id: Symbol,
-    rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (D) => C)(implicit a: Manifest[A], d: Manifest[D]): D = {
+    rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (D) => C)(implicit snapshot: Element.Snapshot, a: Manifest[A], d: Manifest[D]): D = {
     val coordinate = Element.Coordinate(rawCoordinate: _*)
     // poor Scala compiler, it is going crazy...
     val storedElement = container.find[D, A](id, coordinate)
@@ -96,7 +99,7 @@ object Record extends Loggable {
       case _ =>
         (None, None)
     }
-    result getOrElse {
+    val element = result getOrElse {
       // create new element
       val messagePrefix = if (stored.isEmpty)
         "create new element "
@@ -105,7 +108,7 @@ object Record extends Loggable {
       val location = (new Throwable).getStackTrace().find(t =>
         t.getFileName() == "(inline)" && t.getMethodName() == "apply")
       val context = Model.contextForChild(container, location)
-      val unique = container.children.find(_.id == id).map(_.unique).getOrElse(UUID.randomUUID)
+      val unique = container.stash.children.find(_.id == id).map(_.unique).getOrElse(UUID.randomUUID)
       val stashCtor = stashClass.getConstructor(classOf[Element.Context], classOf[Element.Coordinate],
         classOf[Symbol], classOf[UUID], classOf[Option[_]])
       val stash = stashCtor.newInstance(context, coordinate, id, unique, None)
@@ -116,28 +119,29 @@ object Record extends Loggable {
         case Some(model) => model.eAttach(container, element)
         case None =>
           log.debug("add %s to %s".format(element, container))
-          container.children = container.children :+ element
+          container.stash.children = container.stash.children :+ element
       }
-      f(element)
       element
     }
+    f(element)
+    element
   }
   /**
    * General Record interface.
    */
   trait Interface[A <: Record.Stash] extends Element[A, Interface[A]] {
-    def description = getOrElseRoot[String]('description).map(_.get) getOrElse ""
-    def description_=(value: String) = set('description, value)
-    def dump(padding: Int = 2): String = {
+    def description(implicit snapshot: Element.Snapshot) = getOrElseRoot[String]('description).map(_.get) getOrElse ""
+    def description_=(value: String)(implicit snapshot: Element.Snapshot) = set('description, value)
+    def dump(padding: Int = 2)(implicit snapshot: Element.Snapshot): String = {
       val pad = " " * padding
       val self = if (description.isEmpty)
         "%s: %s".format(stash.scope, stash.id)
       else
         "%s: %s \"%s\"".format(stash.scope, stash.id, description)
-      val childrenDump = children.map(_.dump(padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      val childrenDump = stash.children.map(_.dump(padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
-    def getOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] = get[A](id: Symbol) orElse {
+    def getOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit snapshot: Element.Snapshot, m: Manifest[A]): Option[Value[A]] = get[A](id: Symbol) orElse {
       if (stash.coordinate.isRoot)
         // we are already at root but value is absent
         None
@@ -146,20 +150,31 @@ object Record extends Loggable {
         root.flatMap(root => root.get[A](id))
     }
     /** Get the root element from the current origin if any. */
-    def root() = if (stash.coordinate.isRoot) Some(this) else model.e(stash.unique, Element.Coordinate.root).asInstanceOf[Option[Interface[A]]]
+    def root()(implicit snapshot: Element.Snapshot) = if (stash.coordinate.isRoot) Some(this) else model.e(stash.unique, Element.Coordinate.root).asInstanceOf[Option[Interface[A]]]
     /** Get the root element from the particular origin if any */
-    def root(origin: Symbol) = model.e(origin, stash.unique, Element.Coordinate()).asInstanceOf[Option[Interface[A]]]
+    def root(origin: Symbol)(implicit snapshot: Element.Snapshot) = model.e(origin, stash.unique, Element.Coordinate()).asInstanceOf[Option[Interface[A]]]
   }
   /**
    * Part of DSL.Builder for end user
    */
   trait DSL {
-    this: DSL.Builder =>
-    /**
-     * create new or retrieve exists record
-     */
-    def record[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Record[Stash] => T): Record[Stash] =
-      Record.apply(DLS_element, id, coordinate, f)
+    this: org.digimead.tabuddy.model.DSL[_] =>
+    case class RecordLocation(override val id: Symbol,
+      override val coordinate: Element.Coordinate = Element.Coordinate.root)
+      extends Element.GenericLocation[Record[Stash], Stash](id, coordinate)
+  }
+  object DSL {
+    trait RichElement {
+      this: org.digimead.tabuddy.model.DSL.RichElement =>
+      /**
+       * create new or retrieve exists record
+       */
+      def record[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Record[Stash] => T): Record[Stash] = {
+        implicit val snapshot = Element.Snapshot(0)
+        Record.apply(DLS_element, id, coordinate, f)
+      }
+      def toRecord() = DLS_element.as[Record[Stash], Stash]
+    }
   }
   /**
    * Record specific stash realization

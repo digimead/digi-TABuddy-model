@@ -43,24 +43,24 @@
 
 package org.digimead.tabuddy.model
 
+import org.digimead.tabuddy.model.Model.model2implementation
+
 abstract class DSL[T](builder: Element.Generic => T) {
   implicit def element2rich(e: Element.Generic): T = builder(e)
-  //implicit def element2location(e: Element.Generic): DSL.Location =
-  //  DSL.Location(e.stash.asInstanceOf[Stash].id, e.stash.asInstanceOf[Stash].coordinate)
-  //implicit def symbol2location(id: Symbol): DSL.Location =
-  //  DSL.Location(id, Element.Coordinate.root)
   implicit def model2rich(e: Model.type): T = builder(e)
-  //def find[A <: Element.Generic](id: DSL.Location *): Option[A] =
-  //  None
-  //Model.find()
 }
 
 object DSL {
   /**
    * base class for DSL builders
    */
-  trait Builder {
+  trait RichElement {
     val DLS_element: Element.Generic
+
+    /**
+     * Create or retrieve element child
+     */
+    def |[A <: Record.Interface[B], B <: Record.Stash](l: Element.GenericLocation[A, B])(implicit snapshot: Element.Snapshot, ma: Manifest[A], mb: Manifest[B]): A =
+      Record(ma.erasure.asInstanceOf[Class[A]], mb.erasure.asInstanceOf[Class[B]], DLS_element, l.id, l.coordinate.coordinate, (n: A) => {})
   }
-  //case class Location(id: Symbol, coordinate: Element.Coordinate)
 }

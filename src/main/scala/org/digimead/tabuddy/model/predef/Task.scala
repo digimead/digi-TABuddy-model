@@ -45,14 +45,10 @@ package org.digimead.tabuddy.model.predef
 
 import java.util.UUID
 
-import scala.collection.mutable
-
 import org.digimead.digi.lib.aop.log
-import org.digimead.tabuddy.model.DSL
 import org.digimead.tabuddy.model.Element
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Record
-import org.digimead.tabuddy.model.Value
 
 class Task[A <: Task.Stash](stashArg: Task.Stash) extends Note(stashArg)
 
@@ -60,22 +56,34 @@ class Task[A <: Task.Stash](stashArg: Task.Stash) extends Note(stashArg)
  * Task companion object that contains appropriate Stash
  */
 object Task {
+  type Generic = Task[_ <: Stash]
   /**
    * Create an element with standard Note class
    */
-  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Task[Stash]) => T): Task[Stash] =
+  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Task[Stash]) => T)(implicit snapshot: Element.Snapshot): Task[Stash] =
     Record.apply(classOf[Task[Stash]], classOf[Task.Stash], container, id, rawCoordinate, f)
 
   /**
    * Part of DSL.Builder for end user
    */
   trait DSL {
-    this: DSL.Builder =>
-    /**
-     * create new or retrieve exists record
-     */
-    def task[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Task[Stash] => T): Task[Stash] =
-      apply(DLS_element, id, coordinate, f)
+    this: org.digimead.tabuddy.model.DSL[_] =>
+    case class TaskLocation(override val id: Symbol,
+      override val coordinate: Element.Coordinate = Element.Coordinate.root)
+      extends Element.GenericLocation[Task[Stash], Stash](id, coordinate)
+  }
+  object DSL {
+    trait RichElement {
+      this: org.digimead.tabuddy.model.DSL.RichElement =>
+      /**
+       * create new or retrieve exists task
+       */
+      def task[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Task[Stash] => T): Task[Stash] = {
+        implicit val snapshot = Element.Snapshot(0)
+        apply(DLS_element, id, coordinate, f)
+      }
+      def toTask() = DLS_element.as[Task[Stash], Stash]
+    }
   }
   /**
    * Record specific stash realization

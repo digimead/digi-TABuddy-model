@@ -50,5 +50,5 @@ trait Serialization[T] extends Loggable {
   /** Load element from [T]. */
   def acquire[A <: Element.Generic](frozen: T): Option[A]
   /** Save element to [T]. */
-  def freeze(element: Element.Generic): T
+  def freeze(element: Element.Generic)(implicit  snapshot: Element.Snapshot): T
 }

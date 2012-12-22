@@ -45,14 +45,10 @@ package org.digimead.tabuddy.model.predef
 
 import java.util.UUID
 
-import scala.collection.mutable
-
 import org.digimead.digi.lib.aop.log
-import org.digimead.tabuddy.model.DSL
 import org.digimead.tabuddy.model.Element
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Record
-import org.digimead.tabuddy.model.Value
 
 class Note[A <: Note.Stash](stashArg: A) extends Record(stashArg)
 
@@ -60,22 +56,35 @@ class Note[A <: Note.Stash](stashArg: A) extends Record(stashArg)
  * Note companion object that contains appropriate Stash
  */
 object Note {
+  type Generic = Note[_ <: Stash]
+
   /**
    * Create an element with standard Note class
    */
-  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Note[Stash]) => T): Note[Stash] =
+  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Note[Stash]) => T)(implicit snapshot: Element.Snapshot): Note[Stash] =
     Record.apply(classOf[Note[Stash]], classOf[Note.Stash], container, id, rawCoordinate, f)
 
   /**
    * Part of DSL.Builder for end user
    */
   trait DSL {
-    this: DSL.Builder =>
-    /**
-     * create new or retrieve exists record
-     */
-    def note[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Note[Stash] => T): Note[Stash] =
-      apply(DLS_element, id, coordinate, f)
+    this: org.digimead.tabuddy.model.DSL[_] =>
+    case class NoteLocation(override val id: Symbol,
+      override val coordinate: Element.Coordinate = Element.Coordinate.root)
+      extends Element.GenericLocation[Note[Stash], Stash](id, coordinate)
+  }
+  object DSL {
+    trait RichElement {
+      this: org.digimead.tabuddy.model.DSL.RichElement =>
+      /**
+       * create new or retrieve exists note
+       */
+      def note[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Note[Stash] => T): Note[Stash] = {
+        implicit val snapshot = Element.Snapshot(0)
+        apply(DLS_element, id, coordinate, f)
+      }
+      def toNote() = DLS_element.as[Note[Stash], Stash]
+    }
   }
   /**
    * Record specific stash realization

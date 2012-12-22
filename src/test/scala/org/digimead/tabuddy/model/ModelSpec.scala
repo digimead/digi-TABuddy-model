@@ -74,6 +74,7 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Model") {
     it("should be reseted in a right way") {
       config =>
+        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         Model.inner.isInstanceOf[MyModel[_]] should be(true)
         val mymodel = Model.inner.asInstanceOf[MyModel[_]]
@@ -85,9 +86,9 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         val task = Model.task('task) { t => }
 
         // before reset
-        Model.children should have size (3)
+        Model.stash.children should have size (3)
         Model.filter(_ => true) should have size (4)
-        record.children should not be ('empty)
+        record.stash.children should not be ('empty)
         mymodel.getIndex should not be ('empty)
 
         Model.reset()
@@ -95,16 +96,17 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         // after reset
         mymodel.getIndex should have size (1)
         record.stash.model should be(None)
-        record.children should be('empty)
+        record.stash.children should be('empty)
         record2.stash.asInstanceOf[Stash].model should be(None)
-        record2.children should be('empty)
+        record2.stash.children should be('empty)
         note.stash.model should be(None)
-        note.children should be('empty)
+        note.stash.children should be('empty)
         task.stash.model should be(None)
-        task.children should be('empty)
+        task.stash.children should be('empty)
     }
     it("should attach and detach element") {
       config =>
+        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
@@ -113,12 +115,12 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
             }
           }
         }
-        record.children should have size (1)
+        record.stash.children should have size (1)
         Model.filter(_ => true) should have size (3)
         val detached = Model.eDetach(save)
         Model.filter(_ => true) should have size (1)
         detached.filter(_ => true) should have size (1)
-        record.children should be('empty)
+        record.stash.children should be('empty)
     }
   }
 

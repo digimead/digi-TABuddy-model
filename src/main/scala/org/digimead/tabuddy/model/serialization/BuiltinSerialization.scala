@@ -71,7 +71,7 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
   }
 
   /** Save element to Array[Byte]. */
-  def freeze(element: Element.Generic): Array[Byte] = {
+  def freeze(element: Element.Generic)(implicit  snapshot: Element.Snapshot): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)
     val toSave = element match {

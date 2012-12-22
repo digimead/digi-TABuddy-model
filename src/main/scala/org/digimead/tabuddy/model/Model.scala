@@ -46,7 +46,9 @@ package org.digimead.tabuddy.model
 import java.io.File
 import java.util.UUID
 
+import scala.Array.canBuildFrom
 import scala.Option.option2Iterable
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.DynamicVariable
 
@@ -58,15 +60,14 @@ import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
 /**
  * Class that implements model interface
  */
-class Model[A <: Model.Stash](s: A) extends Model.Interface {
-  lazy val persistentStash = s
-  if (persistentStash.model.isEmpty)
-    persistentStash.model = Some(this)
+class Model[A <: Model.Stash](stashArg: A) extends Model.Interface {
+  stashArg.model = Some(this)
+  stashMap = stashMap.updated(0L, stashArg)
   eRegister(this)
 
-  override def model = this
-  override def model_=(value: Model.Interface) = throw new UnsupportedOperationException
-  override def toString() = "%s[%s] %s".format(stash.scope, stash.id.toString, stash.unique.toString)
+  override def model(implicit snapshot: Element.Snapshot) = this
+  override def model_=(value: Model.Interface)(implicit snapshot: Element.Snapshot) = throw new UnsupportedOperationException
+  override def toString()(implicit snapshot: Element.Snapshot) = "%s[%s] %s".format(stash.scope, stash.id.toString, stash.unique.toString)
 }
 
 /**
@@ -79,6 +80,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
   implicit def model2implementation(m: Model.type): Interface = m.implementation
   implicit def bindingModule = DependencyInjection()
   @volatile private var implementation: Interface = inject[Interface]
+  @volatile var snapshots = Seq[Long]()
 
   def inner() = implementation
   def commitInjection() {}
@@ -88,41 +90,25 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
    * General model interface
    */
   trait Interface extends Element[Stash, Interface] with ModelIndex {
-    /** Map of all model elements */
-    val elements = new mutable.HashMap[UUID, Element[_, _]] with mutable.SynchronizedMap[UUID, Element[_, _]]
-    /** Map of all sorted contexts by line number per file */
-    val contextMap = new mutable.HashMap[Option[File], Seq[Element.Context]] with mutable.SynchronizedMap[Option[File], Seq[Element.Context]]
     /**
-     * Thread local context, empty - REPL, non empty - document
-     * for example, after include preprocessor:
-     * line 3, File A, digest File A
-     * line 100, File B, digest File B
-     * line 150, File C, digest File C
-     * line 300, File A, digest File A
-     *
-     * so line 1 .. 2 - runtime header
-     * line 3 .. 99 - file A
-     * line 100 .. 149 - file B (include)
-     * line 150 .. 299 - file C (include)
-     * line 300 .. end - file A
+     * Model snapshot pointer
      */
-    @transient protected val documentMap = new DynamicVariable[Seq[Element.Context]](Seq())
-    /**
-     * Model persistent stash
-     */
-    val persistentStash: Model.Stash
+    @transient protected val snapshotPointer = new DynamicVariable[Long](0)
 
     /**
      * Add context information to context map
      */
     @log
     def contextAdd(context: Element.Context): Unit = {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to add new context to " + snapshot)
       log.info("add new context [%s]".format(context))
-      contextMap.get(context.file) match {
+      stash.contextMap.get(context.file) match {
         case Some(fileMap) =>
-          contextMap(context.file) = (contextMap(context.file) :+ context).sortBy(_.line)
+          stash.contextMap(context.file) = (stash.contextMap(context.file) :+ context).sortBy(_.line)
         case None =>
-          contextMap(context.file) = Seq(context)
+          stash.contextMap(context.file) = Seq(context)
       }
     }
     /**
@@ -130,6 +116,9 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
      */
     @log
     def contextDel(context: Element.Context) = {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to delete context from " + snapshot)
       log.info("delete context [%s]".format(context))
     }
     /**
@@ -144,7 +133,10 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
      */
     @log
     def contextBuildFromDocument(element: Element.Generic, line: Int): Option[Element.Context] = {
-      val map = documentMap.value
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to create new child context for " + snapshot)
+      val map = stash.documentMap.value
       if (line < 1) return None
       if (map.isEmpty) return None
       for (i <- 0 until map.size) yield {
@@ -163,13 +155,18 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
     /**
      * Create context information from the specific container
      */
-    def contextForChild(container: Element.Generic, t: Option[StackTraceElement]): Element.Context = t match {
-      case Some(stack) if stack.getFileName() == "(inline)" && documentMap.value.nonEmpty =>
-        // loaded as runtime Scala code && documentMap defined
-        Element.Context(container.reference, None, Some(stack.getLineNumber()), None)
-      case _ =>
-        // everything other - virtual context
-        Element.virtualContext(container)
+    def contextForChild(container: Element.Generic, t: Option[StackTraceElement]): Element.Context = {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to create new child context for" + snapshot)
+      t match {
+        case Some(stack) if stack.getFileName() == "(inline)" && stash.documentMap.value.nonEmpty =>
+          // loaded as runtime Scala code && documentMap defined
+          Element.Context(container.reference, None, Some(stack.getLineNumber()), None)
+        case _ =>
+          // everything other - virtual context
+          Element.virtualContext(container)
+      }
     }
     /**
      * Set current thread local context information
@@ -177,19 +174,34 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
      */
     @log
     def contextSet(documentMap: Seq[Element.Context]) {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to set context for " + snapshot)
       if (documentMap.nonEmpty)
         log.debugWhere("set local document context [%s]".format(documentMap.mkString(", ")))
       else
         log.debugWhere("reset local document context")
-      this.documentMap.value = documentMap
+      stash.documentMap.value = documentMap
+    }
+    def description(implicit snapshot: Element.Snapshot) = getOrElseRoot[String]('description).map(_.get) getOrElse ""
+    def description_=(value: String) = {
+      implicit val snapshot = Element.Snapshot(0L)
+      set('description, value)
     }
     /** Dump the model content. */
-    def dump(padding: Int): String =
-      throw new UnsupportedOperationException
+    def dump(padding: Int = 2)(implicit snapshot: Element.Snapshot): String = {
+      val pad = " " * padding
+      val self = "%s: %s".format(stash.scope, stash.id)
+      val childrenDump = stash.children.map(_.dump(padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
+    }
     /**
      * Attach element to the model
      */
     def eAttach(container: Element.Generic, element: Element.Generic) {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to attach element to " + snapshot)
       log.debug("attach %s to %s".format(element, container))
       val all = element.filter(_ => true)
       val attached = all.filter(_.stash.model.nonEmpty)
@@ -201,18 +213,21 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
         model = container.stash.model)
       Element.check(element, newStash) // throw exception
       element.stash.model = stash.model
-      container.children = container.children :+ element
+      container.stash.children = container.stash.children :+ element
       eRegister(element)
     }
     /**
      * Detach element from the model
      */
     def eDetach[T <: Element.Generic](element: T, copy: Boolean = false): T = {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to dettach element from " + snapshot)
       val detached = if (copy) {
         element.copy()
       } else {
         model.e(element.stash.context.container).foreach(parent =>
-          parent.children = parent.children.filterNot(_ == element))
+          parent.stash.children = parent.stash.children.filterNot(_ == element))
         element
       }
       element.filter(_ => true).foreach(_.stash.model = None)
@@ -220,26 +235,45 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       element
     }
     /** Get a property or else get the property from the root element. */
-    def getOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] = get(id)
+    def getOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit snapshot: Element.Snapshot,
+      m: Manifest[A]): Option[Value[A]] = get(id)
     /** Reset current model */
     def reset(model: Model.Interface = inject[Model.Interface]) {
+      implicit val snapshot = Element.Snapshot(snapshotPointer.value)
+      if (snapshot.pointer != 0)
+        throw new UnsupportedOperationException("Unable to reset " + snapshot)
       log.debug("reset model")
       log.debug("dispose depricated " + this)
       filter(_ => true).foreach { element =>
         element.stash.model = None
-        element.children = List()
+        element.stash.children = List()
       }
-      children = List()
+      stash.children = List()
       eIndexRebuid
       log.debug("activate " + model)
       implementation = model
     }
     /** Get the root element from the current origin if any. */
-    def root() = Some(this)
+    def root()(implicit snapshot: Element.Snapshot) = Some(this)
     /** Get the root element from the particular origin if any */
-    def root(origin: Symbol) = Some(this)
-    /** Getter of model's data. */
-    def stash = persistentStash
+    def root(origin: Symbol)(implicit snapshot: Element.Snapshot) = Some(this)
+    /** Get current snapshot pointer */
+    def sCurrent() = Element.Snapshot(snapshotPointer.value)
+    /** Get current snapshot pointer */
+    def sRemove() {}
+    /** Get current snapshot pointer */
+    def sTake(pointer: Long = System.currentTimeMillis()): Model.Interface = {
+      // Point to actual data by default
+      implicit val current = Element.Snapshot(0)
+      log.debug("take snapshot -> " + pointer)
+      assert(pointer > 0, "Illegal snapshot pointer " + pointer)
+      assert(!Model.snapshots.contains(pointer), "Snapshot with pointer %d already exists".format(pointer))
+      // Copy from actual data
+      val snapshot = this.copy()
+      snapshot.snapshotPointer.value = pointer
+      Model.snapshots = Model.snapshots :+ pointer
+      snapshot
+    }
     /** Stub for setter of model's data */
     def stash_=(value: Model.Stash) =
       throw new UnsupportedOperationException
@@ -253,7 +287,26 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
     /** User constructor */
     def this(id: Symbol, unique: UUID) = this(id, unique, None, new org.digimead.tabuddy.model.Stash.Data)
     lazy val context: Element.Context = Element.Context(Element.Reference(id, unique, Element.Coordinate.root), None, None, None)
+    /** Map of all sorted contexts by line number per file */
+    val contextMap = new mutable.HashMap[Option[File], Seq[Element.Context]] with mutable.SynchronizedMap[Option[File], Seq[Element.Context]]
     lazy val coordinate: Element.Coordinate = Element.Coordinate.root
+    /**
+     * Thread local context, empty - REPL, non empty - document
+     * for example, after include preprocessor:
+     * line 3, File A, digest File A
+     * line 100, File B, digest File B
+     * line 150, File C, digest File C
+     * line 300, File A, digest File A
+     *
+     * so line 1 .. 2 - runtime header
+     * line 3 .. 99 - file A
+     * line 100 .. 149 - file B (include)
+     * line 150 .. 299 - file C (include)
+     * line 300 .. end - file A
+     */
+    @transient val documentMap = new DynamicVariable[Seq[Element.Context]](Seq())
+    /** Map of all model elements */
+    val elements = new mutable.HashMap[UUID, Element[_, _]] with mutable.SynchronizedMap[UUID, Element[_, _]]
     val scope: String = "Model"
 
     def copy(context: Element.Context = this.context,

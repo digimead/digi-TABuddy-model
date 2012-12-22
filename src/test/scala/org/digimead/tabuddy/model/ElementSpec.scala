@@ -73,6 +73,7 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
   describe("An Element") {
     it("should have proper equality") {
       config =>
+        implicit val snapshot = Element.Snapshot(0)
         val record = Model.record('root) { r => }
         val note = Model.note('note) { n => }
         val task = Model.task('task) { t => }
@@ -100,6 +101,7 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
     }
     it("should have proper constraints") {
       config =>
+        implicit val snapshot = Element.Snapshot(0)
         val r1 = Model.record('a) { r => }
         val rctx = r1.stash.context
         val rcoord = r1.stash.coordinate
@@ -116,6 +118,7 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
     }
     it("should register elements in model") {
       config =>
+        implicit val snapshot = Element.Snapshot(0)
         val r1 = Model.record('a) { r => }
         r1.stash.context.container should not be (null)
         Model.e(r1.stash.context.container)
@@ -123,6 +126,7 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
     }
     it("should have proper copy constructor") {
       config =>
+        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
@@ -137,7 +141,7 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         val copy = save.copy()
         copy.id.name should be("level2")
         copy.description should be("level2")
-        copy.children.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
+        copy.stash.children.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
     }
   }
 }

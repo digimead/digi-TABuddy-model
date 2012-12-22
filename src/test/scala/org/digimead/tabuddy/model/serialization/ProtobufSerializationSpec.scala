@@ -75,10 +75,11 @@ class ProtobufSerializationSpec_j1 extends FunSpec with ShouldMatchers with Test
   describe("A ProtobufSerialization") {
     it("should provide serialization mechanism for Model") {
       config =>
+                implicit val snapshot = Element.Snapshot(0)
         val record = Model.record('root) { r => }
         val note = Model.note('note) { n => }
         val task = Model.task('task) { t => }
-        Model.children should have size (3)
+        Model.stash.children should have size (3)
 
         Model.stash.property(classOf[String].getName) = mutable.HashMap('a -> new Value.Static("123", Element.virtualContext(Model.inner.asInstanceOf[Element.Generic])))
         // serialize
@@ -90,7 +91,7 @@ class ProtobufSerializationSpec_j1 extends FunSpec with ShouldMatchers with Test
 
         // check
         // model
-        deserializedModel.children should have size (3)
+        deserializedModel.stash.children should have size (3)
         // container always point to current active model
         deserializedModel.stash.context.container should be(Model.reference)
         deserializedModel.stash.id.name should be(Model.stash.id.name)
@@ -99,12 +100,13 @@ class ProtobufSerializationSpec_j1 extends FunSpec with ShouldMatchers with Test
         deserializedModel.stash.property should be(Model.stash.property)
         deserializedModel.stash.property(classOf[String].getName)('a).get should be("123")
         // record
-        deserializedModel.children(0).eq(Model.children(0)) should be(false)
+        deserializedModel.stash.children(0).eq(Model.stash.children(0)) should be(false)
         deserializedModel.e(deserializedModel.reference) should not be ('empty)
-        deserializedModel.e(deserializedModel.children.head.reference) should not be ('empty)
+        deserializedModel.e(deserializedModel.stash.children.head.reference) should not be ('empty)
     }
     it("should provide serialization mechanism for Element") {
       config =>
+                implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         var save: Record[Record.Stash] = null
         // this model is around 160 bytes
@@ -127,20 +129,20 @@ class ProtobufSerializationSpec_j1 extends FunSpec with ShouldMatchers with Test
         // deserialize
         val dl2 = s.acquire[Record[Record.Stash]](frozen).get
         dl2.id.name should be("level2")
-        dl2.children should have size (1)
+        dl2.stash.children should have size (1)
         dl2.stash.model should be(None)
         dl2.stash.context.container should be(record.reference)
         dl2.description should be("123")
-        val dl3 = dl2.children.head.asInstanceOf[Record[Record.Stash]]
+        val dl3 = dl2.stash.children.head.asInstanceOf[Record[Record.Stash]]
         dl3.id.name should be("level3")
-        dl3.children should be('empty)
+        dl3.stash.children should be('empty)
         dl3.stash.model should be(None)
         dl3.stash.context.container should be(dl2.reference)
         dl3.description should be("456")
         dl2.description = "789"
         dl3.description = "098"
         save.description should be("123")
-        save.children.head.asInstanceOf[Record[Record.Stash]].description should be("456")
+        save.stash.children.head.asInstanceOf[Record[Record.Stash]].description should be("456")
         dl2.reference should be(save.reference)
         dl2.reference.unique.hashCode() should be(save.reference.unique.hashCode())
         dl2.reference.origin.hashCode() should be(save.reference.origin.hashCode())

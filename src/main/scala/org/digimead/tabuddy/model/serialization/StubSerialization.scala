@@ -49,5 +49,5 @@ class Stub extends Serialization[Unit] {
   /** Load element from [T]. */
   def acquire[A <: Element.Generic](frozen: Unit = {}): Option[A] = None
   /** Save element to [T]. */
-  def freeze(element: Element.Generic = null): Unit = {}
+  def freeze(element: Element.Generic = null)(implicit  snapshot: Element.Snapshot): Unit = {}
 }
