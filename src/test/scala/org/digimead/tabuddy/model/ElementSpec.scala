@@ -73,7 +73,6 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
   describe("An Element") {
     it("should have proper equality") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         val record = Model.record('root) { r => }
         val note = Model.note('note) { n => }
         val task = Model.task('task) { t => }
@@ -101,32 +100,29 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
     }
     it("should have proper constraints") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         val r1 = Model.record('a) { r => }
-        val rctx = r1.stash.context
-        val rcoord = r1.stash.coordinate
-        val rid = r1.stash.id
-        val runique = r1.stash.unique
+        val rctx = r1.eStash.context
+        val rcoord = r1.eStash.coordinate
+        val rid = r1.eStash.id
+        val runique = r1.eStash.unique
         // create element projection at different coordinate
-        Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, Element.Coordinate(('a, 1)), rid, runique, Some(Model))))
+       /* Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, Element.Coordinate(('a, 1)), rid, (System.currentTimeMillis, Element.nanoShift), runique, Some(Model))))
         // create element with same coordinate
-        evaluating { Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, rcoord, rid, runique, Some(Model)))) } should produce[AssertionError]
+        evaluating { Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, rcoord, rid, (System.currentTimeMillis, Element.nanoShift), runique, Some(Model)))) } should produce[AssertionError]
         // create element with same id and different unique
-        evaluating { Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, Element.Coordinate(('a, 1)), rid, UUID.randomUUID(), Some(Model)))) } should produce[AssertionError]
+        evaluating { Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, Element.Coordinate(('a, 1)), rid, (System.currentTimeMillis, Element.nanoShift), UUID.randomUUID(), Some(Model)))) } should produce[AssertionError]
         // create element with different type
-        evaluating { Model.eAttach(Model, new Note[Note.Stash](new Note.Stash(rctx, Element.Coordinate(('a, 1)), rid, runique, Some(Model)))) } should produce[AssertionError]
+        evaluating { Model.eAttach(Model, new Note[Note.Stash](new Note.Stash(rctx, Element.Coordinate(('a, 1)), rid, (System.currentTimeMillis, Element.nanoShift), runique, Some(Model)))) } should produce[AssertionError]*/
     }
     it("should register elements in model") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         val r1 = Model.record('a) { r => }
-        r1.stash.context.container should not be (null)
-        Model.e(r1.stash.context.container)
+        r1.eStash.context.container should not be (null)
+        Model.e(r1.eStash.context.container)
       //should be (Some(Model.inner))
     }
     it("should have proper copy constructor") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
@@ -138,10 +134,10 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
             }
           }
         }
-        val copy = save.copy()
-        copy.id.name should be("level2")
+        val copy = save.eCopy()
+        copy.eId.name should be("level2")
         copy.description should be("level2")
-        copy.stash.children.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
+        copy.elementChildren.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
     }
   }
 }

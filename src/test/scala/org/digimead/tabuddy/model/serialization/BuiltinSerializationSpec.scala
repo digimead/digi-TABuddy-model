@@ -75,13 +75,12 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
   describe("A SimpleSerialization") {
     it("should provide serialization mechanism for Model") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         val record = Model.record('root) { r => }
         val note = Model.note('note) { n => }
         val task = Model.task('task) { t => }
-        Model.stash.children should have size (3)
+        Model.elementChildren should have size (3)
 
-        Model.stash.property(classOf[String].getName) = mutable.HashMap('a -> new Value.Static("123", Element.virtualContext(Model.inner.asInstanceOf[Element.Generic])))
+        Model.eStash.property(classOf[String].getName) = mutable.HashMap('a -> new Value.Static("123", Element.virtualContext(Model.inner.asInstanceOf[Element.Generic])))
         // serialize
         val s = new BuiltinSerialization
         val frozen = s.freeze(Model)
@@ -91,22 +90,21 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
 
         // check
         // model
-        deserializedModel.stash.children should have size (3)
+        deserializedModel.elementChildren should have size (3)
         // container always point to current active model
-        deserializedModel.stash.context.container should be(Model.reference)
-        deserializedModel.stash.id.name should be(Model.stash.id.name)
-        deserializedModel.stash.unique should be(Model.stash.unique)
-        deserializedModel.stash.lastModification should be(Model.stash.lastModification)
-        deserializedModel.stash.property should be(Model.stash.property)
-        deserializedModel.stash.property(classOf[String].getName)('a).get should be("123")
+        deserializedModel.eStash.context.container should be(Model.eReference)
+        deserializedModel.eStash.id.name should be(Model.eStash.id.name)
+        deserializedModel.eStash.unique should be(Model.eStash.unique)
+        deserializedModel.eStash.modified should be(Model.eStash.modified)
+        deserializedModel.eStash.property should be(Model.eStash.property)
+        deserializedModel.eStash.property(classOf[String].getName)('a).get should be("123")
         // record
-        deserializedModel.stash.children(0).eq(Model.stash.children(0)) should be(false)
-        deserializedModel.e(deserializedModel.reference) should not be ('empty)
-        deserializedModel.e(deserializedModel.stash.children.head.reference) should not be ('empty)
+        deserializedModel.elementChildren(0).eq(Model.elementChildren(0)) should be(false)
+        deserializedModel.e(deserializedModel.eReference) should not be ('empty)
+        deserializedModel.e(deserializedModel.elementChildren.head.eReference) should not be ('empty)
     }
     it("should provide serialization mechanism for Element") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
@@ -117,38 +115,38 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
             }
           }
         }
-        Model.e(save.reference) should be(Some(save))
+        Model.e(save.eReference) should be(Some(save))
         val note = Model.note('note) { n => }
         val task = Model.task('task) { t => }
-        Model.filter(_ => true) should have size (5)
+        Model.eFilter(_ => true) should have size (5)
         // serialize
         val s = new BuiltinSerialization
         val frozen = s.freeze(save)
         frozen should not be (null)
         // deserialize
         val dl2 = s.acquire[Record[Record.Stash]](frozen).get
-        dl2.id.name should be("level2")
-        dl2.stash.children should have size (1)
-        dl2.stash.model should be(None)
-        dl2.stash.context.container should be(record.reference)
+        dl2.eId.name should be("level2")
+        dl2.elementChildren should have size (1)
+        dl2.eStash.model should be(None)
+        dl2.eStash.context.container should be(record.eReference)
         dl2.description should be("123")
-        val dl3 = dl2.stash.children.head.asInstanceOf[Record[Record.Stash]]
-        dl3.id.name should be("level3")
-        dl3.stash.children should be('empty)
-        dl3.stash.model should be(None)
-        dl3.stash.context.container should be(dl2.reference)
+        val dl3 = dl2.elementChildren.head.asInstanceOf[Record[Record.Stash]]
+        dl3.eId.name should be("level3")
+        dl3.elementChildren should be('empty)
+        dl3.eStash.model should be(None)
+        dl3.eStash.context.container should be(dl2.eReference)
         dl3.description should be("456")
         dl2.description = "789"
         dl3.description = "098"
         save.description should be("123")
-        save.stash.children.head.asInstanceOf[Record[Record.Stash]].description should be("456")
-        dl2.reference should be(save.reference)
-        dl2.reference.unique.hashCode() should be(save.reference.unique.hashCode())
-        dl2.reference.origin.hashCode() should be(save.reference.origin.hashCode())
-        dl2.reference.coordinate.hashCode() should be(save.reference.coordinate.hashCode())
-        dl2.reference.hashCode() should be(save.reference.hashCode())
-        Model.e(save.reference) should be(Some(save))
-        Model.e(dl2.reference) should be(Some(save))
+        save.elementChildren.head.asInstanceOf[Record[Record.Stash]].description should be("456")
+        dl2.eReference should be(save.eReference)
+        dl2.eReference.unique.hashCode() should be(save.eReference.unique.hashCode())
+        dl2.eReference.origin.hashCode() should be(save.eReference.origin.hashCode())
+        dl2.eReference.coordinate.hashCode() should be(save.eReference.coordinate.hashCode())
+        dl2.eReference.hashCode() should be(save.eReference.hashCode())
+        Model.e(save.eReference) should be(Some(save))
+        Model.e(dl2.eReference) should be(Some(save))
         evaluating { Model.eAttach(Model, dl2) } should produce[AssertionError]
     }
   }

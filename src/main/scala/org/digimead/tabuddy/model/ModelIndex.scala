@@ -52,7 +52,7 @@ import scala.ref.WeakReference
 import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
 
 trait ModelIndex {
-  this: Model.Interface =>
+  this: Model.Interface[_ <: Model.Stash] =>
   type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element.Generic]] with mutable.SynchronizedMap[Symbol, WeakReference[Element.Generic]]
   type HashMapPerAxis = mutable.HashMap[Element.Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Element.Coordinate, HashMapPerOrigin]
   type HashMapPerId = mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
@@ -63,8 +63,8 @@ trait ModelIndex {
   @transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
 
   /** Get element for unique id at the specific coordinate and default origin */
-  def e(unique: UUID, coordinate: Element.Axis[_ <: java.io.Serializable]*)(implicit snapshot: Element.Snapshot): Option[Element.Generic] =
-    e(Element.Reference(stash.id, unique, Element.Coordinate(coordinate: _*)))
+  def e(unique: UUID, coordinate: Element.Axis[_ <: java.io.Serializable]*): Option[Element.Generic] =
+    e(Element.Reference(eStash.id, unique, Element.Coordinate(coordinate: _*)))
   /** Get element for unique id at the specific coordinate and origin */
   def e(origin: Symbol, unique: UUID, coordinate: Element.Axis[_ <: java.io.Serializable]*): Option[Element.Generic] =
     e(Element.Reference(origin, unique, Element.Coordinate(coordinate: _*)))
@@ -72,8 +72,8 @@ trait ModelIndex {
   def e(origin: Symbol, unique: UUID, coordinate: Element.Coordinate): Option[Element.Generic] =
     e(Element.Reference(origin, unique, coordinate))
   /** Get element for unique id at the specific coordinate and default origin */
-  def e(unique: UUID, coordinate: Element.Coordinate)(implicit snapshot: Element.Snapshot): Option[Element.Generic] =
-    e(Element.Reference(stash.id, unique, coordinate))
+  def e(unique: UUID, coordinate: Element.Coordinate): Option[Element.Generic] =
+    e(Element.Reference(eStash.id, unique, coordinate))
   /** Get element for unique id at the specific coordinate and origin */
   def e(reference: Element.Reference): Option[Element.Generic] = {
     for {
@@ -85,11 +85,9 @@ trait ModelIndex {
   /** Add/replace element to index. */
   @tailrec
   final def eRegister(elements: Element.Generic*) {
-    implicit val shapshot = Element.Snapshot(snapshotPointer.value)
-
     val children = elements.map { element =>
       log.debug("register %s at elements index".format(element))
-      val Element.Reference(origin, unique, coordinate) = element.reference
+      val Element.Reference(origin, unique, coordinate) = element.eReference
       val coordinateField = index get (unique) getOrElse {
         val field = new mutable.HashMap[Element.Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Element.Coordinate, HashMapPerOrigin]
         index(unique) = field
@@ -101,7 +99,7 @@ trait ModelIndex {
         field
       }
       originField(origin) = new WeakReference[Element.Generic](element)
-      element.stash.children
+      element.elementChildren
     }
     if (children.isEmpty) return
     eRegister(children.flatten: _*)
@@ -110,10 +108,8 @@ trait ModelIndex {
    * Rebuild index.
    */
   def eIndexRebuid() {
-    implicit val shapshot = Element.Snapshot(snapshotPointer.value)
-
-    log.debug("rebuild index for " + this.model)
+    log.debug("rebuild index for " + this.eModel)
     index.clear
-    eRegister(model)
+    eRegister(eModel)
   }
 }

@@ -72,8 +72,6 @@ import org.digimead.tabuddy.model.dsltype.DSLType.dsltype2implementation
 class ProtobufSerialization extends Loggable {
   /** Load element from Array[Byte]. */
   def acquire[A <: Element.Generic](frozen: Array[Byte]): Option[A] = try {
-    implicit val snapshot = Element.Snapshot(0)
-
     log.debug("acuire elements from bundle with size %d byte(s)".format(frozen.length))
     val protoElements = ElementProtos.Element.Bundle.parseFrom(frozen)
     log.debug("%d element(s) extracted".format(protoElements.getElementCount()))
@@ -83,7 +81,7 @@ class ProtobufSerialization extends Loggable {
     protoElements.getElementList().map { proto =>
       unpackElement(proto) match {
         case Some(element) =>
-          elements(element.reference) = element
+          elements(element.eReference) = element
           if (head.isEmpty)
             head = Some[Element.Generic](element)
         case None =>
@@ -94,10 +92,10 @@ class ProtobufSerialization extends Loggable {
     }
     // bind elements
     elements.values.foreach { element =>
-      elements.get(element.stash.context.container) match {
+      elements.get(element.eStash.context.container) match {
         case Some(parent) =>
           if (!parent.eq(element))
-            parent.stash.children = parent.stash.children :+ element
+            parent.elementChildren += element
         case None if Some[Element.Generic](element) != head =>
           log.error("lost parent for " + element)
         case None =>
@@ -105,7 +103,7 @@ class ProtobufSerialization extends Loggable {
     }
     // process head, return result
     head flatMap {
-      case model: Model.Interface if model.stash.scope == "Model" =>
+      case model: Model.Generic if model.eStash.scope == "Model" =>
         model.eIndexRebuid
         Some(model.asInstanceOf[A])
       case other =>
@@ -119,9 +117,9 @@ class ProtobufSerialization extends Loggable {
       None
   }
   /** Save element to Array[Byte]. */
-  def freeze(element: Element.Generic)(implicit snapshot: Element.Snapshot): Array[Byte] = {
+  def freeze(element: Element.Generic): Array[Byte] = {
     val elementsBundleBuilder = ElementProtos.Element.Bundle.newBuilder()
-    val elements = (element +: element.filter(_ => true))
+    val elements = (element +: element.eFilter(_ => true))
     log.debug("freeze %d elements to bundle".format(elements.length))
     elements.foreach(element => elementsBundleBuilder.addElement(packElement(element)))
     val result = elementsBundleBuilder.build().toByteArray()
@@ -160,10 +158,10 @@ class ProtobufSerialization extends Loggable {
   /**
    * Pack Element.Generic to ElementProtos.Element
    */
-  protected def packElement(element: Element.Generic)(implicit snapshot: Element.Snapshot): ElementProtos.Element = {
+  protected def packElement(element: Element.Generic): ElementProtos.Element = {
     ElementProtos.Element.newBuilder().
       setType(element.getClass().getName()).
-      setStash(packStash(element.stash)).
+      setStash(packStash(element.eStash)).
       build()
   }
   /**
@@ -214,8 +212,11 @@ class ProtobufSerialization extends Loggable {
       setType(stash.getClass().getName()).
       setContext(packContext(stash.context)).
       setCoordinate(packCoordinate(stash.coordinate)).
+      setCreatedHi(stash.created.milliseconds).
+      setCreatedLo(stash.created.nanoShift).
       setId(stash.id.name).
-      setLastModification(stash.lastModification).
+      setModifiedHi(stash.modified.milliseconds).
+      setModifiedLo(stash.modified.nanoShift).
       setScope(stash.scope).
       setUniqueHi(stash.unique.getMostSignificantBits()).
       setUniqueLo(stash.unique.getLeastSignificantBits())
@@ -299,15 +300,22 @@ class ProtobufSerialization extends Loggable {
     val stash = for {
       context <- unpackContext(proto.getContext())
       coordinate <- unpackCoordinate(proto.getCoordinate())
-      stashClass = Class.forName(proto.getType())
-      stashCtor = stashClass.getConstructor(classOf[Element.Context], classOf[Element.Coordinate],
-        classOf[Symbol], classOf[UUID], classOf[Option[_]], classOf[Stash.Data])
+      created = Stash.Timestamp(proto.getCreatedHi(), proto.getCreatedLo())
       id = Symbol(proto.getId())
+      modified = Stash.Timestamp(proto.getModifiedHi(), proto.getModifiedLo())
       unique = new UUID(proto.getUniqueHi(), proto.getUniqueLo())
       properies = unpackProperties(proto.getPropertyList())
     } yield {
-      val stash = stashCtor.newInstance(context, coordinate, id, unique, None, properies).asInstanceOf[Stash]
-      stash.lastModification = proto.getLastModification()
+      val stashClass = Class.forName(proto.getType())
+      val stashCtor = this.getClass().getConstructor(
+        classOf[Element.Context],
+        classOf[Element.Coordinate],
+        classOf[Stash.Timestamp],
+        classOf[Symbol],
+        classOf[UUID],
+        classOf[org.digimead.tabuddy.model.Stash.Data])
+      val stash = stashCtor.newInstance(context, coordinate, created, id, unique, properies).asInstanceOf[Stash]
+      stash.modified = modified
       stash
     }
     if (stash.isEmpty)

@@ -60,7 +60,7 @@ object Task {
   /**
    * Create an element with standard Note class
    */
-  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Task[Stash]) => T)(implicit snapshot: Element.Snapshot): Task[Stash] =
+  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Element.Axis[_ <: java.io.Serializable]], f: (Task[Stash]) => T): Task[Stash] =
     Record.apply(classOf[Task[Stash]], classOf[Task.Stash], container, id, rawCoordinate, f)
 
   /**
@@ -78,22 +78,17 @@ object Task {
       /**
        * create new or retrieve exists task
        */
-      def task[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Task[Stash] => T): Task[Stash] = {
-        implicit val snapshot = Element.Snapshot(0)
+      def task[T](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(f: Task[Stash] => T): Task[Stash] =
         apply(DLS_element, id, coordinate, f)
-      }
-      def toTask() = DLS_element.as[Task[Stash], Stash]
+      def toTask() = DLS_element.eAs[Task[Stash], Stash]
     }
   }
   /**
    * Record specific stash realization
    */
-  class Stash(override val context: Element.Context, override val coordinate: Element.Coordinate,
-    override val id: Symbol, override val unique: UUID, m: Option[Model.Interface],
-    override val property: org.digimead.tabuddy.model.Stash.Data = new org.digimead.tabuddy.model.Stash.Data)
-    extends Note.Stash(context, coordinate, id, unique, m, property) {
-    def this(context: Element.Context, coordinate: Element.Coordinate, id: Symbol, unique: UUID, model: Option[Model.Interface]) =
-      this(context, coordinate, id, unique, model, new org.digimead.tabuddy.model.Stash.Data)
+  class Stash(override val context: Element.Context, override val coordinate: Element.Coordinate, override val created: org.digimead.tabuddy.model.Stash.Timestamp,
+    override val id: Symbol, override val unique: UUID, override val property: org.digimead.tabuddy.model.Stash.Data = new org.digimead.tabuddy.model.Stash.Data)
+    extends Note.Stash(context, coordinate, created, id, unique, property) {
     override val scope: String = "Task"
   }
 }

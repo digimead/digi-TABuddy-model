@@ -58,7 +58,7 @@ import org.digimead.tabuddy.model.TestDSL._
 class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   type FixtureParam = Map[String, Any]
   val custom = new NewBindingModule(module => {
-    module.bind[Model.Interface] toProvider { new MyModel(new Model.Stash('Model, UUID.randomUUID())) }
+    module.bind[Model.Interface[Model.Stash]] toProvider { new MyModel(new Model.Stash('Model, UUID.randomUUID())) }
   })
 
   override def withFixture(test: OneArgTest) {
@@ -74,7 +74,6 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Model") {
     it("should be reseted in a right way") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         Model.inner.isInstanceOf[MyModel[_]] should be(true)
         val mymodel = Model.inner.asInstanceOf[MyModel[_]]
@@ -86,27 +85,26 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         val task = Model.task('task) { t => }
 
         // before reset
-        Model.stash.children should have size (3)
-        Model.filter(_ => true) should have size (4)
-        record.stash.children should not be ('empty)
+        Model.elementChildren should have size (3)
+        Model.eFilter(_ => true) should have size (4)
+        record.elementChildren should not be ('empty)
         mymodel.getIndex should not be ('empty)
 
         Model.reset()
 
         // after reset
         mymodel.getIndex should have size (1)
-        record.stash.model should be(None)
-        record.stash.children should be('empty)
-        record2.stash.asInstanceOf[Stash].model should be(None)
-        record2.stash.children should be('empty)
-        note.stash.model should be(None)
-        note.stash.children should be('empty)
-        task.stash.model should be(None)
-        task.stash.children should be('empty)
+        record.eStash.model should be(None)
+        record.elementChildren should be('empty)
+        record2.eStash.asInstanceOf[Stash].model should be(None)
+        record2.elementChildren should be('empty)
+        note.eStash.model should be(None)
+        note.elementChildren should be('empty)
+        task.eStash.model should be(None)
+        task.elementChildren should be('empty)
     }
     it("should attach and detach element") {
       config =>
-        implicit val snapshot = Element.Snapshot(0)
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
@@ -115,12 +113,12 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
             }
           }
         }
-        record.stash.children should have size (1)
-        Model.filter(_ => true) should have size (3)
+        record.elementChildren should have size (1)
+        Model.eFilter(_ => true) should have size (3)
         val detached = Model.eDetach(save)
-        Model.filter(_ => true) should have size (1)
-        detached.filter(_ => true) should have size (1)
-        record.stash.children should be('empty)
+        Model.eFilter(_ => true) should have size (1)
+        detached.eFilter(_ => true) should have size (1)
+        record.elementChildren should be('empty)
     }
   }
 

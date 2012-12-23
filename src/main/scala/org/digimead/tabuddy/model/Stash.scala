@@ -44,41 +44,43 @@
 package org.digimead.tabuddy.model
 
 import java.util.UUID
-
 import scala.collection.mutable
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * Element actual data.
  */
 trait Stash extends java.io.Serializable {
-  /** child elements */
-  @volatile var children = List[Element.Generic]()
   /** Element context. */
   val context: Element.Context
   /** List of axes(tags). */
   val coordinate: Element.Coordinate
+  /** Element creation time */
+  val created: Stash.Timestamp
   /** Element user id. */
   val id: Symbol
+  /** Element modification time. */
+  @volatile var modified: Stash.Timestamp = created
   /** User scope. */
   val scope: String
   /** Element system id. */
   val unique: UUID
   /** Element's model */
-  var model: Option[Model.Interface]
+  var model: Option[Model.Generic] = None
 
-  /** Element last modification time. */
-  @volatile var lastModification: Long = System.currentTimeMillis()
   /** Element properties(values) map: erasure -> Symbol -> Value[T]. */
   val property: Stash.Data
 
   /** Copy constructor */
   def copy(context: Element.Context = this.context,
     coordinate: Element.Coordinate = this.coordinate,
+    created: Stash.Timestamp = this.created,
     id: Symbol = this.id,
+    modified: Stash.Timestamp = this.modified,
     scope: String = this.scope,
     unique: UUID = this.unique,
-    model: Option[Model.Interface] = this.model,
-    lastModification: Long = this.lastModification,
+    model: Option[Model.Generic] = this.model,
     property: Stash.Data = this.property): Stash
   def copyDeepProperty(from: mutable.HashMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]],
     to: mutable.HashMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]]) {
@@ -92,8 +94,36 @@ trait Stash extends java.io.Serializable {
         }
     }
   }
+  /** Needed for correct definition of equals for general classes. */
+  def canEqual(that: Any): Boolean = that.getClass == that.getClass
+  /** Indicates whether some other stash is "equal to" this one. */
+  override def equals(that: Any): Boolean =
+    (this eq that.asInstanceOf[Object]) || (that match {
+      case that: Stash =>
+        // 1. can equal
+        this.canEqual(that) &&
+          // 2. immutable variables are identical
+          this.hashCode == that.hashCode &&
+          // 3. mutable variables are identical
+          this.modified == that.modified
+      case _ => false
+    })
+  /** Returns a hash code value for the object. */
+  override def hashCode() = List(getClass, context, coordinate, created, id, scope, unique).foldLeft(0)((a, b) => a * 31 + b.hashCode())
 }
 
 object Stash {
+  /** Base nanoseconds for Timestamp shift */
+  private var nanoBase = System.nanoTime()
+  /** nanoBase renew scheduled thread pool executor */
+  private val nanoBaseRenewExecutor = new ScheduledThreadPoolExecutor(1)
+  /** nanoBase renew task */
+  private val nanoBaseSchedule = nanoBaseRenewExecutor.schedule(new Runnable {
+    def run = Stash.synchronized { nanoBase = System.nanoTime() }
+  }, 1, TimeUnit.MINUTES)
+
+  def timestamp() = synchronized { Timestamp(System.currentTimeMillis(), System.nanoTime() - nanoBase) }
+
   class Data extends mutable.HashMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]]() with mutable.SynchronizedMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]]
+  case class Timestamp(val milliseconds: Long, nanoShift: Long)
 }

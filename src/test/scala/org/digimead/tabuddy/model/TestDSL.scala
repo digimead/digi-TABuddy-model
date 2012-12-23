@@ -56,7 +56,4 @@ object TestDSL
   extends DSL[TestDSL](e => new TestDSL(e))
   with Record.DSL
   with Note.DSL
-  with Task.DSL {
-  // Point to actual data by default
-  implicit val snapshot = Element.Snapshot(0L)
-}
+  with Task.DSL

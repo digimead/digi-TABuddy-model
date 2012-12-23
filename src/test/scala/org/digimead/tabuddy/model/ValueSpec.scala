@@ -72,12 +72,11 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Value") {
     it("should have a proper equality") {
       config =>
-                implicit val snapshot = Element.Snapshot(0)
         val container = Model.record('test) { record => }
         new Value.Static("123", Element.virtualContext(container)) === new Value.Static("123", Element.virtualContext(container)) should be(true)
         new Value.Static("123", Element.virtualContext(container)) == new Value.Static("123", Element.virtualContext(container)) should be(true)
-        new Value.Static("123", Element.virtualContext(container)) === new Value.Static("123", Element.Context(container.reference, None, Some(0), None)) should be(false)
-        new Value.Static("123", Element.virtualContext(container)) == new Value.Static("123", Element.Context(container.reference, None, Some(0), None)) should be(true)
+        new Value.Static("123", Element.virtualContext(container)) === new Value.Static("123", Element.Context(container.eReference, None, Some(0), None)) should be(false)
+        new Value.Static("123", Element.virtualContext(container)) == new Value.Static("123", Element.Context(container.eReference, None, Some(0), None)) should be(true)
         new Value.Static("123", Element.virtualContext(container)) === new Value.Static(Int.box(123), Element.virtualContext(container)) should be(false)
         new Value.Static("123", Element.virtualContext(container)) === new Value.Dynamic(() => "123", Element.virtualContext(container)) should be(false)
         new Value.Static("123", Element.virtualContext(container)) == new Value.Dynamic(() => "123", Element.virtualContext(container)) should be(true)
@@ -85,7 +84,6 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
     }
     it("should should be affected by implicit conversions") {
       config =>
-                implicit val snapshot = Element.Snapshot(0)
         val rootWorkspace = Model.record('test) { record => }
         implicit val container = new WeakReference(rootWorkspace)
         // x2value: convert T -> Option[Value[T]]
@@ -100,16 +98,15 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
     }
     it("should search default value at root node") {
       config =>
-                implicit val snapshot = Element.Snapshot(0)
         val rootWorkspace = Model.record('test) { record => }
-        rootWorkspace.stash.coordinate.isRoot should be(true)
+        rootWorkspace.eStash.coordinate.isRoot should be(true)
         rootWorkspace.description should be("")
         val otherWorkspace = Model.record('test, ('a, 0)) { record => }
         // child of same root with same id MUST have same unique values
-        rootWorkspace.id.name should be(otherWorkspace.id.name)
-        rootWorkspace.unique should be(otherWorkspace.unique)
+        rootWorkspace.eId.name should be(otherWorkspace.eId.name)
+        rootWorkspace.eUnique should be(otherWorkspace.eUnique)
         //rootWorkspace.unique 
-        otherWorkspace.stash.coordinate.isRoot should be(false)
+        otherWorkspace.eStash.coordinate.isRoot should be(false)
         otherWorkspace.description should be("")
         rootWorkspace.description = "test"
         rootWorkspace.description should be("test")
@@ -123,13 +120,12 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Value.Context") {
     it("should have a proper equality") {
       config =>
-                implicit val snapshot = Element.Snapshot(0)
         val rootWorkspace = Model.record('test) { record => }
-        Element.Context(rootWorkspace.reference, None, None, None) should be(Element.Context(rootWorkspace.reference, None, None, None))
-        Element.Context(null, None, None, None) should not be (Element.Context(rootWorkspace.reference, None, None, None))
-        Element.Context(rootWorkspace.reference, Some(null), None, None) should not be (Element.Context(rootWorkspace.reference, None, None, None))
-        Element.Context(rootWorkspace.reference, None, Some(0), None) should not be (Element.Context(rootWorkspace.reference, None, None, None))
-        Element.Context(rootWorkspace.reference, None, None, Some(null)) should not be (Element.Context(rootWorkspace.reference, None, None, None))
+        Element.Context(rootWorkspace.eReference, None, None, None) should be(Element.Context(rootWorkspace.eReference, None, None, None))
+        Element.Context(null, None, None, None) should not be (Element.Context(rootWorkspace.eReference, None, None, None))
+        Element.Context(rootWorkspace.eReference, Some(null), None, None) should not be (Element.Context(rootWorkspace.eReference, None, None, None))
+        Element.Context(rootWorkspace.eReference, None, Some(0), None) should not be (Element.Context(rootWorkspace.eReference, None, None, None))
+        Element.Context(rootWorkspace.eReference, None, None, Some(null)) should not be (Element.Context(rootWorkspace.eReference, None, None, None))
     }
   }
 }

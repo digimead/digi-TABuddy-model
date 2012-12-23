@@ -60,7 +60,7 @@ object DSL {
     /**
      * Create or retrieve element child
      */
-    def |[A <: Record.Interface[B], B <: Record.Stash](l: Element.GenericLocation[A, B])(implicit snapshot: Element.Snapshot, ma: Manifest[A], mb: Manifest[B]): A =
+    def |[A <: Record.Interface[B], B <: Record.Stash](l: Element.GenericLocation[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
       Record(ma.erasure.asInstanceOf[Class[A]], mb.erasure.asInstanceOf[Class[B]], DLS_element, l.id, l.coordinate.coordinate, (n: A) => {})
   }
 }

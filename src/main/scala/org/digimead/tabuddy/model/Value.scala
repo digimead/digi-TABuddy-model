@@ -78,20 +78,20 @@ sealed trait Value[T <: java.io.Serializable] extends java.io.Serializable {
  * Singleton that contain Static and Dynamic Value implementation.
  */
 object Value extends Loggable {
-  implicit def byte2value(x: Byte)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Byte.box(x))
-  implicit def double2value(x: Double)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Double.box(x))
-  implicit def float2value(x: Float)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Float.box(x))
-  implicit def int2value(x: Int)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Int.box(x))
-  implicit def long2value(x: Long)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Long.box(x))
-  implicit def short2value(x: Short)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Short.box(x))
-  implicit def bool2value(x: Boolean)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Boolean.box(x))
-  implicit def serializable2value[T <: java.io.Serializable](x: T)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic], m: Manifest[T]) = x2staticValue(x)
+  implicit def byte2value(x: Byte)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Byte.box(x))
+  implicit def double2value(x: Double)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Double.box(x))
+  implicit def float2value(x: Float)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Float.box(x))
+  implicit def int2value(x: Int)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Int.box(x))
+  implicit def long2value(x: Long)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Long.box(x))
+  implicit def short2value(x: Short)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Short.box(x))
+  implicit def bool2value(x: Boolean)(implicit weakContainer: WeakReference[_ <: Element.Generic]) = x2staticValue(Boolean.box(x))
+  implicit def serializable2value[T <: java.io.Serializable](x: T)(implicit weakContainer: WeakReference[_ <: Element.Generic], m: Manifest[T]) = x2staticValue(x)
   implicit def value2x[T <: java.io.Serializable](x: Value[T]): T = x.get()
 
   /**
    * Convert [T] to Value.Static
    */
-  def x2staticValue[T <: java.io.Serializable](x: T)(implicit snapshot: Element.Snapshot, weakContainer: WeakReference[_ <: Element.Generic], m: Manifest[T]): Option[Static[T]] =
+  def x2staticValue[T <: java.io.Serializable](x: T)(implicit weakContainer: WeakReference[_ <: Element.Generic], m: Manifest[T]): Option[Static[T]] =
     weakContainer.get match {
       case Some(container) =>
         val stack = new Throwable().getStackTrace()

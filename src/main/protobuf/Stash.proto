@@ -54,11 +54,13 @@ message Stash {
   required string type = 1;
   required Context context = 2;
   required Coordinate coordinate = 3;
-  required string id = 4;
-  required string scope = 5;
-  required fixed64 uniqueHi = 6;
-  required fixed64 uniqueLo = 7;
-  required fixed64 lastModification = 8;
-  repeated Property.Bundle property = 9;
+  required fixed64 createdHi = 4;
+  required fixed64 createdLo = 5;
+  required string id = 6;
+  required fixed64 modifiedHi = 7;
+  required fixed64 modifiedLo = 8;
+  required string scope = 9;
+  required fixed64 uniqueHi = 10;
+  required fixed64 uniqueLo = 11;
+  repeated Property.Bundle property = 12;
 }
-

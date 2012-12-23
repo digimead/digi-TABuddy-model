@@ -58,7 +58,7 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
     val bais = new ByteArrayInputStream(frozen)
     val in = new ObjectInputStream(bais)
     in.readObject() match {
-      case model: Model.Interface =>
+      case model: Model.Generic =>
         model.eIndexRebuid
         Some(model.asInstanceOf[A])
       case other =>
@@ -71,12 +71,12 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
   }
 
   /** Save element to Array[Byte]. */
-  def freeze(element: Element.Generic)(implicit  snapshot: Element.Snapshot): Array[Byte] = {
+  def freeze(element: Element.Generic): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)
     val toSave = element match {
-      case model: Model.Interface => model
-      case other => other.model.eDetach[Element.Generic](other, true)
+      case model: Model.Generic => model
+      case other => other.eModel.eDetach[Element.Generic](other, true)
     }
     out.writeObject(toSave)
     val result = baos.toByteArray()

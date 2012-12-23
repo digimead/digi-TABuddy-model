@@ -48,7 +48,6 @@ import java.util.UUID
 
 import scala.Option.option2Iterable
 import scala.annotation.tailrec
-import scala.collection.immutable
 import scala.collection.mutable
 
 import org.digimead.digi.lib.log.Loggable
@@ -60,105 +59,102 @@ import org.digimead.tabuddy.model.Model.model2implementation
  * builded with the curiously recurring generic pattern
  * contains stash with actual data.
  */
-trait Element[StashProjection <: Stash, This <: Element[_ <: StashProjection, This]]
-  extends Comparable[This] with Loggable with java.io.Serializable {
-  self: This =>
-  /**
-   * Element's data in form snapshot -> stash
-   * OL -> current stash
-   */
-  @volatile var stashMap = immutable.TreeMap[Long, StashProjection]()
-  /** weak reference for implicit conversion */
-  @transient implicit lazy val thisElement = new scala.ref.WeakReference[This](this)
+trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Generic] with java.io.Serializable {
+  /** Child elements */
+  val elementChildren = new Element.Children
+  /** Weak reference for implicit conversion */
+  @transient implicit lazy val elementRef = new scala.ref.WeakReference[this.type](this)
+  /** Element global modification time, based on children state. */
+  @volatile protected var elementModified: Stash.Timestamp = eStash.modified
   log.debug(this + " alive")
 
-  /** As instance of for Element.Generic */
-  def as[A <: Element[B, _], B <: Stash]()(implicit ma: Manifest[A], mb: Manifest[B], mt: Manifest[This], ms: Manifest[StashProjection]): Option[A] =
-    if (ma <:< mt && mb <:< ms) Some(this.asInstanceOf[A]) else None
   /** Compares this object with the specified object for order. */
-  def compareTo(e: This): Int = {
-    0
-  }
+  def compare(that: Element.Generic): Int =
+    this.elementModified.milliseconds compare that.elementModified.milliseconds match {
+      case 0 => this.elementModified.nanoShift compare that.elementModified.nanoShift
+      case c => c
+    }
+  /** As instance of for Element.Generic */
+  def eAs[A <: Element[B], B <: Stash]()(implicit ma: Manifest[A], mb: Manifest[B], mt: Manifest[this.type], ms: Manifest[StashProjection]): Option[A] =
+    if (ma <:< mt && mb <:< ms) Some(this.asInstanceOf[A]) else None
   /** Get element id */
-  def coordinate()(implicit snapshot: Element.Snapshot) = stash.coordinate
+  def eCoordinate() = eStash.coordinate
   /** Copy constructor */
-  def copy(stash: Stash = null, children: List[Element.Generic] = null)(implicit snapshot: Element.Snapshot): This = {
-    val elementStash = Option(stash).getOrElse(this.stash.copy())
-    val elementCtor = this.getClass.getConstructor(this.stash.getClass())
-    val element = elementCtor.newInstance(elementStash).asInstanceOf[This]
-    val elementChildren = Option(children).getOrElse(this.stash.children).map(_.copy())
-    element.stash.children = elementChildren.asInstanceOf[List[Element.Generic]]
+  def eCopy(stash: Stash = null, children: List[Element.Generic] = null): this.type = {
+    val elementStash = Option(stash).getOrElse(this.eStash.copy())
+    val elementCtor = this.getClass.getConstructor(this.eStash.getClass())
+    val element = elementCtor.newInstance(elementStash).asInstanceOf[this.type]
+    val elementChildren = Option(children).getOrElse(this.elementChildren).map(_.eCopy())
+    element.elementChildren ++= elementChildren
     element
   }
   /** Dump the element content */
-  def dump(padding: Int)(implicit snapshot: Element.Snapshot): String
+  def eDump(padding: Int): String
   /** Get filtered child elements from subtree */
-  def filter(filter: (Element.Generic) => Boolean)(implicit snapshot: Element.Snapshot): Seq[Element.Generic] =
-    this.filter(Seq(this), filter, Seq())
+  def eFilter(filter: (Element.Generic) => Boolean): Seq[Element.Generic] =
+    this.eFilter(Seq(this), filter, Seq())
   /**
    * Find child element
    * @param A - element class
    * @param B - stash class
    */
-  def find[A <: Element[B, _], B <: Stash](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(implicit snapshot: Element.Snapshot, a: Manifest[A], b: Manifest[B]): Option[A] = find[A, B](id, Element.Coordinate(coordinate: _*))
+  def eFind[A <: Element[B], B <: Stash](id: Symbol, coordinate: Element.Axis[_ <: java.io.Serializable]*)(implicit a: Manifest[A], b: Manifest[B]): Option[A] = eFind[A, B](id, Element.Coordinate(coordinate: _*))
   /**
    * Find child element
    * @param A - element class
    * @param B - stash class
    */
-  def find[A <: Element[B, _], B <: Stash](id: Symbol, coordinate: Element.Coordinate)(implicit snapshot: Element.Snapshot, a: Manifest[A], b: Manifest[B]): Option[A] = {
-    stash.children.find { element =>
-      element.stash.id == id && element.stash.coordinate == coordinate
+  def eFind[A <: Element[B], B <: Stash](id: Symbol, coordinate: Element.Coordinate)(implicit a: Manifest[A], b: Manifest[B]): Option[A] = {
+    elementChildren.find { element =>
+      element.eStash.id == id && element.eStash.coordinate == coordinate
     } match {
       case e @ Some(element) if element.canEqual(a.erasure, b.erasure) => e.asInstanceOf[Option[A]]
       case _ => None
     }
   }
-  /** Get element id */
-  def id()(implicit snapshot: Element.Snapshot) = stash.id
   /** Get a property. */
-  def get[A <: java.io.Serializable](id: Symbol)(implicit snapshot: Element.Snapshot, m: Manifest[A]): Option[Value[A]] =
-    stash.property.get(m.erasure.getName()).flatMap(_.get(id)).asInstanceOf[Option[Value[A]]]
+  def eGet[A <: java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] =
+    eStash.property.get(m.erasure.getName()).flatMap(_.get(id)).asInstanceOf[Option[Value[A]]]
   /** Get a property or else get the property from the root element. */
-  def getOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit snapshot: Element.Snapshot, m: Manifest[A]): Option[Value[A]]
+  def eGetOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]]
+  /** Get element id */
+  def eId() = eStash.id
   /** Get reference of this element */
-  def model(implicit snapshot: Element.Snapshot): Model.Interface = {
-    stash.model getOrElse {
+  def eModel: Model.Generic = {
+    eStash.model getOrElse {
       throw new RuntimeException("Model undefined for detached element " + this)
     }
   }
   /** set new Model for element */
-  def model_=(value: Model.Interface)(implicit snapshot: Element.Snapshot): Unit = {
+  def eModel_=(value: Model.Generic): Unit = {
     // prevent against null, which may occur at initialization
-    stash.model //.removeElement(this)
+    eStash.model //.removeElement(this)
     value.eRegister(this)
-    stash.model = Some(value)
+    eStash.model = Some(value)
   }
-  def reference()(implicit snapshot: Element.Snapshot) = Element.Reference(stash.context.container.origin, stash.unique, stash.coordinate)
+  def eReference() = Element.Reference(eStash.context.container.origin, eStash.unique, eStash.coordinate)
   /** Get the root element from the current origin if any. */
-  def root()(implicit snapshot: Element.Snapshot): Option[This]
+  def eRoot(): Option[this.type]
   /** Get the root element from the particular origin if any */
-  def root(origin: Symbol)(implicit snapshot: Element.Snapshot): Option[This]
+  def eRoot(origin: Symbol): Option[this.type]
   /** Set a new property, return an old property */
-  def set[A <: java.io.Serializable](id: Symbol, value: Option[Value[A]])(implicit snapshot: Element.Snapshot, m: Manifest[A]): Option[Value[A]] = {
-    if (snapshot.pointer != 0)
-      throw new UnsupportedOperationException("Unable to set %s for %s at %s".format(id.name, this, snapshot))
-    stash.lastModification = System.currentTimeMillis()
+  def eSet[A <: java.io.Serializable](id: Symbol, value: Option[Value[A]])(implicit m: Manifest[A]): Option[Value[A]] = {
+    eModify()
     value match {
       case Some(value) =>
-        stash.property.get(m.erasure.getName()) match {
+        eStash.property.get(m.erasure.getName()) match {
           case Some(hash) =>
             val previous = hash.get(id)
             hash(id) = value
             previous.asInstanceOf[Option[Value[A]]]
           case None =>
             val hash = new mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]() with mutable.SynchronizedMap[Symbol, Value[_ <: java.io.Serializable]]
-            stash.property(m.erasure.getName()) = hash
+            eStash.property(m.erasure.getName()) = hash
             hash(id) = value
             None
         }
       case None =>
-        stash.property.get(m.erasure.getName()) match {
+        eStash.property.get(m.erasure.getName()) match {
           case Some(hash) =>
             val previous = hash.get(id)
             hash.remove(id)
@@ -169,45 +165,47 @@ trait Element[StashProjection <: Stash, This <: Element[_ <: StashProjection, Th
     }
   }
   /** Get current stash */
-  def stash()(implicit snapshot: Element.Snapshot): StashProjection = {
-    /*    if (Model.snapshot == 0L)
-      // there is no snapshot in use
-      return stashMap(0L)
-    // snapshot timestamp value
-    val snapshotPointer = Model.snapshot
-    // pointer to actual stash 
-    var actualPointer: Option[Long] = None
-    // sorted keys 0L -> N -> N+1 -> ...
-    val keys = stashMap.keys.iterator
-    // temporary pointer
-    var currentPointer = keys.next // set to 0L
-    while (actualPointer.isEmpty && keys.hasNext) {
-      val e = keys.next()
-      if (e > snapshotPointer)
-        actualPointer = Some(currentPointer)
-      else
-        currentPointer = e
-    }
-    // return stash from actual pointer or initial 0L
-    stashMap(actualPointer getOrElse 0L)*/
-    stashMap(0L)
-  }
+  def eStash: StashProjection
+  /** Stub for setter of model's data */
+  def eStash_=(value: StashProjection): Unit
   /** Get element id */
-  def unique()(implicit snapshot: Element.Snapshot) = stash.unique
+  def eUnique() = eStash.unique
 
   /** Collect all sub elements that conform a user filter */
   @tailrec
-  final protected def filter(e: Seq[Element.Generic], filter: (Element.Generic) => Boolean,
-    acc: Seq[Element.Generic])(implicit snapshot: Element.Snapshot): Seq[Element.Generic] = {
-    val children = e.map(_.stash.children).flatten.filter(filter)
+  final protected def eFilter(e: Seq[Element.Generic], filter: (Element.Generic) => Boolean,
+    acc: Seq[Element.Generic]): Seq[Element.Generic] = {
+    val children = e.map(_.elementChildren).flatten.filter(filter)
     if (children.isEmpty) return acc
-    this.filter(children, filter, acc ++ children)
+    this.eFilter(children, filter, acc ++ children)
+  }
+  /** Set new modification time, push notification */
+  protected def eModify() {
+    log.___glance("!!!")
+    val ts = Stash.timestamp
+    elementModified = ts
+    eStash.modified = ts
+    // notify
   }
 
   /** Needed for correct definition of equals for general classes. */
-  def canEqual(thatElementClass: Class[_], thatStashClass: Class[_])(implicit snapshot: Element.Snapshot): Boolean =
-    this.getClass() == thatElementClass && stash.getClass() == thatStashClass
-  def toString()(implicit snapshot: Element.Snapshot) = "%s[%s] at %s".format(stash.scope, stash.id.toString, stash.coordinate.toString)
+  def canEqual(thatElementClass: Class[_], thatStashClass: Class[_]): Boolean =
+    this.getClass() == thatElementClass && eStash.getClass() == thatStashClass
+  /** Indicates whether some other element is "equal to" this one. */
+  override def equals(that: Any): Boolean =
+    (this eq that.asInstanceOf[Object]) || (that match {
+      case that: Element[_] =>
+        // 1. can equal
+        this.canEqual(that.getClass, that.eStash.getClass) &&
+          // 2. immutable variables are identical
+          this.hashCode == that.hashCode &&
+          // 3. mutable variables are identical
+          this.elementModified == that.elementModified
+      case _ => false
+    })
+  /** Returns a hash code value for the object. */
+  override def hashCode() = List(getClass, eStash).foldLeft(0)((a, b) => a * 31 + b.hashCode())
+  override def toString() = "%s[%s] at %s".format(eStash.scope, eStash.id.toString, eStash.coordinate.toString)
 }
 
 /**
@@ -215,32 +213,37 @@ trait Element[StashProjection <: Stash, This <: Element[_ <: StashProjection, Th
  * contains axis and coordinate definition.
  */
 object Element extends Loggable {
-  type Generic = Element[_ <: Stash, _]
+  type Generic = Element[_ <: Stash]
+  /**
+   * Elements and it derivative classes default ordering
+   */
+  implicit def orderingByModification[T <: Element.Generic]: Ordering[T] =
+    new Ordering[T] { def compare(x: T, y: T): Int = x.compare(y) }
 
   /**
    * Check new/exists/modified stash against neighbor
    */
-  def check(element: Element.Generic, stash: Stash)(implicit snapshot: Element.Snapshot) {
+  def check(element: Element.Generic, stash: Stash) {
     stash.model match {
       case Some(model) =>
-        model.e(stash.context.container).map(_.stash.children.filter(_.id == stash.id)).flatten.foreach {
+        model.e(stash.context.container).map(_.elementChildren.filter(_.eId == stash.id)).flatten.foreach {
           nighborWithSameID =>
-            val neighborStash = nighborWithSameID.stash.asInstanceOf[Stash]
-            assert(nighborWithSameID.unique == stash.unique, "Illegal %s. %s MUST be the same as id %s of neighbor %s.".
-              format(element, stash.unique, nighborWithSameID.unique, nighborWithSameID))
+            val neighborStash = nighborWithSameID.eStash.asInstanceOf[Stash]
+            assert(nighborWithSameID.eUnique == stash.unique, "Illegal %s. %s MUST be the same as id %s of neighbor %s.".
+              format(element, stash.unique, nighborWithSameID.eUnique, nighborWithSameID))
             assert(neighborStash.coordinate != stash.coordinate, "Illegal %s. There is already neighbor %s exists with same coordinate.".
               format(element, nighborWithSameID))
             assert(nighborWithSameID.canEqual(element.getClass(), stash.getClass()), "Illegal %s. There is already neighbor %s exists and it has different type.".
               format(element, nighborWithSameID))
         }
-        assert(model.e(element.reference).isEmpty, "Illegal %s. The element with reference %s is already attached.".format(element, element.reference))
+        assert(model.e(element.eReference).isEmpty, "Illegal %s. The element with reference %s is already attached.".format(element, element.eReference))
       case None =>
         assert(false, "unable to check %s against stash with undefined model".format(element))
     }
   }
   /** Provide context information for REPL/new entity. */
-  def virtualContext(container: Generic)(implicit snapshot: Element.Snapshot): Element.Context =
-    Element.Context(Reference(Model.stash.id, container.unique, container.coordinate), None, None, None)
+  def virtualContext(container: Generic): Element.Context =
+    Element.Context(Reference(Model.eStash.id, container.eUnique, container.eCoordinate), None, None, None)
 
   /** Axis/tag value of coordinate. */
   case class Axis[T <: java.io.Serializable](
@@ -255,6 +258,10 @@ object Element extends Loggable {
   object Axis {
     implicit def intToAxis(x: (Symbol, Int)): Axis[java.lang.Integer] = Axis[java.lang.Integer](x._1, Int.box(x._2))
   }
+  /**
+   * Element children container
+   */
+  class Children extends mutable.ArrayBuffer[Element.Generic] with history.ObservableElementBuffer[Element.Generic] with mutable.SynchronizedBuffer[Element.Generic]
   /** Contain list of an axis values. */
   class Coordinate private (
     /** List of an axis values. */
@@ -309,10 +316,10 @@ object Element extends Loggable {
   /**
    * Element reference that point to relative location
    */
-  case class Location[A <: Element[B, _], B <: Stash](override val id: Symbol,
+  case class Location[A <: Element[B], B <: Stash](override val id: Symbol,
     override val coordinate: Element.Coordinate = Element.Coordinate.root)(implicit em: Manifest[A], sm: Manifest[B])
     extends GenericLocation[A, B](id, coordinate)
-  abstract class GenericLocation[A <: Element[B, _], B <: Stash](val id: Symbol,
+  abstract class GenericLocation[A <: Element[B], B <: Stash](val id: Symbol,
     val coordinate: Element.Coordinate)(implicit em: Manifest[A], sm: Manifest[B]) {
     lazy val elementManifest = em
     lazy val stashManifest = sm
@@ -321,10 +328,4 @@ object Element extends Loggable {
    * Element reference that point to particular unique element registered at Element.index
    */
   case class Reference(origin: Symbol, unique: UUID, coordinate: Coordinate)
-  /**
-   * Snapshot pointer container
-   */
-  case class Snapshot(val pointer: Long) {
-    override def toString = "Snapshot[%d]".format(pointer)
-  }
 }

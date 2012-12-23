@@ -70,7 +70,6 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Record") {
     it("should create new instance with apply()") {
       config =>
-              implicit val snapshot = Element.Snapshot(0)  
         val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Model, 'test1, Element.Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
         val record2 = Record.apply(Model, 'test2, Element.Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
         val record2a = Record.apply(Model, 'test2, Element.Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
@@ -78,7 +77,6 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
     }
     it("should support nested elements") {
       config =>
-                implicit val snapshot = Element.Snapshot(0)
         var record_1a: Record[Record.Stash] = null
         var record_2a: Record[Record.Stash] = null
         var record_1b: Record[Record.Stash] = null
@@ -106,9 +104,9 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         record_1b.description should be("record_1b")
         record_2b.description should be("record_2b")
         // check child elements
-        record_0.stash.children should equal(List(record_1a, record_1b))
-        record_1a.stash.children should equal(List(record_2a))
-        record_1b.stash.children should equal(List(record_2b))
+        record_0 should equal(List(record_1a, record_1b))
+        record_1a should equal(List(record_2a))
+        record_1b should equal(List(record_2b))
         // check elements with same id
         val treeA = Model.record('test) { r =>
           r.record('test) { r =>
