@@ -41,12 +41,18 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.dsl
+
+import java.util.UUID
 
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.aop.log
 import org.digimead.lib.test.TestHelperLogging
 import org.digimead.tabuddy.model.Model.model2implementation
+import org.digimead.tabuddy.model.element.Axis.intToAxis
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.predef.Note
+import org.digimead.tabuddy.model.predef.Task
 import org.scalatest.fixture.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -54,7 +60,7 @@ import com.escalatesoft.subcut.inject.NewBindingModule
 
 import org.digimead.tabuddy.model.TestDSL._
 
-class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
+class ComplexDSLTypesSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   type FixtureParam = Map[String, Any]
 
   override def withFixture(test: OneArgTest) {
@@ -67,28 +73,25 @@ class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging
 
   def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
 
-  describe("A Snapshot") {
-    it("should contain persistent values") {
+  describe("A ComplexDSLTypes") {
+    it("should have proper equality") {
       config =>
-/*        Model.description should be ("")
-        Model.sCurrent should be(Element.Snapshot(0L))
-        val globalSnapshot = Model.sTake()
-        globalSnapshot should not be (null)
-        globalSnapshot.sCurrent should not be (Element.Snapshot(0L))
-        //log.___glance("!!!" + Model.stashMap)
-        // set property
-        globalSnapshot.description  should be ("")
-        Model.description = "123"
-        Model.description should be ("123")
-        globalSnapshot.description  should be ("")*/
-        
-      //val snapshot = Model.sTake()
-      //snapshot
-      /*val snapshotPointer = Model.snapshotTake()
-        Model.withSnapshot(asdf) {
-          snapshot =>
-            snapshot.compareTo(Model)
-        }*/
+        val dslType = new ComplexDSLTypes
+        dslType.getTypes should be(Seq('ArrayOfSymbol))
+        dslType.getTypeSymbol(classOf[Array[Int]]) should be(None)
+        dslType.getTypeSymbol(classOf[Array[Symbol]]) should be(Some('ArrayOfSymbol))
+        dslType.getTypeSymbol(classOf[Array[String]]) should be(None)
+        dslType.getTypeSymbol(classOf[Seq[String]]) should be(None)
+        dslType.getTypeSymbol(classOf[Seq[Symbol]]) should be(None)
+        dslType.getTypeSymbol(classOf[List[Symbol]]) should be(None)
+    }
+    it("should have proper converter") {
+      config =>
+        val dslType = new ComplexDSLTypes
+        val saved = dslType.convertToString('ArrayOfSymbol, Array('abba, 'mamba, 'dubba))
+        saved should be("abba mamba dubba")
+        val restored = dslType.convertFromString('ArrayOfSymbol, saved)
+        restored should be (Array('abba, 'mamba, 'dubba))
     }
   }
 }

@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -41,59 +41,71 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.element
 
 import java.util.UUID
+
 import scala.collection.mutable
-import java.util.concurrent.ScheduledThreadPoolExecutor
-import java.util.concurrent.TimeUnit
+
+import org.digimead.tabuddy.model.Model
 
 /**
  * Element actual data.
  */
 trait Stash extends java.io.Serializable {
   /** Element context. */
-  val context: Element.Context
+  val context: Context
   /** List of axes(tags). */
-  val coordinate: Element.Coordinate
+  val coordinate: Coordinate
   /** Element creation time */
-  val created: Stash.Timestamp
+  val created: Element.Timestamp
   /** Element user id. */
   val id: Symbol
   /** Element modification time. */
-  @volatile var modified: Stash.Timestamp = created
+  @volatile var modified: Element.Timestamp = created
   /** User scope. */
-  val scope: String
+  val scope: Element.Scope
   /** Element system id. */
   val unique: UUID
   /** Element's model */
   var model: Option[Model.Generic] = None
-
   /** Element properties(values) map: erasure -> Symbol -> Value[T]. */
   val property: Stash.Data
+  validateForSelfReference()
 
   /** Copy constructor */
-  def copy(context: Element.Context = this.context,
-    coordinate: Element.Coordinate = this.coordinate,
-    created: Stash.Timestamp = this.created,
+  def copy(context: Context = this.context,
+    coordinate: Coordinate = this.coordinate,
+    created: Element.Timestamp = this.created,
     id: Symbol = this.id,
-    modified: Stash.Timestamp = this.modified,
-    scope: String = this.scope,
+    modified: Element.Timestamp = this.modified,
+    scope: Element.Scope = this.scope,
     unique: UUID = this.unique,
     model: Option[Model.Generic] = this.model,
-    property: Stash.Data = this.property): Stash
-  def copyDeepProperty(from: mutable.HashMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]],
-    to: mutable.HashMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]]) {
+    property: Stash.Data = this.property): this.type
+  /** deep copy from -> to with copyF function */
+  def copyDeepProperty(from: mutable.HashMap[Symbol, mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]],
+    to: mutable.HashMap[Symbol, mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]]): Unit =
+    copyDeepProperty(from, to, (v) => v.copy(context = v.context.copy(container = Reference(context.container.origin, unique, coordinate))))
+  /** deep copy from -> to with copyF function */
+  def copyDeepProperty(from: mutable.HashMap[Symbol, mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]],
+    to: mutable.HashMap[Symbol, mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]],
+    copyF: Value[_ <: AnyRef with java.io.Serializable] => Value[_ <: AnyRef with java.io.Serializable]) {
     to.clear
     from.keys.foreach {
-      typeKey =>
-        to(typeKey) = new mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]() with mutable.SynchronizedMap[Symbol, Value[_ <: java.io.Serializable]]
-        from(typeKey).keys.foreach {
-          dataKey =>
-            to(typeKey)(dataKey) = from(typeKey)(dataKey)
+      idKey =>
+        to(idKey) = new mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]() with mutable.SynchronizedMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]
+        from(idKey).keys.foreach {
+          typeSymbolKey =>
+            to(idKey)(typeSymbolKey) = copyF(from(idKey)(typeSymbolKey))
         }
     }
   }
+
+  /** Validates stash on creation for circular reference */
+  protected def validateForSelfReference() =
+    assert(context.container.unique != unique, "circular reference detected for " + this)
+
   /** Needed for correct definition of equals for general classes. */
   def canEqual(that: Any): Boolean = that.getClass == that.getClass
   /** Indicates whether some other stash is "equal to" this one. */
@@ -113,17 +125,6 @@ trait Stash extends java.io.Serializable {
 }
 
 object Stash {
-  /** Base nanoseconds for Timestamp shift */
-  private var nanoBase = System.nanoTime()
-  /** nanoBase renew scheduled thread pool executor */
-  private val nanoBaseRenewExecutor = new ScheduledThreadPoolExecutor(1)
-  /** nanoBase renew task */
-  private val nanoBaseSchedule = nanoBaseRenewExecutor.schedule(new Runnable {
-    def run = Stash.synchronized { nanoBase = System.nanoTime() }
-  }, 1, TimeUnit.MINUTES)
-
-  def timestamp() = synchronized { Timestamp(System.currentTimeMillis(), System.nanoTime() - nanoBase) }
-
-  class Data extends mutable.HashMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]]() with mutable.SynchronizedMap[String, mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]]]
-  case class Timestamp(val milliseconds: Long, nanoShift: Long)
+  /** Element properties: ID -> typeSymbol, Value */
+  class Data extends mutable.HashMap[Symbol, mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]]() with mutable.SynchronizedMap[Symbol, mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]]
 }

@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -43,24 +43,11 @@
 
 package org.digimead.tabuddy.model
 
-import org.digimead.tabuddy.model.Model.model2implementation
+import com.escalatesoft.subcut.inject.NewBindingModule
 
-abstract class DSL[T](builder: Element.Generic => T) {
-  implicit def element2rich(e: Element.Generic): T = builder(e)
-  implicit def model2rich(e: Model.type): T = builder(e)
-}
-
-object DSL {
-  /**
-   * base class for DSL builders
-   */
-  trait RichElement {
-    val DLS_element: Element.Generic
-
-    /**
-     * Create or retrieve element child
-     */
-    def |[A <: Record.Interface[B], B <: Record.Stash](l: Element.GenericLocation[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
-      Record(ma.erasure.asInstanceOf[Class[A]], mb.erasure.asInstanceOf[Class[B]], DLS_element, l.id, l.coordinate.coordinate, (n: A) => {})
-  }
+package object dsl {
+  lazy val default = new NewBindingModule(module => {
+    module.bind[Seq[DSLType]] toSingle { Seq(new BasicDSLTypes, new ComplexDSLTypes) }
+    module.bind[DSLType.Interface] toSingle { new DSLType.Interface {} }
+  })
 }

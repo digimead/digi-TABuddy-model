@@ -41,25 +41,62 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model.serialization
+package org.digimead.tabuddy.model.element
 
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Stash
+import scala.collection.mutable
+import org.digimead.tabuddy.model.Model
 
-class Stub extends Serialization[Unit] {
+/**
+ * Element children container
+ */
+class Children(val origin: Element.Generic) extends ElementSet with mutable.SynchronizedSet[Element.Generic] {
+  override def +=(element: Element.Generic): this.type = {
+    origin.eStash.model.foreach(model => eAttach(model: Model.Generic, origin, element))
+    super.+=(element)
+  }
+  override def -=(element: Element.Generic): this.type = {
+    val result = super.-=(element)
+    origin.eStash.model.foreach(model => eDetach(model, element))
+    result
+  }
+  override def clear(): Unit = {
+    origin.eStash.model.foreach(model =>
+      this.foreach(child => eDetach(model, child)))
+    super.clear
+  }
   /**
-   * Load elements from Iterable[???] with loadElement().
-   * Filter/adjust loaded element with filter()
-   * Return deserialized element.
+   * Attach element to the model
    */
-  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[Unit],
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] = None
+  protected def eAttach(model: Model.Generic, container: Element.Generic, element: Element.Generic) = synchronized {
+    log.debug("attach %s to %s".format(element.eReference, container.eReference))
+    val all = element.eFilter(_ => true)
+    val attached = all.filter(_.eStash.model.nonEmpty)
+    assert(attached.isEmpty, "Unable to reattach %s, please detach it first".format(element))
+    assert(container.eStash.model == Some(model),
+      "Unable to attach %s to unknown container %s".format(element, container))
+    // modify element
+    all.foreach(_.eStash.model = Some(model))
+    val newStash = element.eStash.copy(context = element.eStash.context.copy(container = container.eReference),
+      model = container.eStash.model)
+    Element.check(element, newStash) // throw exception
+    element.asInstanceOf[Element[Stash]].eStash = newStash // update stash with new that points to the new container and the model
+    model.eAttach(element)
+  }
   /**
-   * Get serialized element.
-   * Filter/adjust children with filter()
-   * Save adjusted child to [???] with saveElement().
+   * Detach element from the model
    */
-  def freeze(element: Element.Generic,
-    saveElement: (Element.Generic, Unit) => Unit,
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept): Unit = {}
+  protected def eDetach[T <: Element.Generic](model: Model.Generic, element: T, copy: Boolean = false): T = synchronized {
+    val detached = if (copy) {
+      log.debug("dettach copy of %s from %s".format(element.eReference, model.eReference))
+      // detach copy
+      element.eCopy()
+    } else {
+      // detach original
+      model.eDetach(element)
+      element
+    }
+    element.eFilter(_ => true).foreach(_.eStash.model = None)
+    element.eStash.model = None
+    element
+  }
 }

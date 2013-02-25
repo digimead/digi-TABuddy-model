@@ -41,54 +41,21 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.element
 
-import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.aop.log
-import org.digimead.lib.test.TestHelperLogging
-import org.digimead.tabuddy.model.Model.model2implementation
-import org.scalatest.fixture.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import scala.language.implicitConversions
 
-import com.escalatesoft.subcut.inject.NewBindingModule
+/** Axis/tag value of coordinate. */
+case class Axis[T <: AnyRef with java.io.Serializable](
+  /** Axis user id. */
+  val id: Symbol,
+  /** Axis value. */
+  val value: T)
 
-import org.digimead.tabuddy.model.TestDSL._
-
-class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
-  }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
-
-  describe("A Snapshot") {
-    it("should contain persistent values") {
-      config =>
-/*        Model.description should be ("")
-        Model.sCurrent should be(Element.Snapshot(0L))
-        val globalSnapshot = Model.sTake()
-        globalSnapshot should not be (null)
-        globalSnapshot.sCurrent should not be (Element.Snapshot(0L))
-        //log.___glance("!!!" + Model.stashMap)
-        // set property
-        globalSnapshot.description  should be ("")
-        Model.description = "123"
-        Model.description should be ("123")
-        globalSnapshot.description  should be ("")*/
-        
-      //val snapshot = Model.sTake()
-      //snapshot
-      /*val snapshotPointer = Model.snapshotTake()
-        Model.withSnapshot(asdf) {
-          snapshot =>
-            snapshot.compareTo(Model)
-        }*/
-    }
-  }
+/**
+ * Companion object for an axis
+ * that contains implicit conversions between primitive and axis.
+ */
+object Axis {
+  implicit def intToAxis(x: (Symbol, Int)): Axis[java.lang.Integer] = Axis[java.lang.Integer](x._1, Int.box(x._2))
 }

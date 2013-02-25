@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -47,99 +47,144 @@ import java.io.File
 import java.util.UUID
 
 import scala.Option.option2Iterable
-import scala.collection.JavaConversions._
+import scala.annotation.tailrec
+import scala.collection.JavaConversions.asScalaBuffer
 import scala.collection.mutable
-import scala.util.control.ControlThrowable
 
-import org.digimead.digi.lib.log.Loggable
 import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
 import org.digimead.tabuddy.model.ContextProtos
 import org.digimead.tabuddy.model.CoordinateProtos
-import org.digimead.tabuddy.model.Element
-import org.digimead.tabuddy.model.Element.Context
-import org.digimead.tabuddy.model.Element.Coordinate
 import org.digimead.tabuddy.model.ElementProtos
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.PropertyProtos
 import org.digimead.tabuddy.model.ReferenceProtos
-import org.digimead.tabuddy.model.Stash
-import org.digimead.tabuddy.model.Stash.Data
 import org.digimead.tabuddy.model.StashProtos
-import org.digimead.tabuddy.model.Value
-import org.digimead.tabuddy.model.dsltype.DSLType
-import org.digimead.tabuddy.model.dsltype.DSLType.dsltype2implementation
+import org.digimead.tabuddy.model.dsl.DSLType
+import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
+import org.digimead.tabuddy.model.element.Axis
+import org.digimead.tabuddy.model.element.Context
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Element.Timestamp
+import org.digimead.tabuddy.model.element.Reference
+import org.digimead.tabuddy.model.element.Stash
+import org.digimead.tabuddy.model.element.Stash.Data
+import org.digimead.tabuddy.model.element.Value
 
-class ProtobufSerialization extends Loggable {
-  /** Load element from Array[Byte]. */
-  def acquire[A <: Element.Generic](frozen: Array[Byte]): Option[A] = try {
-    log.debug("acuire elements from bundle with size %d byte(s)".format(frozen.length))
-    val protoElements = ElementProtos.Element.Bundle.parseFrom(frozen)
-    log.debug("%d element(s) extracted".format(protoElements.getElementCount()))
-    val elements = new mutable.HashMap[Element.Reference, Element.Generic]
-    var head: Option[Element.Generic] = None
-    // unpack elements
-    protoElements.getElementList().map { proto =>
-      unpackElement(proto) match {
-        case Some(element) =>
-          elements(element.eReference) = element
-          if (head.isEmpty)
-            head = Some[Element.Generic](element)
-        case None =>
-          log.error("unable to unpack element " + proto)
-          if (head.isEmpty)
-            return None
+class ProtobufSerialization extends Serialization[Array[Byte]] {
+  /**
+   * Load elements from Iterable[Array[Byte]] with loadElement().
+   * Filter/adjust loaded element with filter()
+   * Return deserialized element.
+   */
+  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[Array[Byte]],
+    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] = {
+    var hash = mutable.HashMap[UUID, Element.Generic]()
+    // load elements
+    var data = loadElement()
+    while (data.nonEmpty) {
+      try {
+        val protoElements = ElementProtos.Element.Bundle.parseFrom(data.get)
+        // unpack elements
+        protoElements.getElementList().map { proto =>
+          unpackElement(proto) match {
+            case Some(element) =>
+              filter(element).foreach(element => hash(element.eUnique) = element)
+            case None =>
+              log.error("unable to unpack element " + proto)
+          }
+        }
+      } catch {
+        // catch all throwables, return None if any
+        case e: Throwable =>
+          log.error("unable to acuire elements: " + e)
       }
+      data = loadElement()
     }
-    // bind elements
-    elements.values.foreach { element =>
-      elements.get(element.eStash.context.container) match {
-        case Some(parent) =>
-          if (!parent.eq(element))
-            parent.elementChildren += element
-        case None if Some[Element.Generic](element) != head =>
-          log.error("lost parent for " + element)
-        case None =>
-      }
+    // build structure
+    var rootElements = Seq[Element.Generic]()
+    hash.foreach {
+      case (unique, element) =>
+        val parent = element.eStash.context.container.unique
+        hash.get(parent) match {
+          case Some(parentElement) if parentElement == element =>
+            // parent is cyclic reference
+            if (element.eScope == Model.Scope) {
+              // drop all other expectants
+              rootElements = Seq(element)
+            } else
+              log.fatal("detected a cyclic reference inside an unexpected element " + element)
+          case Some(parentElement) =>
+            // parent found
+            parentElement.eChildren += element
+          case None =>
+            // parent not found
+            element.eAs[A, B].foreach(element => rootElements = rootElements :+ element)
+        }
     }
-    // process head, return result
-    head flatMap {
-      case model: Model.Generic if model.eStash.scope == "Model" =>
-        model.eIndexRebuid
-        Some(model.asInstanceOf[A])
-      case other =>
-        Some(other.asInstanceOf[A])
-
+    // return result
+    hash.clear
+    rootElements.find(_.eScope == Model.Scope) match {
+      case Some(model) =>
+        // return model as expected type
+        model.eStash.model = Some(model.asInstanceOf[Model.Generic])
+        model.asInstanceOf[Model.Generic].eIndexRebuid()
+        model.eAs[A, B]
+      case None if rootElements.size == 1 =>
+        // return other element as expected type
+        rootElements.head.eAs[A, B]
+      case None if rootElements.isEmpty =>
+        log.error("there is no root elements detected")
+        None
+      case None =>
+        log.error("there are more than one root elements detected: " + rootElements.mkString(","))
+        None
     }
-  } catch {
-    case e: ControlThrowable => throw e
-    case e =>
-      log.error("unable to acuire elements: " + e)
-      None
-  }
-  /** Save element to Array[Byte]. */
-  def freeze(element: Element.Generic): Array[Byte] = {
-    val elementsBundleBuilder = ElementProtos.Element.Bundle.newBuilder()
-    val elements = (element +: element.eFilter(_ => true))
-    log.debug("freeze %d elements to bundle".format(elements.length))
-    elements.foreach(element => elementsBundleBuilder.addElement(packElement(element)))
-    val result = elementsBundleBuilder.build().toByteArray()
-    log.debug("%s bytes packed to bundle".format(result.length))
-    result
   }
   /**
-   * Pack Element.Axis[T] to CoordinateProtos.Coordinate.Axis
+   * Get serialized element.
+   * Filter/adjust children with filter()
+   * Save adjusted child to [Array[Byte]] with saveElement().
    */
-  protected def packAxis[T <: java.io.Serializable](axis: Element.Axis[T])(implicit m: Manifest[T]): CoordinateProtos.Coordinate.Axis = {
+  def freeze(element: Element.Generic,
+    saveElement: (Element.Generic, Array[Byte]) => Unit,
+    filter: (Element.Generic) => Option[Element.Generic] = filterAccept) =
+    freezeWorker(saveElement, filter, element)
+  @tailrec
+  private def freezeWorker(saveElement: (Element.Generic, Array[Byte]) => Unit,
+    filter: (Element.Generic) => Option[Element.Generic],
+    elements: Element.Generic*) {
+    if (elements.isEmpty)
+      return
+    val saved = elements.map { element =>
+      val serialized = element.eCopy(List())
+      filter(serialized) match {
+        case Some(filtered) =>
+          val elementsBundleBuilder = ElementProtos.Element.Bundle.newBuilder()
+          elementsBundleBuilder.addElement(packElement(filtered))
+          saveElement(element, elementsBundleBuilder.build().toByteArray())
+          element.eChildren.toSeq.sortBy(_.eId.name) // simplify the debugging with sortBy
+        case None =>
+          log.debug("skip freeze element " + element)
+          Seq()
+      }
+    }
+    freezeWorker(saveElement, filter, saved.flatten: _*)
+  }
+  /**
+   * Pack Axis[T] to CoordinateProtos.Coordinate.Axis
+   */
+  protected def packAxis[T <: AnyRef with java.io.Serializable](axis: Axis[T])(implicit m: Manifest[T]): CoordinateProtos.Coordinate.Axis = {
     CoordinateProtos.Coordinate.Axis.newBuilder().
       setId(axis.id.name).
-      setType(m.erasure.getName()).
+      setType(m.runtimeClass.getName()).
       setValue(String.valueOf(axis.value)).
       build()
   }
   /**
-   * Pack Element.Context to ContextProtos.Context
+   * Pack Context to ContextProtos.Context
    */
-  protected def packContext(context: Element.Context): ContextProtos.Context = {
+  protected def packContext(context: Context): ContextProtos.Context = {
     val builder = ContextProtos.Context.newBuilder().
       setContainer(packReference(context.container))
     context.digest.foreach(builder.setDigest)
@@ -148,9 +193,9 @@ class ProtobufSerialization extends Loggable {
     builder.build()
   }
   /**
-   * Pack Element.Coordinate to CoordinateProtos.Coordinate
+   * Pack Coordinate to CoordinateProtos.Coordinate
    */
-  protected def packCoordinate(coordinate: Element.Coordinate): CoordinateProtos.Coordinate = {
+  protected def packCoordinate(coordinate: Coordinate): CoordinateProtos.Coordinate = {
     val builder = CoordinateProtos.Coordinate.newBuilder()
     coordinate.coordinate.foreach(axis => builder.addAxis(packAxis(axis)))
     builder.build()
@@ -158,45 +203,45 @@ class ProtobufSerialization extends Loggable {
   /**
    * Pack Element.Generic to ElementProtos.Element
    */
-  protected def packElement(element: Element.Generic): ElementProtos.Element = {
+  protected def packElement(element: Element.Generic): ElementProtos.Element =
     ElementProtos.Element.newBuilder().
       setType(element.getClass().getName()).
       setStash(packStash(element.eStash)).
       build()
-  }
   /**
    * Pack Element.Generic to ElementProtos.Element
    */
-  protected def packProperties(property: Stash.Data): Iterable[PropertyProtos.Property.Bundle] =
-    property.keys.flatMap { keyType =>
-      val properyBundleBuilder = PropertyProtos.Property.Bundle.newBuilder()
-      DSLType.getTypeSignature(Class.forName(keyType)) match {
-        case Some(signature) =>
-          properyBundleBuilder.setType(signature)
-          property(keyType).foreach {
-            case (valueID, value) =>
-              DSLType.save(value.get) match {
-                case Some((valueType, valueData)) =>
-                  properyBundleBuilder.addProperty(PropertyProtos.Property.newBuilder().
-                    setContext(packContext(value.context)).
-                    setData(valueData).
-                    setId(valueID.name).
-                    setStatic(valueData.isInstanceOf[Value.Static[_]]).
-                    build())
-                case None =>
-                  log.error("unable to convert value " + value)
+  protected def packProperties(property: Stash.Data): Iterable[PropertyProtos.Property.Bundle] = {
+    val bundles = mutable.HashMap[Symbol, PropertyProtos.Property.Bundle.Builder]()
+    property.keys.foreach { valueID =>
+      property(valueID).foreach {
+        case (typeSymbol, value) if DSLType.symbols(typeSymbol) =>
+          DSLType.convertToString(typeSymbol, value.get) match {
+            case Some(valueData) =>
+              if (!bundles.isDefinedAt(typeSymbol)) {
+                bundles(typeSymbol) = PropertyProtos.Property.Bundle.newBuilder()
+                bundles(typeSymbol).setType(typeSymbol.name)
               }
+              log.___glance("aaa" + typeSymbol)
+              bundles(typeSymbol).addProperty(PropertyProtos.Property.newBuilder().
+                setContext(packContext(value.context)).
+                setData(valueData).
+                setId(valueID.name).
+                setStatic(valueData.isInstanceOf[Value.Static[_]]).
+                build())
+            case None =>
+              log.error("unable to convert value " + value)
           }
-          Some(properyBundleBuilder.build())
-        case None =>
-          log.error("unable to convert properties with type %s, suitable signature not found".format(keyType))
-          None
+        case (typeSymbol, value) =>
+          log.error("unable to convert properties with symbol %s, suitable type not found".format(typeSymbol))
       }
     }
+    bundles.values.map(_.build())
+  }
   /**
-   * Pack Element.Reference to ReferenceProtos.Reference
+   * Pack Reference to ReferenceProtos.Reference
    */
-  protected def packReference(reference: Element.Reference): ReferenceProtos.Reference = {
+  protected def packReference(reference: Reference): ReferenceProtos.Reference = {
     ReferenceProtos.Reference.newBuilder().
       setCoordinate(packCoordinate(reference.coordinate)).
       setOrigin(reference.origin.name).
@@ -217,31 +262,31 @@ class ProtobufSerialization extends Loggable {
       setId(stash.id.name).
       setModifiedHi(stash.modified.milliseconds).
       setModifiedLo(stash.modified.nanoShift).
-      setScope(stash.scope).
+      setScope(stash.scope.getClass.getName()).
       setUniqueHi(stash.unique.getMostSignificantBits()).
       setUniqueLo(stash.unique.getLeastSignificantBits())
     packProperties(stash.property).foreach(builder.addProperty)
     builder.build()
   }
-  protected def unpackAxis(proto: CoordinateProtos.Coordinate.Axis): Option[Element.Axis[_ <: java.io.Serializable]] = {
-    DSLType.load(proto.getType(), proto.getValue()).map(value =>
-      Element.Axis(Symbol(proto.getId()), proto.getValue()))
+  protected def unpackAxis(proto: CoordinateProtos.Coordinate.Axis): Option[Axis[_ <: AnyRef with java.io.Serializable]] = {
+    DSLType.convertFromString(Symbol(proto.getType()), proto.getValue()).map(value =>
+      Axis(Symbol(proto.getId()), proto.getValue()))
   }
-  protected def unpackContext(proto: ContextProtos.Context): Option[Element.Context] = {
+  protected def unpackContext(proto: ContextProtos.Context): Option[Context] = {
     val context = for {
       container <- unpackReference(proto.getContainer())
       file = if (proto.hasFile()) Some(new File(proto.getFile())) else None
       line = if (proto.hasLine()) Some(proto.getLine()) else None
       digest = if (proto.hasDigest()) Some(proto.getDigest()) else None
-    } yield Element.Context(container, file, line, digest)
+    } yield Context(container, file, line, digest)
     if (context.isEmpty)
       log.debug("unable to unpack context")
     context
   }
-  protected def unpackCoordinate(proto: CoordinateProtos.Coordinate): Option[Element.Coordinate] = {
+  protected def unpackCoordinate(proto: CoordinateProtos.Coordinate): Option[Coordinate] = {
     val axes = proto.getAxisList().map(unpackAxis)
     if (axes.forall(_.nonEmpty)) {
-      Some(Element.Coordinate(axes.flatten: _*))
+      Some(Coordinate(axes.flatten: _*))
     } else {
       log.debug("unable to unpack axes")
       None
@@ -257,40 +302,41 @@ class ProtobufSerialization extends Loggable {
       log.debug("unable to unpack element")
     element
   } catch {
-    case e =>
+    // catch all throwables, return None if any
+    case e: Throwable =>
       log.debug("unable to unpack element: " + e)
       None
   }
-  protected def unpackProperties(list: java.util.List[PropertyProtos.Property.Bundle]): org.digimead.tabuddy.model.Stash.Data = {
-    val property = new org.digimead.tabuddy.model.Stash.Data
+  protected def unpackProperties(list: java.util.List[PropertyProtos.Property.Bundle]): org.digimead.tabuddy.model.element.Stash.Data = {
+    val property = new org.digimead.tabuddy.model.element.Stash.Data
     list.foreach { protoBundle =>
-      val valueType = protoBundle.getType()
-      DSLType.getTypeClass(valueType) match {
-        case Some(typeJVM) =>
-          val typeJVMName = typeJVM.getName()
-          property(typeJVMName) = new mutable.HashMap[Symbol, Value[_ <: java.io.Serializable]] with mutable.SynchronizedMap[Symbol, Value[_ <: java.io.Serializable]]
-          protoBundle.getPropertyList().foreach { protoProperty =>
-            val result = for {
-              context <- unpackContext(protoProperty.getContext())
-              data <- DSLType.load(valueType, protoProperty.getData()).asInstanceOf[Option[java.io.Serializable]]
-            } yield if (protoProperty.getStatic())
-              property(typeJVMName)(Symbol(protoProperty.getId())) = new Value.Static(data, context)
-            else
-              property(typeJVMName)(Symbol(protoProperty.getId())) = new Value.Dynamic(() => data, context)
-            if (result.isEmpty)
+      protoBundle.getPropertyList().foreach { protoProperty =>
+        val result = for {
+          context <- unpackContext(protoProperty.getContext())
+          typeSymbol = Symbol(protoBundle.getType())
+          valueID = Symbol(protoProperty.getId())
+        } if (DSLType.symbols(typeSymbol)) {
+          if (!property.isDefinedAt(valueID))
+            property(valueID) = new mutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]] with mutable.SynchronizedMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]
+          DSLType.convertFromString(typeSymbol, protoProperty.getData()) match {
+            case Some(data) if protoProperty.getStatic() =>
+              property(valueID)(typeSymbol) = new Value.Static(data, context)(Manifest.classType(DSLType.symbolClassMap(typeSymbol)))
+            case Some(data) =>
+              property(valueID)(typeSymbol) = new Value.Dynamic(() => data, context)(Manifest.classType(DSLType.symbolClassMap(typeSymbol)))
+            case None =>
               log.error("unable to unpack value '%s=%s".format(protoProperty.getId(), protoProperty.getData()))
           }
-        case None =>
-          log.error("unable to unpack value with unknown signature " + valueType)
-          None
+        } else {
+          log.error("unable to unpack property %s with unknown symbol %s".format(valueID, typeSymbol))
+        }
       }
     }
     property
   }
-  protected def unpackReference(proto: ReferenceProtos.Reference): Option[Element.Reference] = {
+  protected def unpackReference(proto: ReferenceProtos.Reference): Option[Reference] = {
     val reference = for {
       coordinate <- unpackCoordinate(proto.getCoordinate())
-    } yield Element.Reference(Symbol(proto.getOrigin()),
+    } yield Reference(Symbol(proto.getOrigin()),
       new UUID(proto.getUniqueHi(), proto.getUniqueLo()), coordinate)
     if (reference.isEmpty)
       log.debug("unable to unpack reference")
@@ -300,29 +346,32 @@ class ProtobufSerialization extends Loggable {
     val stash = for {
       context <- unpackContext(proto.getContext())
       coordinate <- unpackCoordinate(proto.getCoordinate())
-      created = Stash.Timestamp(proto.getCreatedHi(), proto.getCreatedLo())
+      created = Element.Timestamp(proto.getCreatedHi(), proto.getCreatedLo())
       id = Symbol(proto.getId())
-      modified = Stash.Timestamp(proto.getModifiedHi(), proto.getModifiedLo())
+      scope = proto.getScope()
+      modified = Element.Timestamp(proto.getModifiedHi(), proto.getModifiedLo())
       unique = new UUID(proto.getUniqueHi(), proto.getUniqueLo())
       properies = unpackProperties(proto.getPropertyList())
     } yield {
       val stashClass = Class.forName(proto.getType())
-      val stashCtor = this.getClass().getConstructor(
-        classOf[Element.Context],
-        classOf[Element.Coordinate],
-        classOf[Stash.Timestamp],
+      val stashCtor = stashClass.getConstructor(
+        classOf[Context],
+        classOf[Coordinate],
+        classOf[Element.Timestamp],
         classOf[Symbol],
         classOf[UUID],
-        classOf[org.digimead.tabuddy.model.Stash.Data])
+        classOf[org.digimead.tabuddy.model.element.Stash.Data])
       val stash = stashCtor.newInstance(context, coordinate, created, id, unique, properies).asInstanceOf[Stash]
       stash.modified = modified
+      assert(stash.scope.getClass().getName() == scope, "Incorrect scope: got %s, expected %s".format(stash.scope.getClass().getName(), scope))
       stash
     }
     if (stash.isEmpty)
       log.debug("unable to unpack stash")
     stash
   } catch {
-    case e =>
+    // catch all throwables, return None if any
+    case e: Throwable =>
       log.debug("unable to unpack stash: " + e)
       None
   }

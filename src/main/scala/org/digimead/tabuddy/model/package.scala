@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -43,11 +43,15 @@
 
 package org.digimead.tabuddy
 
-import com.escalatesoft.subcut.inject.NewBindingModule
 import java.util.UUID
+
+import org.digimead.tabuddy.model.Model
+
+import com.escalatesoft.subcut.inject.NewBindingModule
 
 package object model {
   lazy val default = new NewBindingModule(module => {
-    module.bind[Model.Interface[Model.Stash]] toProvider { new Model(new Model.Stash('Model, UUID.randomUUID())) }
-  }) ~ org.digimead.tabuddy.model.dsltype.default
+    module.bind[Symbol] identifiedBy "Model.Origin" toSingle { 'nobody }
+    module.bind[Model.Interface[Model.Stash]] toProvider { new Model(new Model.Stash('Default, UUID.randomUUID())) }
+  }) ~ org.digimead.tabuddy.model.dsl.default
 }

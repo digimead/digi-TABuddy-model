@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -44,11 +44,27 @@
 package org.digimead.tabuddy.model.serialization
 
 import org.digimead.digi.lib.log.Loggable
-import org.digimead.tabuddy.model.Element
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Stash
 
 trait Serialization[T] extends Loggable {
-  /** Load element from [T]. */
-  def acquire[A <: Element.Generic](frozen: T): Option[A]
-  /** Save element to [T]. */
-  def freeze(element: Element.Generic): T
+  /**
+   * Load elements from an Iterable[T] with loadElement().
+   * Filter/adjust a loaded element with filter()
+   * Return a deserialized element.
+   */
+  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[T],
+    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A]
+  /**
+   * Get a serialized element.
+   * Filter/adjust a child with filter()
+   * Save adjusted children to [T] with saveElement().
+   */
+  def freeze(element: Element.Generic,
+    saveElement: (Element.Generic, T) => Unit,
+    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)
+  /** Serialization filter that accept all elements */
+  def filterAccept(element: Element.Generic): Option[Element.Generic] = Some(element)
+  /** Serialization filter that accept all elements */
+  def filterDeny(element: Element.Generic): Option[Element.Generic] = None
 }

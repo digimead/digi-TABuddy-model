@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -41,13 +41,37 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.element
 
-import com.escalatesoft.subcut.inject.NewBindingModule
-
-package object dsltype {
-  lazy val default = new NewBindingModule(module => {
-    module.bind[Seq[DSLType]] toSingle { Seq(new DefaultDSLTypes) }
-    module.bind[DSLType.Interface] toSingle { new DSLType.Interface {} }
+/** Contain list of an axis values. */
+class Coordinate private (
+  /** List of an axis values. */
+  val coordinate: List[Axis[_ <: AnyRef with java.io.Serializable]]) extends java.io.Serializable {
+  /** Check if coordinate at the root point. */
+  def isRoot() = coordinate.isEmpty
+  /** Visual coordinate representation. */
+  override def toString() = if (coordinate.nonEmpty)
+    "Axis(%s)".format(coordinate.map(axis => "%s->%s".format(axis.id.name, axis.value.toString)).mkString(", "))
+  else
+    "ROOT"
+  override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
+    case that: Coordinate =>
+      this.coordinate.sortBy(_.id.name) == that.coordinate.sortBy(_.id.name)
+    case _ => false
   })
+  override def hashCode() = coordinate.foldLeft(0)((a, b) => a * 31 + b.hashCode)
+}
+
+/**
+ * Companion object for coordinate
+ * that contains predefined root coordinate and coordinate builders.
+ */
+object Coordinate {
+  /** Predefined point with empty coordinate list. */
+  val root = new Coordinate(List())
+
+  /** Create Coordinate with sorted axes list */
+  def apply(coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Coordinate = if (coordinate.nonEmpty) new Coordinate(coordinate.sortBy(_.id.name).toList) else root
+  /** Create Coordinate with sorted axes list */
+  def apply(coordinate: List[Axis[_ <: AnyRef with java.io.Serializable]]): Coordinate = if (coordinate.nonEmpty) new Coordinate(coordinate.sortBy(_.id.name)) else root
 }

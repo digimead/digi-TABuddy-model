@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -47,40 +47,108 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-
+import scala.annotation.tailrec
+import scala.collection.mutable
 import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
-import org.digimead.tabuddy.model.Element
 import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.element.Element
+import java.util.UUID
+import org.digimead.tabuddy.model.element.Stash
 
 class BuiltinSerialization extends Serialization[Array[Byte]] {
-  /** Load element from Array[Byte]. */
-  def acquire[A <: Element.Generic](frozen: Array[Byte]): Option[A] = try {
-    val bais = new ByteArrayInputStream(frozen)
-    val in = new ObjectInputStream(bais)
-    in.readObject() match {
-      case model: Model.Generic =>
-        model.eIndexRebuid
-        Some(model.asInstanceOf[A])
-      case other =>
-        Some(other.asInstanceOf[A])
+  /**
+   * Load elements from Iterable[Array[Byte]] with loadElement().
+   * Filter/adjust loaded element with filter()
+   * Return deserialized element.
+   */
+  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[Array[Byte]],
+    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] = {
+    var hash = mutable.HashMap[UUID, Element.Generic]()
+    // load elements
+    var data = loadElement()
+    while (data.nonEmpty) {
+      try {
+        val bais = new ByteArrayInputStream(data.get)
+        val in = new ObjectInputStream(bais)
+        filter(in.readObject().asInstanceOf[Element.Generic]).foreach(element => hash(element.eUnique) = element)
+        in.close()
+      } catch {
+        // catch all throwables, return None if any
+        case e: Throwable =>
+          log.error("unable to acuire elements: " + e)
+      }
+      data = loadElement()
     }
-  } catch {
-    case e =>
-      log.error("unable to acuire elements: " + e)
-      None
+    // build structure
+    var rootElements = Seq[Element.Generic]()
+    hash.foreach {
+      case (unique, element) =>
+        val parent = element.eStash.context.container.unique
+        hash.get(parent) match {
+          case Some(parentElement) if parentElement == element =>
+            // parent is cyclic reference
+            if (element.eScope == Model.Scope) {
+              // drop all other expectants
+              rootElements = Seq(element)
+            } else
+              log.fatal("detected a cyclic reference inside an unexpected element " + element)
+          case Some(parentElement) =>
+            // parent found
+            parentElement.eChildren += element
+          case None =>
+            // parent not found
+            element.eAs[A, B].foreach(element => rootElements = rootElements :+ element)
+        }
+    }
+    // return result
+    hash.clear
+    rootElements.find(_.eStash.scope == Model.Scope) match {
+      case Some(model) =>
+        // return model as expected type
+        model.eStash.model = Some(model.asInstanceOf[Model.Generic])
+        model.asInstanceOf[Model.Generic].eIndexRebuid()
+        model.eAs[A, B]
+      case None if rootElements.size == 1 =>
+        // return other element as expected type
+        rootElements.head.eAs[A, B]
+      case None if rootElements.isEmpty =>
+        log.error("there is no root elements detected")
+        None
+      case None =>
+        log.error("there are more than one root elements detected: " + rootElements.mkString(","))
+        None
+    }
   }
-
-  /** Save element to Array[Byte]. */
-  def freeze(element: Element.Generic): Array[Byte] = {
-    val baos = new ByteArrayOutputStream()
-    val out = new ObjectOutputStream(baos)
-    val toSave = element match {
-      case model: Model.Generic => model
-      case other => other.eModel.eDetach[Element.Generic](other, true)
+  /**
+   * Get serialized element.
+   * Filter/adjust children with filter()
+   * Save adjusted child to [Array[Byte]] with saveElement().
+   */
+  def freeze(element: Element.Generic,
+    saveElement: (Element.Generic, Array[Byte]) => Unit,
+    filter: (Element.Generic) => Option[Element.Generic] = filterAccept) =
+    freezeWorker(saveElement, filter, element)
+  @tailrec
+  private def freezeWorker(saveElement: (Element.Generic, Array[Byte]) => Unit,
+    filter: (Element.Generic) => Option[Element.Generic],
+    elements: Element.Generic*) {
+    if (elements.isEmpty)
+      return
+    val saved = elements.map { element =>
+      val serialized = element.eCopy(List())
+      filter(serialized) match {
+        case Some(serialized) =>
+          val baos = new ByteArrayOutputStream()
+          val out = new ObjectOutputStream(baos)
+          out.writeObject(serialized)
+          saveElement(element, baos.toByteArray())
+          baos.close()
+          element.eChildren.toSeq.sortBy(_.eId.name) // simplify the debugging with sortBy
+        case None =>
+          log.debug("skip freeze element " + element)
+          Seq()
+      }
     }
-    out.writeObject(toSave)
-    val result = baos.toByteArray()
-    baos.close()
-    result
+    freezeWorker(saveElement, filter, saved.flatten: _*)
   }
 }

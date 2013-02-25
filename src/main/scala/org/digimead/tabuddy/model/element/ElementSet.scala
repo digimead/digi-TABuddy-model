@@ -41,54 +41,35 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.element
 
-import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.aop.log
-import org.digimead.lib.test.TestHelperLogging
-import org.digimead.tabuddy.model.Model.model2implementation
-import org.scalatest.fixture.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import scala.collection.mutable
 
-import com.escalatesoft.subcut.inject.NewBindingModule
+import org.digimead.digi.lib.log.Loggable
 
-import org.digimead.tabuddy.model.TestDSL._
+trait ElementSet extends mutable.HashSet[Element.Generic] with Loggable {
+  val origin: Element.Generic
 
-class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
+  abstract override def +=(element: Element.Generic): this.type = {
+    if (!contains(element)) {
+      super.+=(element)
+      val undoF = () => { -=(element); {} }
+      Element.Event.publish(Element.Event.ChildInclude(origin, element, origin.eModified)(undoF))
     }
+    this
   }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
-
-  describe("A Snapshot") {
-    it("should contain persistent values") {
-      config =>
-/*        Model.description should be ("")
-        Model.sCurrent should be(Element.Snapshot(0L))
-        val globalSnapshot = Model.sTake()
-        globalSnapshot should not be (null)
-        globalSnapshot.sCurrent should not be (Element.Snapshot(0L))
-        //log.___glance("!!!" + Model.stashMap)
-        // set property
-        globalSnapshot.description  should be ("")
-        Model.description = "123"
-        Model.description should be ("123")
-        globalSnapshot.description  should be ("")*/
-        
-      //val snapshot = Model.sTake()
-      //snapshot
-      /*val snapshotPointer = Model.snapshotTake()
-        Model.withSnapshot(asdf) {
-          snapshot =>
-            snapshot.compareTo(Model)
-        }*/
+  abstract override def -=(element: Element.Generic): this.type = {
+    if (contains(element)) {
+      super.-=(element)
+      val undoF = () => { +=(element); {} }
+      Element.Event.publish(Element.Event.ChildRemove(origin, element, origin.eModified)(undoF))
     }
+    this
+  }
+  abstract override def clear(): Unit = {
+    val children = this.toSeq
+    super.clear
+    val undoF = () => { children.foreach(addEntry) }
+    Element.Event.publish(Element.Event.ChildrenReset(origin, origin.eModified)(undoF))
   }
 }

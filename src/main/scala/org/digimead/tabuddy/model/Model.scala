@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -56,6 +56,13 @@ import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
 import org.digimead.digi.lib.log.Loggable
 import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Value
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Context
+import org.digimead.tabuddy.model.element.Reference
+
+import scala.language.implicitConversions
 
 /**
  * Class that implements model interface
@@ -65,10 +72,13 @@ class Model[StashProjection <: Model.Stash](stashArg: StashProjection) extends M
   eRegister(this)
 
   override def eModel = this
-  override def eModel_=(value: Model.Generic) = throw new UnsupportedOperationException
   def eStash = stashArg
   def eStash_=(value: StashProjection): Unit = {}
-  override def toString() = "%s[%s] %s".format(eStash.scope, eStash.id.toString, eStash.unique.toString)
+
+  /** create new instance with specific stash */
+  protected def eNewInstance(stash: StashProjection): this.type = new Model(stash).asInstanceOf[this.type]
+
+  override def toString() = "%s://%s[%s@GLOBAL]".format(eStash.context.container.origin.name, eStash.scope, eStash.id.name)
 }
 
 /**
@@ -81,12 +91,21 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
   type Generic = Interface[_ <: Stash]
   implicit def model2implementation(m: Model.type): Model.Generic = m.implementation
   implicit def bindingModule = DependencyInjection()
+  /** The local origin that is alias of a user or a system or an anything other*/
+  @volatile private var localOrigin: Symbol = inject[Symbol]("Model.Origin")
   @volatile private var implementation: Model.Generic = inject[Interface[Stash]]
   @volatile var snapshots = Seq[Long]()
 
+  def origin() = localOrigin
   def inner() = implementation
   def commitInjection() {}
-  def updateInjection() { implementation = inject[Interface[_ <: Model.Stash]] }
+  def updateInjection() {
+    val previous = implementation
+    localOrigin = inject[Symbol]("Model.Origin")
+    implementation = inject[Interface[_ <: Model.Stash]]
+    val undoF = () => {}
+    Element.Event.publish(Element.Event.ModelReplace(previous, implementation, implementation.eModified)(undoF))
+  }
 
   /**
    * General model interface
@@ -96,7 +115,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
      * Add context information to context map
      */
     @log
-    def contextAdd(context: Element.Context): Unit = {
+    def contextAdd(context: Context): Unit = {
       log.info("add new context [%s]".format(context))
       eStash.contextMap.get(context.file) match {
         case Some(fileMap) =>
@@ -109,21 +128,21 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
      * Delete context information from context map if any
      */
     @log
-    def contextDel(context: Element.Context) = {
+    def contextDel(context: Context) = {
       log.info("delete context [%s]".format(context))
     }
     /**
      * Get context information by file/line
      */
     @log
-    def contextGet(file: Option[File], line: Int): Option[Element.Context] = {
+    def contextGet(file: Option[File], line: Int): Option[Context] = {
       None
     }
     /**
      * Create context information from document map for element
      */
     @log
-    def contextBuildFromDocument(element: Element.Generic, line: Int): Option[Element.Context] = {
+    def contextBuildFromDocument(element: Element.Generic, line: Int): Option[Context] = {
       val map = eStash.documentMap.value
       if (line < 1) return None
       if (map.isEmpty) return None
@@ -134,29 +153,29 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
               log.fatal("incorrect shift for buildContextFromDocument want: %s, i: %d, map: %s".format(line, i, map.mkString("\n")))
               return None
             } else
-              return Some(Element.Context(element.eReference, map(i - 1).file, Some(line - (map.head.line.getOrElse(0) - 1)), map(i - 1).digest))
+              return Some(Context(element.eReference, map(i - 1).file, Some(line - (map.head.line.getOrElse(0) - 1)), map(i - 1).digest))
           case _ =>
         }
       }
-      Some(Element.Context(element.eReference, map.last.file, Some(line - (map.head.line.getOrElse(0) - 1)), map.last.digest))
+      Some(Context(element.eReference, map.last.file, Some(line - (map.head.line.getOrElse(0) - 1)), map.last.digest))
     }
     /**
      * Create context information from the specific container
      */
-    def contextForChild(container: Element.Generic, t: Option[StackTraceElement]): Element.Context = t match {
+    def contextForChild(container: Element.Generic, t: Option[StackTraceElement]): Context = t match {
       case Some(stack) if stack.getFileName() == "(inline)" && eStash.documentMap.value.nonEmpty =>
         // loaded as runtime Scala code && documentMap defined
-        Element.Context(container.eReference, None, Some(stack.getLineNumber()), None)
+        Context(container.eReference, None, Some(stack.getLineNumber()), None)
       case _ =>
         // everything other - virtual context
-        Element.virtualContext(container)
+        Context.virtual(container)
     }
     /**
      * Set current thread local context information
      * for document parser, for example
      */
     @log
-    def contextSet(documentMap: Seq[Element.Context]) {
+    def contextSet(documentMap: Seq[Context]) {
       if (documentMap.nonEmpty)
         log.debugWhere("set local document context [%s]".format(documentMap.mkString(", ")))
       else
@@ -164,79 +183,89 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       eStash.documentMap.value = documentMap
     }
     def description = eGetOrElseRoot[String]('description).map(_.get) getOrElse ""
-    def description_=(value: String) = eSet('description, value)
+    def description_=(value: String) = eSet('description, value, "")
     /** Dump the model content. */
-    def eDump(padding: Int = 2): String = {
+    def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
+      def dumpProperties() = {
+        val result = eStash.property.map {
+          case (id, sequence) =>
+            sequence.map {
+              case (typeSymbol, value) =>
+                "%s: %s".format(id, value)
+            }
+        }.flatten
+        if (result.nonEmpty) "\n  " + result.toSeq.sorted.mkString("\n  ") else ""
+      }
       val pad = " " * padding
-      val self = "%s: %s".format(eStash.scope, eStash.id)
-      val childrenDump = elementChildren.map(_.eDump(padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      val properties = if (brief) "" else dumpProperties()
+      val self = "%s: %s".format(eStash.scope, eStash.id) + properties
+      val childrenDump = eChildren.map(_.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     /**
      * Attach element to the model
+     * Register element in various model indexes
      */
-    def eAttach(container: Element.Generic, element: Element.Generic) {
-      log.debug("attach %s to %s".format(element, container))
-      val all = element.eFilter(_ => true)
-      val attached = all.filter(_.eStash.model.nonEmpty)
-      assert(attached.isEmpty, "Unable to reattach %s, please detach it first".format(element))
-      assert(container.eStash.model == Some(this),
-        "Unable to attach %s to unknown container %s".format(element, container))
-      all.foreach(_.eStash.model = Some(this))
-      val newStash = element.eStash.copy(context = element.eStash.context.copy(container = container.eReference),
-        model = container.eStash.model)
-      Element.check(element, newStash) // throw exception
-      element.eStash.model = eStash.model
-      container.elementChildren += element
+    def eAttach(element: Element.Generic): Unit = synchronized {
+      log.debug("attach %s to %s".format(element, this))
       eRegister(element)
     }
     /**
      * Detach element from the model
+     * Unregister element in various model indexes
      */
-    def eDetach[T <: Element.Generic](element: T, copy: Boolean = false): T = {
-      val detached = if (copy) {
-        element.eCopy()
-      } else {
-        eModel.e(element.eStash.context.container).foreach(parent => parent.elementChildren -= element)
-        element
-      }
-      element.eFilter(_ => true).foreach(_.eStash.model = None)
-      element.eStash.model = None
-      element
+    def eDetach[T <: Element.Generic](element: T, copy: Boolean = false): Unit = synchronized {
+      log.debug("dettach %s from %s".format(element.eReference, this.eReference))
+      eUnregister(element)
     }
     /** Get a property or else get the property from the root element. */
-    def eGetOrElseRoot[A <: java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] = eGet[A](id)
-    /** Reset current model */
-    def reset(model: Model.Generic = inject[Interface[Stash]]) {
-      log.debug("reset model")
-      log.debug("dispose depricated " + this)
-      eFilter(_ => true).foreach { element =>
-        element.eStash.model = None
-        element.elementChildren.clear
-      }
-      elementChildren.clear
-      eIndexRebuid
-      log.debug("activate " + model)
-      implementation = model
-    }
+    def eGetOrElseRoot(id: Symbol, typeSymbol: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =
+      // The model is always at the root
+      eGet(id, typeSymbol)
+    /** Get a container */
+    override def eParent(): Option[Element.Generic] = None
     /** Get the root element from the current origin if any. */
     def eRoot() = Some(this).asInstanceOf[Option[this.type]]
     /** Get the root element from the particular origin if any */
     def eRoot(origin: Symbol) = Some(this).asInstanceOf[Option[this.type]]
+    /** Reset current model */
+    def reset(model: Model.Generic = inject[Interface[Stash]]) {
+      log.debug("reset model")
+      log.debug("dispose depricated " + this)
+      // detach model
+      eFilter(_ => true).foreach { element =>
+        element.eStash.model = None
+        element.eChildren.clear
+      }
+      eChildren.clear
+      eIndexRebuid
+      log.debug("activate " + model)
+      val previous = implementation
+      implementation = model
+      val undoF = () => {}
+      Element.Event.publish(Element.Event.ModelReplace(previous, implementation, implementation.eModified)(undoF))
+    }
     /** Stub for setter of model's data */
     def stash_=(value: Model.Stash) =
       throw new UnsupportedOperationException
   }
-  class Stash(val created: Stash.Timestamp, val id: Symbol, val unique: UUID, val property: org.digimead.tabuddy.model.Stash.Data) extends org.digimead.tabuddy.model.Stash {
+  /** The marker object that describes model scope */
+  object Scope extends Element.Scope {
+    val name = "Model"
+  }
+  /**
+   * Model specific stash realization
+   */
+  class Stash(val created: Element.Timestamp, val id: Symbol, val unique: UUID, val property: org.digimead.tabuddy.model.element.Stash.Data) extends org.digimead.tabuddy.model.element.Stash {
     /** Common constructor for serialization  */
-    def this(context: Element.Context, coordinate: Element.Coordinate, created: Stash.Timestamp,
-      id: Symbol, unique: UUID, property: org.digimead.tabuddy.model.Stash.Data) = this(created, id, unique, property)
+    def this(context: Context, coordinate: Coordinate, created: Element.Timestamp,
+      id: Symbol, unique: UUID, property: org.digimead.tabuddy.model.element.Stash.Data) = this(created, id, unique, property)
     /** User constructor */
-    def this(id: Symbol, unique: UUID) = this(Stash.timestamp, id, unique, new org.digimead.tabuddy.model.Stash.Data)
-    lazy val context: Element.Context = Element.Context(Element.Reference(id, unique, Element.Coordinate.root), None, None, None)
+    def this(id: Symbol, unique: UUID) = this(Element.timestamp(), id, unique, new org.digimead.tabuddy.model.element.Stash.Data)
+    lazy val context: Context = Context(Reference(Model.origin, unique, Coordinate.root), None, None, None)
     /** Map of all sorted contexts by line number per file */
-    val contextMap = new mutable.HashMap[Option[File], Seq[Element.Context]] with mutable.SynchronizedMap[Option[File], Seq[Element.Context]]
-    lazy val coordinate: Element.Coordinate = Element.Coordinate.root
+    val contextMap = new mutable.HashMap[Option[File], Seq[Context]] with mutable.SynchronizedMap[Option[File], Seq[Context]]
+    lazy val coordinate: Coordinate = Coordinate.root
     /**
      * Thread local context, empty - REPL, non empty - document
      * for example, after include preprocessor:
@@ -251,35 +280,39 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
      * line 150 .. 299 - file C (include)
      * line 300 .. end - file A
      */
-    @transient val documentMap = new DynamicVariable[Seq[Element.Context]](Seq())
+    @transient val documentMap = new DynamicVariable[Seq[Context]](Seq())
     /** Map of all model elements */
     val elements = new mutable.HashMap[UUID, Element.Generic] with mutable.SynchronizedMap[UUID, Element.Generic]
-    val scope: String = "Model"
+    lazy val scope: Element.Scope = Model.Scope
 
-    def copy(context: Element.Context = this.context,
-      coordinate: Element.Coordinate = this.coordinate,
-      created: Stash.Timestamp = this.created,
+    def copy(context: Context = this.context,
+      coordinate: Coordinate = this.coordinate,
+      created: Element.Timestamp = this.created,
       id: Symbol = this.id,
-      modified: Stash.Timestamp = this.modified,
-      scope: String = this.scope,
+      modified: Element.Timestamp = this.modified,
+      scope: Element.Scope = this.scope,
       unique: UUID = this.unique,
       model: Option[Model.Generic] = this.model,
-      property: org.digimead.tabuddy.model.Stash.Data = this.property) = {
+      property: org.digimead.tabuddy.model.element.Stash.Data = this.property) = {
       assert(context == this.context, "incorrect context %s, must be %s".format(context, this.context))
       assert(coordinate == this.coordinate, "incorrect coordinate %s, must be %s".format(context, this.context))
       assert(scope == this.scope, "incorrect scope %s, must be %s".format(scope, this.scope))
       val newStashCtor = this.getClass().getConstructor(
-        classOf[Element.Context],
-        classOf[Element.Coordinate],
-        classOf[Stash.Timestamp],
+        classOf[Context],
+        classOf[Coordinate],
+        classOf[Element.Timestamp],
         classOf[Symbol],
         classOf[UUID],
-        classOf[org.digimead.tabuddy.model.Stash.Data])
-      val newStash = newStashCtor.newInstance(context, coordinate, id, created, unique, property)
+        classOf[org.digimead.tabuddy.model.element.Stash.Data])
+      val data = new org.digimead.tabuddy.model.element.Stash.Data
+      copyDeepProperty(property, data)
+      val newStash = newStashCtor.newInstance(context, coordinate, created, id, unique, data)
       newStash.model = model
       newStash.modified = modified
-      newStash
+      newStash.asInstanceOf[this.type]
     }
+    /** Validates stash on creation for circular reference */
+    override protected def validateForSelfReference() {}
   }
 }
 

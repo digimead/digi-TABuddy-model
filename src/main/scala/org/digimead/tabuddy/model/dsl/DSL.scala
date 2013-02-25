@@ -41,54 +41,38 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.dsl
 
-import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
-import org.digimead.lib.test.TestHelperLogging
+import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Model.model2implementation
-import org.scalatest.fixture.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.digimead.tabuddy.model.Record
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.LocationGeneric
 
-import com.escalatesoft.subcut.inject.NewBindingModule
+import scala.language.implicitConversions
 
-import org.digimead.tabuddy.model.TestDSL._
+abstract class DSL[T](builder: Element.Generic => T) {
+  implicit def element2rich(e: Element.Generic): T = builder(e)
+  implicit def model2rich(e: Model.type): T = builder(e)
+}
 
-class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
+object DSL {
+  /**
+   * Base class for DSL builders
+   */
+  trait RichElement {
+    val DLS_element: Element.Generic
 
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
-  }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
-
-  describe("A Snapshot") {
-    it("should contain persistent values") {
-      config =>
-/*        Model.description should be ("")
-        Model.sCurrent should be(Element.Snapshot(0L))
-        val globalSnapshot = Model.sTake()
-        globalSnapshot should not be (null)
-        globalSnapshot.sCurrent should not be (Element.Snapshot(0L))
-        //log.___glance("!!!" + Model.stashMap)
-        // set property
-        globalSnapshot.description  should be ("")
-        Model.description = "123"
-        Model.description should be ("123")
-        globalSnapshot.description  should be ("")*/
-        
-      //val snapshot = Model.sTake()
-      //snapshot
-      /*val snapshotPointer = Model.snapshotTake()
-        Model.withSnapshot(asdf) {
-          snapshot =>
-            snapshot.compareTo(Model)
-        }*/
-    }
+    /**
+     * Create or retrieve element child
+     */
+    def |[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
+      Record(ma.runtimeClass.asInstanceOf[Class[A]], mb.runtimeClass.asInstanceOf[Class[B]], Some(DLS_element), l.id, l.coordinate.coordinate, (n: A) => {})
+    /**
+     * Retrieve element child if any
+     */
+    def &[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] =
+      DLS_element.eFind[A, B](l.id, l.coordinate)
   }
 }

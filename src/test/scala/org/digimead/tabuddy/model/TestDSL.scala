@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -45,6 +45,8 @@ package org.digimead.tabuddy.model
 
 import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.dsl.DSL
 
 class TestDSL(val DLS_element: Element.Generic)
   extends DSL.RichElement

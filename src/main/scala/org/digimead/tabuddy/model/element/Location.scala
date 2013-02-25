@@ -41,54 +41,20 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model
+package org.digimead.tabuddy.model.element
 
-import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.aop.log
-import org.digimead.lib.test.TestHelperLogging
-import org.digimead.tabuddy.model.Model.model2implementation
-import org.scalatest.fixture.FunSpec
-import org.scalatest.matchers.ShouldMatchers
-
-import com.escalatesoft.subcut.inject.NewBindingModule
-
-import org.digimead.tabuddy.model.TestDSL._
-
-class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
-  }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
-
-  describe("A Snapshot") {
-    it("should contain persistent values") {
-      config =>
-/*        Model.description should be ("")
-        Model.sCurrent should be(Element.Snapshot(0L))
-        val globalSnapshot = Model.sTake()
-        globalSnapshot should not be (null)
-        globalSnapshot.sCurrent should not be (Element.Snapshot(0L))
-        //log.___glance("!!!" + Model.stashMap)
-        // set property
-        globalSnapshot.description  should be ("")
-        Model.description = "123"
-        Model.description should be ("123")
-        globalSnapshot.description  should be ("")*/
-        
-      //val snapshot = Model.sTake()
-      //snapshot
-      /*val snapshotPointer = Model.snapshotTake()
-        Model.withSnapshot(asdf) {
-          snapshot =>
-            snapshot.compareTo(Model)
-        }*/
-    }
-  }
+/**
+ * Abstract location description
+ */
+abstract class LocationGeneric[A <: Element[B], B <: Stash](val id: Symbol,
+  val coordinate: Coordinate)(implicit em: Manifest[A], sm: Manifest[B]) {
+  lazy val elementManifest = em
+  lazy val stashManifest = sm
 }
+
+/**
+ * Element reference that point to relative location
+ */
+case class Location[A <: Element[B], B <: Stash](override val id: Symbol,
+  override val coordinate: Coordinate = Coordinate.root)(implicit em: Manifest[A], sm: Manifest[B])
+  extends LocationGeneric[A, B](id, coordinate)

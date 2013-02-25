@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -47,6 +47,8 @@ import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
 import org.digimead.lib.test.TestHelperLogging
 import org.digimead.tabuddy.model.Model.model2implementation
+import org.digimead.tabuddy.model.Record.Stash
+import org.digimead.tabuddy.model.element.Coordinate
 import org.scalatest.fixture.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -70,9 +72,9 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Record") {
     it("should create new instance with apply()") {
       config =>
-        val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Model, 'test1, Element.Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-        val record2 = Record.apply(Model, 'test2, Element.Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-        val record2a = Record.apply(Model, 'test2, Element.Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+        val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Some(Model.inner), 'test1, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+        val record2 = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+        val record2a = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
         assert(record2a eq record2)
     }
     it("should support nested elements") {
@@ -104,9 +106,9 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         record_1b.description should be("record_1b")
         record_2b.description should be("record_2b")
         // check child elements
-        record_0 should equal(List(record_1a, record_1b))
-        record_1a should equal(List(record_2a))
-        record_1b should equal(List(record_2b))
+        record_0.eChildren should equal(Set(record_1a, record_1b))
+        record_1a.eChildren should equal(Set(record_2a))
+        record_1b.eChildren should equal(Set(record_2b))
         // check elements with same id
         val treeA = Model.record('test) { r =>
           r.record('test) { r =>

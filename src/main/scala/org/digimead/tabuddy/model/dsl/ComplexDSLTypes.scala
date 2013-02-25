@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -41,57 +41,24 @@
  * address: ezh@ezh.msk.ru
  */
 
-package org.digimead.tabuddy.model.dsltype
+package org.digimead.tabuddy.model.dsl
 
 import scala.collection.immutable
 
-class DefaultDSLTypes extends DSLType {
-  protected lazy val typeClassSignatureMap = immutable.HashMap[Class[_], String](
-    classOf[java.lang.Byte] -> "Byte",
-    classOf[java.lang.Double] -> "Double",
-    classOf[java.lang.Float] -> "Float",
-    classOf[java.lang.Integer] -> "Integer",
-    classOf[java.lang.Long] -> "Long",
-    classOf[java.lang.Short] -> "Short",
-    classOf[java.lang.Boolean] -> "Boolean",
-    classOf[java.lang.String] -> "String")
-  protected lazy val typeSignatureClassMap = immutable.HashMap[String, Class[_]](typeClassSignatureMap.map(t => (t._2, t._1)).toSeq: _*)
+class ComplexDSLTypes extends DSLType {
+  protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](
+    classOf[Array[Symbol]] -> 'ArrayOfSymbol)
+
   /**
-   * Load value from string
+   * Convert value from string
    */
-  def load: PartialFunction[(String, String), _ <: java.io.Serializable] = {
-    case ("Byte", valueData) => valueData.toByte
-    case ("Double", valueData) => valueData.toDouble
-    case ("Float", valueData) => valueData.toFloat
-    case ("Integer", valueData) => valueData.toInt
-    case ("Long", valueData) => valueData.toLong
-    case ("Short", valueData) => valueData.toShort
-    case ("Boolean", valueData) => valueData.toBoolean
-    case ("String", valueData) => valueData
+  def convertFromString: PartialFunction[(Symbol, String), _ <: AnyRef with java.io.Serializable] = {
+    case ('ArrayOfSymbol, valueData) => valueData.split(" ").map(Symbol(_)).toArray
   }
   /**
    * Save value to string
    */
-  def save[T <: java.io.Serializable]: PartialFunction[T, (String, String)] = {
-    case x: java.lang.Byte => ("Byte", String.valueOf(x))
-    case x: java.lang.Double => ("Double", String.valueOf(x))
-    case x: java.lang.Float => ("Float", String.valueOf(x))
-    case x: java.lang.Integer => ("Integer", String.valueOf(x))
-    case x: java.lang.Long => ("Long", String.valueOf(x))
-    case x: java.lang.Short => ("Short", String.valueOf(x))
-    case x: java.lang.Boolean => ("Boolean", String.valueOf(x))
-    case x: java.lang.String => ("String", x)
+  def convertToString: PartialFunction[(Symbol, _ <: AnyRef with java.io.Serializable), String] = {
+    case ('ArrayOfSymbol, valueData) => valueData.asInstanceOf[Array[Symbol]].map(_.name).mkString(" ")
   }
-  /**
-   * Convert JVM type to string signature
-   */
-  def getTypeSignature(clazz: Class[_]): Option[String] = typeClassSignatureMap.get(clazz)
-  /**
-   * Convert string signature to JVM type
-   */
-  def getTypeClass(signature: String): Option[Class[_]] = typeSignatureClassMap.get(signature)
-  /**
-   * Returns all known types
-   */
-  def getTypes(): Seq[String] = typeSignatureClassMap.keys.toSeq
 }

@@ -1,6 +1,6 @@
 /**
  * This file is part of the TABuddy project.
- * Copyright (c) 2012 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Global License version 3
@@ -48,6 +48,9 @@ import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.lib.test.TestHelperLogging
 import org.digimead.tabuddy.model.Model.model2implementation
+import org.digimead.tabuddy.model.element.Axis.intToAxis
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
 import org.scalatest.fixture.FunSpec
@@ -106,20 +109,19 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         val rid = r1.eStash.id
         val runique = r1.eStash.unique
         // create element projection at different coordinate
-       /* Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, Element.Coordinate(('a, 1)), rid, (System.currentTimeMillis, Element.nanoShift), runique, Some(Model))))
+        Model.eAttach(new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, runique, new org.digimead.tabuddy.model.element.Stash.Data)))
         // create element with same coordinate
-        evaluating { Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, rcoord, rid, (System.currentTimeMillis, Element.nanoShift), runique, Some(Model)))) } should produce[AssertionError]
+        evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, rcoord, Element.timestamp(), rid, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
         // create element with same id and different unique
-        evaluating { Model.eAttach(Model, new Record[Record.Stash](new Record.Stash(rctx, Element.Coordinate(('a, 1)), rid, (System.currentTimeMillis, Element.nanoShift), UUID.randomUUID(), Some(Model)))) } should produce[AssertionError]
+        evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, UUID.randomUUID(), new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
         // create element with different type
-        evaluating { Model.eAttach(Model, new Note[Note.Stash](new Note.Stash(rctx, Element.Coordinate(('a, 1)), rid, (System.currentTimeMillis, Element.nanoShift), runique, Some(Model)))) } should produce[AssertionError]*/
+        evaluating { Model.eChildren += new Note[Note.Stash](new Note.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
     }
     it("should register elements in model") {
       config =>
         val r1 = Model.record('a) { r => }
         r1.eStash.context.container should not be (null)
-        Model.e(r1.eStash.context.container)
-      //should be (Some(Model.inner))
+        Model.e(r1.eStash.context.container) should be(Some(Model.inner))
     }
     it("should have proper copy constructor") {
       config =>
@@ -134,10 +136,67 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
             }
           }
         }
+        save.eSet[Integer]('test, 123)
+        val saveValue = save.eGet[Integer]('test).get
+        saveValue.context.container.unique should be(save.eReference.unique)
         val copy = save.eCopy()
         copy.eId.name should be("level2")
         copy.description should be("level2")
-        copy.elementChildren.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
+        copy.eChildren.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
+        val copyValue = copy.eGet[Integer]('test).get
+        copyValue.context.container.unique should be(copy.eReference.unique)
+        record.eReference.unique should not be (copy.eReference.unique)
+        record.eSet('test, copyValue)
+        val recordValue = record.eGet[Integer]('test).get
+        recordValue.get should be (copyValue.get)
+        recordValue.context.container.unique should be(record.eReference.unique)
+        record.eChildren -= save
+        Model.e(save.eReference) should be(None)
+        record.eChildren += save
+        val newRecord = save.eCopy(save.eStash.copy(id = 'new))
+        save.eUnique should be(newRecord.eUnique)
+        save.eReference should be(newRecord.eReference)
+        Model.e(newRecord.eReference) should not be ('empty)
+        record.eChildren -= save
+        Model.e(save.eReference) should be(None)
+        record.eChildren += newRecord
+    }
+    it("should determinate ancestors") {
+      config =>
+        Model.reset()
+        var recordL2: Record[Record.Stash] = null
+        var recordL3: Record[Record.Stash] = null
+        val recordL1 = Model.record('level1) { r =>
+          recordL2 = r.record('level2) { r =>
+            recordL3 = r.record('level3) { r =>
+            }
+          }
+        }
+        Model.eAncestors should be('empty)
+        Model.eAncestorReferences should be('empty)
+        recordL1.eAncestors should be(Seq(Model.inner))
+        recordL1.eAncestorReferences should be(Seq(Model.inner.eReference))
+        recordL2.eAncestors should be(Seq(recordL1, Model.inner))
+        recordL2.eAncestorReferences should be(Seq(recordL1.eReference, Model.inner.eReference))
+        recordL3.eAncestors should be(Seq(recordL2, recordL1, Model.inner))
+        recordL3.eAncestorReferences should be(Seq(recordL2.eReference, recordL1.eReference, Model.inner.eReference))
+    }
+    it("should provide the convertation ability") {
+      config =>
+        Model.reset()
+        val note = Model.note('root) { n => }
+        note should not be (null)
+        note.getClass should be(classOf[Note[_]])
+        val element = note.asInstanceOf[Element.Generic]
+        // Element.Generic -> Record -> Note -> Task
+        // unable - lack of required fields
+        element.eAs[Task[Task.Stash], Task.Stash].nonEmpty should be(false)
+        // ok
+        element.eAs[Note[Note.Stash], Note.Stash].nonEmpty should be(true)
+        // unable - lack of required fields in stash
+        element.eAs[Note[Task.Stash], Task.Stash].nonEmpty should be(false)
+        // ok
+        element.eAs[Record[Record.Stash], Record.Stash].nonEmpty should be(true)
     }
   }
 }
