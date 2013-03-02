@@ -97,7 +97,7 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
     def ancestors(current: Element.Generic, acc: Seq[Element.Generic]): Seq[Element.Generic] = {
       val ancestor = Model.e(current.eStash.context.container) match {
         case Some(ancestor) =>
-          if (ancestor == Model.inner || ancestor.eScope == Model.Scope)
+          if (ancestor == Model.inner || ancestor.isInstanceOf[Model.Interface[_]])
             if (ancestor == current)
               return acc // model
             else
@@ -116,7 +116,7 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
     def ancestors(current: Element.Generic, acc: Seq[Reference]): Seq[Reference] = {
       val ancestor = Model.e(current.eStash.context.container) match {
         case Some(ancestor) =>
-          if (ancestor == Model.inner || ancestor.eScope == Model.Scope)
+          if (ancestor == Model.inner || ancestor.isInstanceOf[Model.Interface[_]])
             if (ancestor == current)
               return acc // model
             else
@@ -312,7 +312,11 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
   }
   /** Get current stash */
   def eStash: StashProjection
-  /** Set current stash */
+  /**
+   * Set current stash
+   * It should preserve the modification timestamp
+   * Stash already contains 'modified' attribute
+   */
   def eStash_=(value: StashProjection): Unit
   /** Get element unique id */
   def eUnique() = eStash.unique
@@ -529,11 +533,21 @@ object Element extends Loggable {
       override def toString() = s"Mark($modified)"
     }
   }
-  /** trait for marker object that describe element Scope */
-  trait Scope extends java.io.Serializable {
-    val name: String
+  /** The class that provides a marker for additional specialization of the element */
+  abstract class Scope(val modificator: Symbol) extends java.io.Serializable with Equals {
+    override def toString() = modificator.name
 
-    override def toString() = name
+    def canEqual(other: Any): Boolean
+    override def equals(other: Any) = {
+      other match {
+        case that: org.digimead.tabuddy.model.element.Element.Scope => that.canEqual(this) && modificator == that.modificator
+        case _ => false
+      }
+    }
+    override def hashCode() = {
+      val prime = 41
+      prime + modificator.hashCode
+    }
   }
   /** Timestamp class */
   case class Timestamp(val milliseconds: Long, nanoShift: Long) {

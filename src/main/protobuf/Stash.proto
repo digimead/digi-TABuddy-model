@@ -59,8 +59,9 @@ message Stash {
   required string id = 6;
   required fixed64 modifiedHi = 7;
   required fixed64 modifiedLo = 8;
-  required string scope = 9;
-  required fixed64 uniqueHi = 10;
-  required fixed64 uniqueLo = 11;
-  repeated Property.Bundle property = 12;
+  required string scopeClass = 9;
+  required string scopeName = 10;
+  required fixed64 uniqueHi = 11;
+  required fixed64 uniqueLo = 12;
+  repeated Property.Bundle property = 13;
 }

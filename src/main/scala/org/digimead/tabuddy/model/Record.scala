@@ -63,13 +63,19 @@ import org.digimead.tabuddy.model.element.Value.string2someValue
  * Class that implements Record interface.
  */
 class Record[A <: Record.Stash](private var stashArg: A) extends Record.Interface[A] {
+  /** Copy constructor */
+  override def eCopy(stash: Option[A], children: Option[List[Element.Generic]]): this.type = {
+    val result = super.eCopy(stash, children)
+    val iterator = result.eChildren.iteratorRecursive
+    iterator.foreach(element => element.eStash.model = None)
+    result
+  }
   /** Get current stash */
   def eStash: A = stashArg
   /** Stub for setter of model's data */
   def eStash_=(value: A): Unit = {
     val oldValue = stashArg
     stashArg = value
-    eModify()
     val undoF = () => {}
     Element.Event.publish(Element.Event.StashReplace(this, oldValue, value, this.eModified)(undoF))
   }
@@ -86,27 +92,48 @@ class Record[A <: Record.Stash](private var stashArg: A) extends Record.Interfac
  */
 object Record extends Loggable {
   type Generic = Interface[_ <: Stash]
+  val scope = new Scope()
 
   /**
    * Create a detached element with the standard Record class
    */
   def apply[T](id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Record[Stash] =
-    apply(id, rawCoordinate, (f) => {})
+    apply(id, rawCoordinate, (f: Record[Stash]) => {})
   /**
    * Create a detached element with the standard Record class
    */
-  def apply[T](id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (Record[Stash]) => T): Record[Stash] =
-    apply(classOf[Record[Stash]], classOf[Record.Stash], None, id, rawCoordinate, f)
+  def apply[T](id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Record[Stash] => T): Record[Stash] =
+    apply(classOf[Record[Stash]], classOf[Record.Stash], None, id, Record.scope, rawCoordinate, f)
+  /**
+   * Create a detached element with the standard Record class
+   */
+  def apply[T](id: Symbol, scope: Record.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Record[Stash] =
+    apply(classOf[Record[Stash]], classOf[Record.Stash], None, id, scope, rawCoordinate, (f: Record[Stash]) => {})
+  /**
+   * Create a detached element with the standard Record class
+   */
+  def apply[T](id: Symbol, scope: Record.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Record[Stash] => T): Record[Stash] =
+    apply(classOf[Record[Stash]], classOf[Record.Stash], None, id, scope, rawCoordinate, f)
   /**
    * Get exists or create an attached element with the standard Record class
    */
   def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Record[Stash] =
-    apply(container, id, rawCoordinate, (f) => {})
+    apply(container, id, rawCoordinate, (f: Record[Stash]) => {})
   /**
    * Get exists or create an attached element with the standard Record class
    */
-  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (Record[Stash]) => T): Record[Stash] =
-    apply(classOf[Record[Stash]], classOf[Record.Stash], Some(container), id, rawCoordinate, f)
+  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Record[Stash] => T): Record[Stash] =
+    apply(classOf[Record[Stash]], classOf[Record.Stash], Some(container), id, Record.scope, rawCoordinate, f)
+  /**
+   * Get exists or create an attached element with the standard Record class
+   */
+  def apply[T](container: Element.Generic, id: Symbol, scope: Record.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Record[Stash] =
+    apply(classOf[Record[Stash]], classOf[Record.Stash], Some(container), id, scope, rawCoordinate, (f: Record[Stash]) => {})
+  /**
+   * Get exists or create an attached element with the standard Record class
+   */
+  def apply[T](container: Element.Generic, id: Symbol, scope: Record.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Record[Stash] => T): Record[Stash] =
+    apply(classOf[Record[Stash]], classOf[Record.Stash], Some(container), id, scope, rawCoordinate, f)
   /**
    * Get exists or create a new record.
    * a bit complicated type ;-)
@@ -116,7 +143,7 @@ object Record extends Loggable {
    * D >: B <: B - is exactly as B, not ancestor, not descendant
    */
   @log
-  def apply[A <: Stash, B <: Interface[A], C, D >: B <: B](elementClass: Class[B], stashClass: Class[A], container: Option[Element.Generic], id: Symbol,
+  def apply[A <: Stash, B <: Interface[A], C, D >: B <: B](elementClass: Class[B], stashClass: Class[A], container: Option[Element.Generic], id: Symbol, scope: Element.Scope,
     rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (D) => C)(implicit a: Manifest[A], d: Manifest[D]): D = synchronized {
     val coordinate = Coordinate(rawCoordinate: _*)
     // poor Scala compiler, it is going crazy...
@@ -149,9 +176,10 @@ object Record extends Loggable {
         classOf[Coordinate],
         classOf[Element.Timestamp],
         classOf[Symbol],
+        classOf[Element.Scope],
         classOf[UUID],
         classOf[org.digimead.tabuddy.model.element.Stash.Data])
-      val stash = stashCtor.newInstance(context, coordinate, Element.timestamp(), id, unique, new org.digimead.tabuddy.model.element.Stash.Data)
+      val stash = stashCtor.newInstance(context, coordinate, Element.timestamp(), id, scope, unique, new org.digimead.tabuddy.model.element.Stash.Data)
       val elementCtor = elementClass.getConstructor(a.runtimeClass)
       val element = elementCtor.newInstance(stash)
       log.debug(messagePrefix + element)
@@ -166,8 +194,8 @@ object Record extends Loggable {
    * General Record interface.
    */
   trait Interface[StashProjection <: Record.Stash] extends Element[StashProjection] {
-    def description = eGetOrElseRoot[String]('description).map(_.get) getOrElse ""
-    def description_=(value: String) = eSet('description, value, "")
+    def label = eGetOrElseRoot[String]('label).map(_.get) getOrElse ""
+    def label_=(value: String) = eSet('label, value, "")
     def eDump(brief: Boolean, padding: Int = 2): String = {
       def dumpProperties() = {
         val result = eStash.property.map {
@@ -181,10 +209,10 @@ object Record extends Loggable {
       }
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
-      val self = if (description.isEmpty)
+      val self = if (label.isEmpty)
         "%s: %s".format(eStash.scope, eStash.id) + properties
       else
-        "%s: %s \"%s\"".format(eStash.scope, eStash.id, description) + properties
+        "%s: %s \"%s\"".format(eStash.scope, eStash.id, label) + properties
       val childrenDump = eChildren.map(_.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
@@ -209,7 +237,7 @@ object Record extends Loggable {
     this: org.digimead.tabuddy.model.dsl.DSL[_] =>
     case class RecordLocation(override val id: Symbol,
       override val coordinate: Coordinate = Coordinate.root)
-      extends LocationGeneric[Record[Stash], Stash](id, coordinate)
+      extends LocationGeneric[Record[Stash], Stash](id, Record.scope, coordinate)
   }
   object DSL {
     trait RichElement {
@@ -223,15 +251,14 @@ object Record extends Loggable {
     }
   }
   /** The marker object that describes record scope */
-  object Scope extends Element.Scope {
-    val name = "Record"
+  class Scope(override val modificator: Symbol = 'Record) extends Element.Scope(modificator) {
+    def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.Record.Scope]
   }
   /**
    * Record specific stash realization
    */
-  class Stash(val context: Context, val coordinate: Coordinate, val created: Element.Timestamp, val id: Symbol,
+  class Stash(val context: Context, val coordinate: Coordinate, val created: Element.Timestamp, val id: Symbol, val scope: Element.Scope,
     val unique: UUID, val property: org.digimead.tabuddy.model.element.Stash.Data) extends org.digimead.tabuddy.model.element.Stash {
-    lazy val scope: Element.Scope = Record.Scope
 
     /** Copy constructor */
     def copy(context: Context = this.context,
@@ -249,11 +276,12 @@ object Record extends Loggable {
         classOf[Coordinate],
         classOf[Element.Timestamp],
         classOf[Symbol],
+        classOf[Element.Scope],
         classOf[UUID],
         classOf[org.digimead.tabuddy.model.element.Stash.Data])
       val data = new org.digimead.tabuddy.model.element.Stash.Data
       copyDeepProperty(property, data)
-      val newStash = newStashCtor.newInstance(context, coordinate, created, id, unique, data)
+      val newStash = newStashCtor.newInstance(context, coordinate, created, id, scope, unique, data)
       newStash.model = model
       newStash.modified = modified
       newStash.asInstanceOf[this.type]

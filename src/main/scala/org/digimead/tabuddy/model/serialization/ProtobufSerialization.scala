@@ -109,7 +109,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
         hash.get(parent) match {
           case Some(parentElement) if parentElement == element =>
             // parent is cyclic reference
-            if (element.eScope == Model.Scope) {
+            if (element.eScope == Model.scope) {
               // drop all other expectants
               rootElements = Seq(element)
             } else
@@ -124,7 +124,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
     }
     // return result
     hash.clear
-    rootElements.find(_.eScope == Model.Scope) match {
+    rootElements.find(_.isInstanceOf[Model.Interface[_]]) match {
       case Some(model) =>
         // return model as expected type
         model.eStash.model = Some(model.asInstanceOf[Model.Generic])
@@ -222,7 +222,6 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
                 bundles(typeSymbol) = PropertyProtos.Property.Bundle.newBuilder()
                 bundles(typeSymbol).setType(typeSymbol.name)
               }
-              log.___glance("aaa" + typeSymbol)
               bundles(typeSymbol).addProperty(PropertyProtos.Property.newBuilder().
                 setContext(packContext(value.context)).
                 setData(valueData).
@@ -262,7 +261,8 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
       setId(stash.id.name).
       setModifiedHi(stash.modified.milliseconds).
       setModifiedLo(stash.modified.nanoShift).
-      setScope(stash.scope.getClass.getName()).
+      setScopeClass(stash.scope.getClass.getName()).
+      setScopeName(stash.scope.modificator.name).
       setUniqueHi(stash.unique.getMostSignificantBits()).
       setUniqueLo(stash.unique.getLeastSignificantBits())
     packProperties(stash.property).foreach(builder.addProperty)
@@ -348,22 +348,27 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
       coordinate <- unpackCoordinate(proto.getCoordinate())
       created = Element.Timestamp(proto.getCreatedHi(), proto.getCreatedLo())
       id = Symbol(proto.getId())
-      scope = proto.getScope()
+      scopeClassName = proto.getScopeClass()
+      scopeName = proto.getScopeName()
       modified = Element.Timestamp(proto.getModifiedHi(), proto.getModifiedLo())
       unique = new UUID(proto.getUniqueHi(), proto.getUniqueLo())
       properies = unpackProperties(proto.getPropertyList())
     } yield {
+      val scopeClass = Class.forName(scopeClassName)
+      val scopeCtor = scopeClass.getConstructor(classOf[Symbol])
+      val scope = scopeCtor.newInstance(Symbol(scopeName)).asInstanceOf[Element.Scope]
       val stashClass = Class.forName(proto.getType())
       val stashCtor = stashClass.getConstructor(
         classOf[Context],
         classOf[Coordinate],
         classOf[Element.Timestamp],
         classOf[Symbol],
+        classOf[Element.Scope],
         classOf[UUID],
         classOf[org.digimead.tabuddy.model.element.Stash.Data])
-      val stash = stashCtor.newInstance(context, coordinate, created, id, unique, properies).asInstanceOf[Stash]
+      val stash = stashCtor.newInstance(context, coordinate, created, id, scope, unique, properies).asInstanceOf[Stash]
       stash.modified = modified
-      assert(stash.scope.getClass().getName() == scope, "Incorrect scope: got %s, expected %s".format(stash.scope.getClass().getName(), scope))
+      assert(stash.scope.getClass().getName() == scopeClassName, "Incorrect scope class: got %s, expected %s".format(stash.scope.getClass().getName(), scopeClassName))
       stash
     }
     if (stash.isEmpty)

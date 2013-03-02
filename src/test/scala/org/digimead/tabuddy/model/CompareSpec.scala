@@ -75,13 +75,15 @@ class CompareSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
           save = r.record('level2) { r =>
-            r.description = "123"
+            r.label = "123"
           }
         }
         CompareByModification.doWith {
-          val model1 = Model.eCopy
+          val model1 = Model.eCopy()
+          Model.eModel.eq(Model.inner) should be(true)
+          model1.eModel.eq(model1) should be(true)
           model1.compare(Model) should be(0)
-          model1.description = "111"
+          model1.label = "111"
           model1.compare(Model) should be(1) // model1 modified after Model
           (model1 | RecordLocation('root)).eModel should be(model1)
           // parent modified after child
@@ -89,10 +91,10 @@ class CompareSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
           save.compare(record) should be(-1) // save modified before record
           Model.compare(record) should be(1) // Model modified after record
           Model.compare(save) should be(1) // Model modified after save
-          Model.description = "123"
+          Model.label = "123"
           Model.compare(record) should be(1) // Model modified after record
           Model.compare(save) should be(1) // Model modified after record
-          save.description = "321"
+          save.label = "321"
           Model.compare(record) should be(1) // Model modified after record
           Model.compare(save) should be(1) // Model modified after save
           record.compare(save) should be(1) // record modified after save
@@ -107,32 +109,34 @@ class CompareSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
           save = r.record('level2) { r =>
-            r.description = "123"
+            r.label = "123"
           }
         }
         CompareByContent.doWith {
-          val model1 = Model.eCopy
+          val model1 = Model.eCopy()
+          Model.eModel.eq(Model.inner) should be(true)
+          model1.eModel.eq(model1) should be(true)
           model1.compare(Model) should be(0)
-          model1.description = "111"
+          model1.label = "111"
           model1.compare(Model) should be(1) // model1 modified after Model
           (model1 | RecordLocation('root)).eModel should be(model1)
-          model1.description = Model.description
+          model1.label = Model.label
           model1.compare(Model) should be(0)
           // parent modified after child
           record.compare(record) should be(0)
           save.compare(record) should be(-1) // save modified before record
           Model.compare(record) should be(1) // Model modified after record
           Model.compare(save) should be(1) // Model modified after save
-          Model.description = "123"
+          Model.label = "123"
           Model.compare(record) should be(1) // Model modified after record
           Model.compare(save) should be(1) // Model modified after record
-          save.description = "321"
+          save.label = "321"
           Model.compare(record) should be(1) // Model modified after record
           Model.compare(save) should be(1) // Model modified after save
           record.compare(save) should be(1) // record modified after save
           model1.compare(Model) should be(-1) // model1 modified before Model
-          model1.description = "123"
-          (model1 | RecordLocation('root) | RecordLocation('level2)).description = "321"
+          model1.label = "123"
+          (model1 | RecordLocation('root) | RecordLocation('level2)).label = "321"
           model1.compare(Model) should be(0) // model1 modified after Model but content is equal
         }
     }

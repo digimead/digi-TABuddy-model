@@ -109,13 +109,13 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         val rid = r1.eStash.id
         val runique = r1.eStash.unique
         // create element projection at different coordinate
-        Model.eAttach(new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, runique, new org.digimead.tabuddy.model.element.Stash.Data)))
+        Model.eAttach(new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, Record.scope, runique, new org.digimead.tabuddy.model.element.Stash.Data)))
         // create element with same coordinate
-        evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, rcoord, Element.timestamp(), rid, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
+        evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, rcoord, Element.timestamp(), rid, Record.scope, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
         // create element with same id and different unique
-        evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, UUID.randomUUID(), new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
+        evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, Record.scope, UUID.randomUUID(), new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
         // create element with different type
-        evaluating { Model.eChildren += new Note[Note.Stash](new Note.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
+        evaluating { Model.eChildren += new Note[Note.Stash](new Note.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, Record.scope, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
     }
     it("should register elements in model") {
       config =>
@@ -128,11 +128,11 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
-          r.description = "root"
+          r.label = "root"
           save = r.record('level2) { r =>
-            r.description = "level2"
+            r.label = "level2"
             r.record('level3) { r =>
-              r.description = "level3"
+              r.label = "level3"
             }
           }
         }
@@ -141,21 +141,23 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         saveValue.context.container.unique should be(save.eReference.unique)
         val copy = save.eCopy()
         copy.eId.name should be("level2")
-        copy.description should be("level2")
-        copy.eChildren.head.asInstanceOf[Record[Record.Stash]].description should be("level3")
+        copy.label should be("level2")
+        copy.eChildren.head.asInstanceOf[Record[Record.Stash]].label should be("level3")
         val copyValue = copy.eGet[Integer]('test).get
         copyValue.context.container.unique should be(copy.eReference.unique)
         record.eReference.unique should not be (copy.eReference.unique)
         record.eSet('test, copyValue)
         val recordValue = record.eGet[Integer]('test).get
-        recordValue.get should be (copyValue.get)
+        recordValue.get should be(copyValue.get)
         recordValue.context.container.unique should be(record.eReference.unique)
         record.eChildren -= save
         Model.e(save.eReference) should be(None)
+        save.eStash.model should be(None)
         record.eChildren += save
         val newRecord = save.eCopy(save.eStash.copy(id = 'new))
         save.eUnique should be(newRecord.eUnique)
         save.eReference should be(newRecord.eReference)
+        save.eStash.model should be(Some(Model.inner))
         Model.e(newRecord.eReference) should not be ('empty)
         record.eChildren -= save
         Model.e(save.eReference) should be(None)
@@ -197,6 +199,27 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         element.eAs[Note[Task.Stash], Task.Stash].nonEmpty should be(false)
         // ok
         element.eAs[Record[Record.Stash], Record.Stash].nonEmpty should be(true)
+    }
+    it("should provide recursive iterator") {
+      config =>
+        Model.reset()
+        var e2: Record[Record.Stash] = null
+        var e3: Record[Record.Stash] = null
+        val e1 = Model.record('root) { r =>
+          r.label = "root"
+          e2 = r.record('level2) { r =>
+            r.label = "level2"
+            e3 = r.record('level3) { r =>
+              r.label = "level3"
+            }
+          }
+        }
+        val modelIterator = Model.eChildren.iteratorRecursive
+        assert(modelIterator.length === 3) // Model + 3 children
+        val modelChildren = Model.eChildren.iteratorRecursive.foldLeft(Seq[Element.Generic]())((acc, e) => acc :+ e).sortBy(_.eUnique)
+        Seq(e1, e2, e3).sortBy(_.eUnique).sameElements(modelChildren)
+        assert(e2.eChildren.iteratorRecursive.length === 1)
+        assert(e3.eChildren.iteratorRecursive.length === 0)
     }
   }
 }

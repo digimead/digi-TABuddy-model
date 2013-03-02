@@ -70,17 +70,17 @@ class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging
   describe("A Snapshot") {
     it("should contain persistent values") {
       config =>
-/*        Model.description should be ("")
+/*        Model.label should be ("")
         Model.sCurrent should be(Element.Snapshot(0L))
         val globalSnapshot = Model.sTake()
         globalSnapshot should not be (null)
         globalSnapshot.sCurrent should not be (Element.Snapshot(0L))
         //log.___glance("!!!" + Model.stashMap)
         // set property
-        globalSnapshot.description  should be ("")
-        Model.description = "123"
-        Model.description should be ("123")
-        globalSnapshot.description  should be ("")*/
+        globalSnapshot.label  should be ("")
+        Model.label = "123"
+        Model.label should be ("123")
+        globalSnapshot.label  should be ("")*/
         
       //val snapshot = Model.sTake()
       //snapshot

@@ -56,13 +56,14 @@ import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
 import org.digimead.digi.lib.log.Loggable
 import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Children
 import org.digimead.tabuddy.model.element.Context
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
+import org.digimead.tabuddy.model.element.Value
 
-import scala.language.implicitConversions
+import language.implicitConversions
 
 /**
  * Class that implements model interface
@@ -91,6 +92,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
   type Generic = Interface[_ <: Stash]
   implicit def model2implementation(m: Model.type): Model.Generic = m.implementation
   implicit def bindingModule = DependencyInjection()
+  val scope = new Scope()
   /** The local origin that is alias of a user or a system or an anything other*/
   @volatile private var localOrigin: Symbol = inject[Symbol]("Model.Origin")
   @volatile private var implementation: Model.Generic = inject[Interface[Stash]]
@@ -182,8 +184,31 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
         log.debugWhere("reset local document context")
       eStash.documentMap.value = documentMap
     }
-    def description = eGetOrElseRoot[String]('description).map(_.get) getOrElse ""
-    def description_=(value: String) = eSet('description, value, "")
+    def label = eGetOrElseRoot[String]('label).map(_.get) getOrElse ""
+    def label_=(value: String) = eSet('label, value, "")
+    /**
+     * Attach element to the model
+     * Register element in various model indexes
+     */
+    def eAttach(element: Element.Generic): Unit = synchronized {
+      log.debug("attach %s to %s".format(element, this))
+      eRegister(element)
+    }
+    /** Copy constructor */
+    override def eCopy(stash: Option[StashProjection], children: Option[List[Element.Generic]]): this.type = {
+      val result = super.eCopy(stash, children)
+      val iterator = result.eChildren.iteratorRecursive
+      iterator.foreach(element => element.eStash.model = Some(result.eModel))
+      result
+    }
+    /**
+     * Detach element from the model
+     * Unregister element in various model indexes
+     */
+    def eDetach[T <: Element.Generic](element: T, copy: Boolean = false): Unit = synchronized {
+      log.debug("dettach %s from %s".format(element.eReference, this.eReference))
+      eUnregister(element)
+    }
     /** Dump the model content. */
     def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
       def dumpProperties() = {
@@ -201,22 +226,6 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       val self = "%s: %s".format(eStash.scope, eStash.id) + properties
       val childrenDump = eChildren.map(_.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
-    }
-    /**
-     * Attach element to the model
-     * Register element in various model indexes
-     */
-    def eAttach(element: Element.Generic): Unit = synchronized {
-      log.debug("attach %s to %s".format(element, this))
-      eRegister(element)
-    }
-    /**
-     * Detach element from the model
-     * Unregister element in various model indexes
-     */
-    def eDetach[T <: Element.Generic](element: T, copy: Boolean = false): Unit = synchronized {
-      log.debug("dettach %s from %s".format(element.eReference, this.eReference))
-      eUnregister(element)
     }
     /** Get a property or else get the property from the root element. */
     def eGetOrElseRoot(id: Symbol, typeSymbol: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =
@@ -250,8 +259,8 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       throw new UnsupportedOperationException
   }
   /** The marker object that describes model scope */
-  object Scope extends Element.Scope {
-    val name = "Model"
+  class Scope(override val modificator: Symbol = 'Model) extends Element.Scope(modificator) {
+    def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.Model.Scope]
   }
   /**
    * Model specific stash realization
@@ -259,7 +268,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
   class Stash(val created: Element.Timestamp, val id: Symbol, val unique: UUID, val property: org.digimead.tabuddy.model.element.Stash.Data) extends org.digimead.tabuddy.model.element.Stash {
     /** Common constructor for serialization  */
     def this(context: Context, coordinate: Coordinate, created: Element.Timestamp,
-      id: Symbol, unique: UUID, property: org.digimead.tabuddy.model.element.Stash.Data) = this(created, id, unique, property)
+      id: Symbol, scope: Element.Scope, unique: UUID, property: org.digimead.tabuddy.model.element.Stash.Data) = this(created, id, unique, property)
     /** User constructor */
     def this(id: Symbol, unique: UUID) = this(Element.timestamp(), id, unique, new org.digimead.tabuddy.model.element.Stash.Data)
     lazy val context: Context = Context(Reference(Model.origin, unique, Coordinate.root), None, None, None)
@@ -283,7 +292,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
     @transient val documentMap = new DynamicVariable[Seq[Context]](Seq())
     /** Map of all model elements */
     val elements = new mutable.HashMap[UUID, Element.Generic] with mutable.SynchronizedMap[UUID, Element.Generic]
-    lazy val scope: Element.Scope = Model.Scope
+    lazy val scope: Element.Scope = Model.scope // ignore the custom scope
 
     def copy(context: Context = this.context,
       coordinate: Coordinate = this.coordinate,
@@ -302,11 +311,12 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
         classOf[Coordinate],
         classOf[Element.Timestamp],
         classOf[Symbol],
+        classOf[Element.Scope],
         classOf[UUID],
         classOf[org.digimead.tabuddy.model.element.Stash.Data])
       val data = new org.digimead.tabuddy.model.element.Stash.Data
       copyDeepProperty(property, data)
-      val newStash = newStashCtor.newInstance(context, coordinate, created, id, unique, data)
+      val newStash = newStashCtor.newInstance(context, coordinate, created, id, scope, unique, data)
       newStash.model = model
       newStash.modified = modified
       newStash.asInstanceOf[this.type]

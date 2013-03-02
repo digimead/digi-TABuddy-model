@@ -72,7 +72,7 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
   describe("A Record") {
     it("should create new instance with apply()") {
       config =>
-        val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Some(Model.inner), 'test1, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+        val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Some(Model.inner), 'test1, Record.scope, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
         val record2 = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
         val record2a = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
         assert(record2a eq record2)
@@ -87,24 +87,24 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         val record_0 = Model.record('baseLevel) { r =>
           record_1a = r.record('level1a) { r =>
             record_2a = r.record('level2a) { r =>
-              r.description = "record_2a"
+              r.label = "record_2a"
             }
-            r.description = "record_1a"
+            r.label = "record_1a"
           }
           record_1b = r.record('level1b) { r =>
             record_2b = r.record('level2b) { r =>
-              r.description = "record_2b"
+              r.label = "record_2b"
             }
-            r.description = "record_1b"
+            r.label = "record_1b"
           }
-          r.description = "record_0"
+          r.label = "record_0"
         }
         // check description
-        record_0.description should be("record_0")
-        record_1a.description should be("record_1a")
-        record_2a.description should be("record_2a")
-        record_1b.description should be("record_1b")
-        record_2b.description should be("record_2b")
+        record_0.label should be("record_0")
+        record_1a.label should be("record_1a")
+        record_2a.label should be("record_2a")
+        record_1b.label should be("record_1b")
+        record_2b.label should be("record_2b")
         // check child elements
         record_0.eChildren should equal(Set(record_1a, record_1b))
         record_1a.eChildren should equal(Set(record_2a))
@@ -112,10 +112,10 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         // check elements with same id
         val treeA = Model.record('test) { r =>
           r.record('test) { r =>
-            r.record('test) { _.description = "ok" }
+            r.record('test) { _.label = "ok" }
           }
         }
-        //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.description) should be(Some("ok"))
+        //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.label) should be(Some("ok"))
     }
   }
 }

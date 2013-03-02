@@ -116,10 +116,10 @@ object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
     /**
      * Convert value from string
      */
-    def convertFromString(symbolType: Symbol, valueData: String): Option[_ <: AnyRef with java.io.Serializable] =
-      symbolConverterMap.get(symbolType) match {
+    def convertFromString(typeSymbol: Symbol, valueData: String): Option[_ <: AnyRef with java.io.Serializable] =
+      symbolConverterMap.get(typeSymbol) match {
         case Some(converter) =>
-          Some(converter.convertFromString(symbolType, valueData))
+          Some(converter.convertFromString(typeSymbol, valueData))
         case None =>
           None
       }
@@ -131,10 +131,10 @@ object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
     /**
      * Convert value to string
      */
-    def convertToString(symbolType: Symbol, valueData: AnyRef with java.io.Serializable): Option[String] =
-      symbolConverterMap.get(symbolType) match {
+    def convertToString(typeSymbol: Symbol, valueData: AnyRef with java.io.Serializable): Option[String] =
+      symbolConverterMap.get(typeSymbol) match {
         case Some(converter) =>
-          Some(converter.convertToString(symbolType, valueData))
+          Some(converter.convertToString(typeSymbol, valueData))
         case None =>
           None
       }

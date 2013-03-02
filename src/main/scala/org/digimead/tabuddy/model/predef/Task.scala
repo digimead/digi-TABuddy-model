@@ -63,27 +63,48 @@ class Task[A <: Task.Stash](stashArg: A) extends Note(stashArg) {
  */
 object Task {
   type Generic = Task[_ <: Stash]
+  val scope = new Scope()
 
   /**
    * Create a detached element with the standard Task class
    */
   def apply[T](id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Task[Stash] =
-    Task.apply(id, rawCoordinate, (f) => {})
+    Task.apply(id, rawCoordinate, (f: Task[Stash]) => {})
   /**
    * Create a detached element with the standard Task class
    */
-  def apply[T](id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (Task[Stash]) => T): Task[Stash] =
-    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], None, id, rawCoordinate, f)
+  def apply[T](id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Task[Stash] => T): Task[Stash] =
+    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], None, id, Task.scope, rawCoordinate, f)
+  /**
+   * Create a detached element with the standard Task class
+   */
+  def apply[T](id: Symbol, scope: Task.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Task[Stash] =
+    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], None, id, scope, rawCoordinate, (f: Task[Stash]) => {})
+  /**
+   * Create a detached element with the standard Task class
+   */
+  def apply[T](id: Symbol, scope: Task.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Task[Stash] => T): Task[Stash] =
+    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], None, id, scope, rawCoordinate, f)
   /**
    * Get exists or create an attached element with the standard Task class
    */
   def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Task[Stash] =
-    Task.apply(container, id, rawCoordinate, (f) => {})
+    Task.apply(container, id, rawCoordinate, (f: Task[Stash]) => {})
   /**
    * Get exists or create an attached element with the standard Task class
    */
-  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (Task[Stash]) => T): Task[Stash] =
-    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], Some(container), id, rawCoordinate, f)
+  def apply[T](container: Element.Generic, id: Symbol, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: Task[Stash] => T): Task[Stash] =
+    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], Some(container), id, Task.scope, rawCoordinate, f)
+  /**
+   * Get exists or create an attached element with the standard Task class
+   */
+  def apply[T](container: Element.Generic, id: Symbol, scope: Task.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]]): Task[Stash] =
+    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], Some(container), id, scope, rawCoordinate, (f: Task[Stash]) => {})
+  /**
+   * Get exists or create an attached element with the standard Task class
+   */
+  def apply[T](container: Element.Generic, id: Symbol, scope: Task.Scope, rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (Task[Stash]) => T): Task[Stash] =
+    Record.apply(classOf[Task[Stash]], classOf[Task.Stash], Some(container), id, scope, rawCoordinate, f)
 
   /**
    * Part of DSL.Builder for end user
@@ -92,7 +113,7 @@ object Task {
     this: org.digimead.tabuddy.model.dsl.DSL[_] =>
     case class TaskLocation(override val id: Symbol,
       override val coordinate: Coordinate = Coordinate.root)
-      extends LocationGeneric[Task[Stash], Stash](id, coordinate)
+      extends LocationGeneric[Task[Stash], Stash](id, Task.scope, coordinate)
   }
   object DSL {
     trait RichElement {
@@ -106,15 +127,14 @@ object Task {
     }
   }
   /** The marker object that describes task scope */
-  object Scope extends Element.Scope {
-    val name = "Task"
+  class Scope(override val modificator: Symbol = 'Task) extends Note.Scope(modificator) {
+    override def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.predef.Task.Scope]
   }
   /**
    * Record specific stash realization
    */
   class Stash(override val context: Context, override val coordinate: Coordinate, override val created: Element.Timestamp,
-    override val id: Symbol, override val unique: UUID, override val property: org.digimead.tabuddy.model.element.Stash.Data = new org.digimead.tabuddy.model.element.Stash.Data)
-    extends Note.Stash(context, coordinate, created, id, unique, property) {
-    override lazy val scope: Element.Scope = Task.Scope
+    override val id: Symbol, override val scope: Element.Scope, override val unique: UUID, override val property: org.digimead.tabuddy.model.element.Stash.Data = new org.digimead.tabuddy.model.element.Stash.Data)
+    extends Note.Stash(context, coordinate, created, id, scope, unique, property) {
   }
 }

@@ -105,8 +105,7 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
     it("should attach and detach element") {
       config =>
         Model.reset()
-        val modelCopy = Model.eCopy()
-        modelCopy.eStash.model should equal(Some(modelCopy))
+
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
           save = r.record('level2) { r =>
@@ -114,11 +113,19 @@ class ModelSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
             }
           }
         }
+        val modelCopy = Model.eCopy()
+        modelCopy.eStash.model should equal(Some(modelCopy))
+        Model.eModel.eq(Model.inner) should be(true)
+        modelCopy.eModel.eq(modelCopy) should be(true)
+        val recordCopy = modelCopy.eChildren.head
+        recordCopy.eModel.eq(modelCopy) should be(true)
+        recordCopy.eId.name should be("root")
+        record.eModel.eq(Model.inner) should be(true)
         record.eChildren should have size (1)
         Model.eFilter(_ => true) should have size (3)
-        /*val detached = Model.eDetach(save)
-        Model.eFilter(_ => true) should have size (1)
-        detached.eFilter(_ => true) should have size (1)
+        Model.eDetach(save)
+        /*Model.eFilter(_ => true) should have size (1)
+        save.eFilter(_ => true) should have size (1)
         record.eChildren should be('empty)*/
     }
   }

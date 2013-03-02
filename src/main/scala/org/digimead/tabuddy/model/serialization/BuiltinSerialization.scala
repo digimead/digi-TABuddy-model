@@ -47,12 +47,14 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import java.util.UUID
+
 import scala.annotation.tailrec
 import scala.collection.mutable
+
 import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
-import java.util.UUID
 import org.digimead.tabuddy.model.element.Stash
 
 class BuiltinSerialization extends Serialization[Array[Byte]] {
@@ -87,7 +89,7 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
         hash.get(parent) match {
           case Some(parentElement) if parentElement == element =>
             // parent is cyclic reference
-            if (element.eScope == Model.Scope) {
+            if (element.isInstanceOf[Model.Interface[_]]) {
               // drop all other expectants
               rootElements = Seq(element)
             } else
@@ -102,7 +104,7 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
     }
     // return result
     hash.clear
-    rootElements.find(_.eStash.scope == Model.Scope) match {
+    rootElements.find(_.isInstanceOf[Model.Interface[_]]) match {
       case Some(model) =>
         // return model as expected type
         model.eStash.model = Some(model.asInstanceOf[Model.Generic])

@@ -68,7 +68,7 @@ object DSL {
      * Create or retrieve element child
      */
     def |[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
-      Record(ma.runtimeClass.asInstanceOf[Class[A]], mb.runtimeClass.asInstanceOf[Class[B]], Some(DLS_element), l.id, l.coordinate.coordinate, (n: A) => {})
+      Record(ma.runtimeClass.asInstanceOf[Class[A]], mb.runtimeClass.asInstanceOf[Class[B]], Some(DLS_element), l.id, l.scope, l.coordinate.coordinate, (n: A) => {})
     /**
      * Retrieve element child if any
      */

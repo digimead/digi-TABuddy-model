@@ -46,7 +46,7 @@ package org.digimead.tabuddy.model.element
 /**
  * Abstract location description
  */
-abstract class LocationGeneric[A <: Element[B], B <: Stash](val id: Symbol,
+abstract class LocationGeneric[A <: Element[B], B <: Stash](val id: Symbol, val scope: Element.Scope,
   val coordinate: Coordinate)(implicit em: Manifest[A], sm: Manifest[B]) {
   lazy val elementManifest = em
   lazy val stashManifest = sm
@@ -55,6 +55,6 @@ abstract class LocationGeneric[A <: Element[B], B <: Stash](val id: Symbol,
 /**
  * Element reference that point to relative location
  */
-case class Location[A <: Element[B], B <: Stash](override val id: Symbol,
+case class Location[A <: Element[B], B <: Stash](override val id: Symbol, override val scope: Element.Scope,
   override val coordinate: Coordinate = Coordinate.root)(implicit em: Manifest[A], sm: Manifest[B])
-  extends LocationGeneric[A, B](id, coordinate)
+  extends LocationGeneric[A, B](id, scope, coordinate)
