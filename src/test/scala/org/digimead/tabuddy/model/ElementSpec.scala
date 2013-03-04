@@ -128,11 +128,11 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         Model.reset()
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
-          r.label = "root"
+          r.name = "root"
           save = r.record('level2) { r =>
-            r.label = "level2"
+            r.name = "level2"
             r.record('level3) { r =>
-              r.label = "level3"
+              r.name = "level3"
             }
           }
         }
@@ -141,8 +141,8 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         saveValue.context.container.unique should be(save.eReference.unique)
         val copy = save.eCopy()
         copy.eId.name should be("level2")
-        copy.label should be("level2")
-        copy.eChildren.head.asInstanceOf[Record[Record.Stash]].label should be("level3")
+        copy.name should be("level2")
+        copy.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("level3")
         val copyValue = copy.eGet[Integer]('test).get
         copyValue.context.container.unique should be(copy.eReference.unique)
         record.eReference.unique should not be (copy.eReference.unique)
@@ -206,11 +206,11 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         var e2: Record[Record.Stash] = null
         var e3: Record[Record.Stash] = null
         val e1 = Model.record('root) { r =>
-          r.label = "root"
+          r.name = "root"
           e2 = r.record('level2) { r =>
-            r.label = "level2"
+            r.name = "level2"
             e3 = r.record('level3) { r =>
-              r.label = "level3"
+              r.name = "level3"
             }
           }
         }

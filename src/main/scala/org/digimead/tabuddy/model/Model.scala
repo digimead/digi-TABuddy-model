@@ -184,8 +184,8 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
         log.debugWhere("reset local document context")
       eStash.documentMap.value = documentMap
     }
-    def label = eGetOrElseRoot[String]('label).map(_.get) getOrElse ""
-    def label_=(value: String) = eSet('label, value, "")
+    def name = eGetOrElseRoot[String]('name).map(_.get) getOrElse ""
+    def name_=(value: String) = eSet('name, value, "")
     /**
      * Attach element to the model
      * Register element in various model indexes

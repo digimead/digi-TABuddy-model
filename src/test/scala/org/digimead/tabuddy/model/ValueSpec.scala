@@ -115,21 +115,21 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
       config =>
         val rootWorkspace = Model.record('test) { record => }
         rootWorkspace.eStash.coordinate.isRoot should be(true)
-        rootWorkspace.label should be("")
+        rootWorkspace.name should be("")
         val otherWorkspace = Model.record('test, ('a, 0)) { record => }
         // child of same root with same id MUST have same unique values
         rootWorkspace.eId.name should be(otherWorkspace.eId.name)
         rootWorkspace.eUnique should be(otherWorkspace.eUnique)
         //rootWorkspace.unique
         otherWorkspace.eStash.coordinate.isRoot should be(false)
-        otherWorkspace.label should be("")
-        rootWorkspace.label = "test"
-        rootWorkspace.label should be("test")
+        otherWorkspace.name should be("")
+        rootWorkspace.name = "test"
+        rootWorkspace.name should be("test")
         // default value from root element
-        otherWorkspace.label should be("test")
-        otherWorkspace.label = "testOther"
-        otherWorkspace.label should be("testOther")
-        rootWorkspace.label should be("test")
+        otherWorkspace.name should be("test")
+        otherWorkspace.name = "testOther"
+        otherWorkspace.name should be("testOther")
+        rootWorkspace.name should be("test")
     }
   }
   describe("A Value.Context") {

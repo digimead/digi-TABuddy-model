@@ -138,9 +138,9 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
         var save: Record[Record.Stash] = null
         val record = Model.record('root) { r =>
           save = r.record('level2) { r =>
-            r.label = "123"
+            r.name = "123"
             r.record('level3) { r =>
-              r.label = "456"
+              r.name = "456"
             }
           }
         }
@@ -183,17 +183,17 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
         dl2.eChildren should have size (1)
         dl2.eStash.model should be(None)
         dl2.eStash.context.container should be(record.eReference)
-        dl2.label should be("123")
+        dl2.name should be("123")
         val dl3 = dl2.eChildren.head.asInstanceOf[Record[Record.Stash]]
         dl3.eId.name should be("level3")
         dl3.eChildren should be('empty)
         dl3.eStash.model should be(None)
         dl3.eStash.context.container should be(dl2.eReference)
-        dl3.label should be("456")
-        dl2.label = "789"
-        dl3.label = "098"
-        save.label should be("123")
-        save.eChildren.head.asInstanceOf[Record[Record.Stash]].label should be("456")
+        dl3.name should be("456")
+        dl2.name = "789"
+        dl3.name = "098"
+        save.name should be("123")
+        save.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("456")
         dl2.eReference should be(save.eReference)
         dl2.eReference.unique.hashCode() should be(save.eReference.unique.hashCode())
         dl2.eReference.origin.hashCode() should be(save.eReference.origin.hashCode())
@@ -208,9 +208,9 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
         Model.reset()
         val record = Model.record('root) { r =>
           r.record('level2) { r =>
-            r.label = "123"
+            r.name = "123"
             r.record('level3) { r =>
-              r.label = "456"
+              r.name = "456"
             }
           }
         }
@@ -226,7 +226,7 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
           element match {
             case note: Note.Generic if note.eId == 'note1 =>
               // alter note1
-              note.label = "save_filter_added"
+              note.name = "save_filter_added"
               Some(note)
             case record: Record.Generic if record.eScope == Record.scope =>
               // drop record and  children
@@ -253,7 +253,7 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
           element match {
             case note: Note.Generic if note.eId == 'note2 =>
               // alter note2
-              note.label = "load_filter_added"
+              note.name = "load_filter_added"
               Some(note)
             case element =>
               // pass all other
@@ -270,9 +270,9 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
         deserializedModel.eFilter(_.eScope == Record.scope) should be('empty)
         deserializedModel.eFilter(_ => true) should have size (3)
         val deserializedNote1 = deserializedModel | NoteLocation('note1)
-        deserializedNote1.label should be("save_filter_added")
+        deserializedNote1.name should be("save_filter_added")
         val deserializedNote2 = deserializedModel | NoteLocation('note2)
-        deserializedNote2.label should be("load_filter_added")
+        deserializedNote2.name should be("load_filter_added")
     }
   }
 }

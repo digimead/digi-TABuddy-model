@@ -92,7 +92,7 @@ class OrderSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         assert(record1copy.eStash.unique === record1.eStash.unique)
         assert(record1copy.eStash === record1.eStash)
         assert(record1copy === record1)
-        record1.label = "123"
+        record1.name = "123"
         record1 > record2 should be(true)
         // record1 changed
         assert(record1copy.eStash != record1.eStash)

@@ -87,24 +87,24 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         val record_0 = Model.record('baseLevel) { r =>
           record_1a = r.record('level1a) { r =>
             record_2a = r.record('level2a) { r =>
-              r.label = "record_2a"
+              r.name = "record_2a"
             }
-            r.label = "record_1a"
+            r.name = "record_1a"
           }
           record_1b = r.record('level1b) { r =>
             record_2b = r.record('level2b) { r =>
-              r.label = "record_2b"
+              r.name = "record_2b"
             }
-            r.label = "record_1b"
+            r.name = "record_1b"
           }
-          r.label = "record_0"
+          r.name = "record_0"
         }
         // check description
-        record_0.label should be("record_0")
-        record_1a.label should be("record_1a")
-        record_2a.label should be("record_2a")
-        record_1b.label should be("record_1b")
-        record_2b.label should be("record_2b")
+        record_0.name should be("record_0")
+        record_1a.name should be("record_1a")
+        record_2a.name should be("record_2a")
+        record_1b.name should be("record_1b")
+        record_2b.name should be("record_2b")
         // check child elements
         record_0.eChildren should equal(Set(record_1a, record_1b))
         record_1a.eChildren should equal(Set(record_2a))
@@ -112,10 +112,10 @@ class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         // check elements with same id
         val treeA = Model.record('test) { r =>
           r.record('test) { r =>
-            r.record('test) { _.label = "ok" }
+            r.record('test) { _.name = "ok" }
           }
         }
-        //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.label) should be(Some("ok"))
+        //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.name) should be(Some("ok"))
     }
   }
 }

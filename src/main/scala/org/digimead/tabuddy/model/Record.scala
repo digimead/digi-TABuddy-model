@@ -194,8 +194,8 @@ object Record extends Loggable {
    * General Record interface.
    */
   trait Interface[StashProjection <: Record.Stash] extends Element[StashProjection] {
-    def label = eGetOrElseRoot[String]('label).map(_.get) getOrElse ""
-    def label_=(value: String) = eSet('label, value, "")
+    def name = eGetOrElseRoot[String]('name).map(_.get) getOrElse ""
+    def name_=(value: String) = eSet('name, value, "")
     def eDump(brief: Boolean, padding: Int = 2): String = {
       def dumpProperties() = {
         val result = eStash.property.map {
@@ -209,10 +209,10 @@ object Record extends Loggable {
       }
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
-      val self = if (label.isEmpty)
+      val self = if (name.isEmpty)
         "%s: %s".format(eStash.scope, eStash.id) + properties
       else
-        "%s: %s \"%s\"".format(eStash.scope, eStash.id, label) + properties
+        "%s: %s \"%s\"".format(eStash.scope, eStash.id, name) + properties
       val childrenDump = eChildren.map(_.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
