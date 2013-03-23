@@ -69,31 +69,32 @@ class Children(val origin: Element.Generic) extends ElementSet with mutable.Sync
 
   /**
    * Creates a new iterator over all elements contained in this iterable object and it's children.
-   *
-   *  @return the new iterator
+   * @param transformChildren - function that provide sorting/filtering capability
+   * @return the new iterator
    */
-  def iteratorRecursive: Iterator[Element.Generic] = new Iterator[Element.Generic] {
-    var iterator = Children.this.iterator
-    var children = Children.this.toSeq
-    def hasNext: Boolean = if (iterator.hasNext) true else {
-      children.headOption match {
-        case Some(head) =>
-          iterator = head.eChildren.iteratorRecursive
-          children = children.tail
-          iterator.hasNext
-        case None =>
-          false
+  def iteratorRecursive(transformChildren: (Children) => Seq[Element.Generic] = _.toSeq): Iterator[Element.Generic] =
+    new Iterator[Element.Generic] {
+      var iterator = Children.this.iterator
+      var children = transformChildren(Children.this)
+      def hasNext: Boolean = if (iterator.hasNext) true else {
+        children.headOption match {
+          case Some(head) =>
+            iterator = head.eChildren.iteratorRecursive(transformChildren)
+            children = children.tail
+            iterator.hasNext
+          case None =>
+            false
+        }
       }
+      def next(): Element.Generic = iterator.next
     }
-    def next(): Element.Generic = iterator.next
-  }
 
   /**
    * Attach element to the model
    */
   protected def eAttach(model: Model.Generic, container: Element.Generic, element: Element.Generic) = synchronized {
     log.debug("attach %s to %s".format(element.eReference, container.eReference))
-    assert(element.eStash.model.isEmpty && !element.eChildren.iteratorRecursive.exists(_.eStash.model.nonEmpty),
+    assert(element.eStash.model.isEmpty && !element.eChildren.iteratorRecursive().exists(_.eStash.model.nonEmpty),
       "Unable to reattach %s, please detach it first".format(element))
     assert(container.eStash.model == Some(model),
       "Unable to attach %s to unknown container %s".format(element, container))
@@ -101,7 +102,7 @@ class Children(val origin: Element.Generic) extends ElementSet with mutable.Sync
     val newStash = element.eStash.copy(context = element.eStash.context.copy(container = container.eReference),
       model = container.eStash.model)
     Element.check(element, newStash) // throw exception
-    element.eChildren.iteratorRecursive.foreach(_.eStash.model = Some(model))
+    element.eChildren.iteratorRecursive().foreach(_.eStash.model = Some(model))
     element.asInstanceOf[Element[Stash]].eStash = newStash // update stash with new that points to the new container and the model
     model.eAttach(element)
   }

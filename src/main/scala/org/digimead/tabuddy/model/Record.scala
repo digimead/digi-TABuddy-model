@@ -66,7 +66,7 @@ class Record[A <: Record.Stash](private var stashArg: A) extends Record.Interfac
   /** Copy constructor */
   override def eCopy(stash: Option[A], children: Option[List[Element.Generic]]): this.type = {
     val result = super.eCopy(stash, children)
-    val iterator = result.eChildren.iteratorRecursive
+    val iterator = result.eChildren.iteratorRecursive()
     iterator.foreach(element => element.eStash.model = None)
     result
   }

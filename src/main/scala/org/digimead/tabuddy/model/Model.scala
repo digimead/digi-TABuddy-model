@@ -197,7 +197,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
     /** Copy constructor */
     override def eCopy(stash: Option[StashProjection], children: Option[List[Element.Generic]]): this.type = {
       val result = super.eCopy(stash, children)
-      val iterator = result.eChildren.iteratorRecursive
+      val iterator = result.eChildren.iteratorRecursive()
       iterator.foreach(element => element.eStash.model = Some(result.eModel))
       result
     }

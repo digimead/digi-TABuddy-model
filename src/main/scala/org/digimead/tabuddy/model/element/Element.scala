@@ -106,6 +106,10 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
         case None =>
           return acc
       }
+      if (acc.size > Element.MAXIMUM_DEEPNESS) {
+        log.fatal("element level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
+        return acc
+      }
       ancestors(ancestor, acc :+ ancestor)
     }
     ancestors(this, Seq())

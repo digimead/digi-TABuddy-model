@@ -214,12 +214,12 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
             }
           }
         }
-        val modelIterator = Model.eChildren.iteratorRecursive
+        val modelIterator = Model.eChildren.iteratorRecursive()
         assert(modelIterator.length === 3) // Model + 3 children
-        val modelChildren = Model.eChildren.iteratorRecursive.foldLeft(Seq[Element.Generic]())((acc, e) => acc :+ e).sortBy(_.eUnique)
+        val modelChildren = Model.eChildren.iteratorRecursive().foldLeft(Seq[Element.Generic]())((acc, e) => acc :+ e).sortBy(_.eUnique)
         Seq(e1, e2, e3).sortBy(_.eUnique).sameElements(modelChildren)
-        assert(e2.eChildren.iteratorRecursive.length === 1)
-        assert(e3.eChildren.iteratorRecursive.length === 0)
+        assert(e2.eChildren.iteratorRecursive().length === 1)
+        assert(e3.eChildren.iteratorRecursive().length === 0)
     }
   }
 }
