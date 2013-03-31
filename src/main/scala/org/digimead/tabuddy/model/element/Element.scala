@@ -549,8 +549,14 @@ object Element extends Loggable {
       }
     }
     override def hashCode() = {
-      val prime = 41
-      prime + modificator.hashCode
+      /*
+       * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
+       * RISC machine (because 31 is the difference of two powers of two). P(33) is
+       * similarly cheap to calculate, but it's performance is marginally worse, and
+       * 33 is composite, which makes me a bit nervous.
+       */
+      val p = 41
+      p + modificator.hashCode
     }
   }
   /** Timestamp class */

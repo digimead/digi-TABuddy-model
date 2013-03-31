@@ -121,7 +121,17 @@ trait Stash extends java.io.Serializable {
       case _ => false
     })
   /** Returns a hash code value for the object. */
-  override def hashCode() = List(getClass, context, coordinate, created, id, scope, unique).foldLeft(0)((a, b) => a * 31 + b.hashCode())
+  override def hashCode() = {
+    /*
+     * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
+     * RISC machine (because 31 is the difference of two powers of two). P(33) is
+     * similarly cheap to calculate, but it's performance is marginally worse, and
+     * 33 is composite, which makes me a bit nervous.
+     */
+    val p = 31
+    p * (p * (p * (p * (p * (p * (p + getClass.hashCode()) + context.hashCode) + coordinate.hashCode) +
+      created.hashCode()) + id.hashCode) + scope.hashCode) + unique.hashCode()
+  }
 }
 
 object Stash {

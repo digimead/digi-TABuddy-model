@@ -72,20 +72,11 @@ class Children(val origin: Element.Generic) extends ElementSet with mutable.Sync
    * @param transformChildren - function that provide sorting/filtering capability
    * @return the new iterator
    */
-  def iteratorRecursive(transformChildren: (Children) => Seq[Element.Generic] = _.toSeq): Iterator[Element.Generic] =
+  def iteratorRecursive(transformChildren: (Element.Generic, Children) => Seq[Element.Generic] = (parent, children) => children.toSeq): Iterator[Element.Generic] =
     new Iterator[Element.Generic] {
-      var iterator = Children.this.iterator
-      var children = transformChildren(Children.this)
-      def hasNext: Boolean = if (iterator.hasNext) true else {
-        children.headOption match {
-          case Some(head) =>
-            iterator = head.eChildren.iteratorRecursive(transformChildren)
-            children = children.tail
-            iterator.hasNext
-          case None =>
-            false
-        }
-      }
+      val iterator = transformChildren(origin, Children.this).foldLeft(Iterator[Element.Generic]())((acc, child) =>
+        acc ++ Iterator(child) ++ child.eChildren.iteratorRecursive(transformChildren))
+      def hasNext: Boolean = iterator.hasNext
       def next(): Element.Generic = iterator.next
     }
 

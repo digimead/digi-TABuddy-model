@@ -147,7 +147,16 @@ object Value extends Loggable {
       case that: Dynamic[_] if this.data.getClass == that.data.getClass && this.context == that.context => (that canEqual this)
       case _ => false
     })
-    override def hashCode() = List(data, context).foldLeft(0)((a, b) => a * 31 + b.hashCode())
+    override def hashCode() = {
+      /*
+       * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
+       * RISC machine (because 31 is the difference of two powers of two). P(33) is
+       * similarly cheap to calculate, but it's performance is marginally worse, and
+       * 33 is composite, which makes me a bit nervous.
+       */
+      val p = 31
+      p * (p + data.hashCode()) + context.hashCode
+    }
     /** Needed for correct definition of equals for general classes. */
     def canEqual(that: Any): Boolean = that.isInstanceOf[Dynamic[_]]
     override def toString() = "Dynamic[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
@@ -172,7 +181,16 @@ object Value extends Loggable {
       case that: Static[_] if this.data.getClass == that.data.getClass && this.context == that.context => (that canEqual this)
       case _ => false
     })
-    override def hashCode() = List(data, context).foldLeft(0)((a, b) => a * 31 + b.hashCode())
+    override def hashCode() = {
+      /*
+       * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
+       * RISC machine (because 31 is the difference of two powers of two). P(33) is
+       * similarly cheap to calculate, but it's performance is marginally worse, and
+       * 33 is composite, which makes me a bit nervous.
+       */
+      val p = 31
+      p * (p + data.hashCode()) + context.hashCode
+    }
     /** Needed for correct definition of equals for general classes. */
     def canEqual(that: Any): Boolean = that.isInstanceOf[Static[_]]
     override def toString() = "Static[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
