@@ -45,6 +45,7 @@ package org.digimead.tabuddy
 
 import java.util.UUID
 
+import org.digimead.digi.lib.DependencyInjection
 import org.digimead.tabuddy.model.Model
 
 import com.escalatesoft.subcut.inject.NewBindingModule
@@ -54,4 +55,6 @@ package object model {
     module.bind[Symbol] identifiedBy "Model.Origin" toSingle { 'nobody }
     module.bind[Model.Interface[Model.Stash]] toProvider { new Model(new Model.Stash('Default, UUID.randomUUID())) }
   }) ~ org.digimead.tabuddy.model.dsl.default
+  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.Model$")
+  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.dsl.DSLType$")
 }

@@ -47,29 +47,29 @@ import scala.collection.mutable
 
 import org.digimead.digi.lib.log.Loggable
 
-trait ElementSet extends mutable.HashSet[Element.Generic] with Loggable {
+trait ElementSet extends mutable.LinkedHashSet[Element.Generic] with Loggable {
   val origin: Element.Generic
 
-  abstract override def +=(element: Element.Generic): this.type = {
-    if (!contains(element)) {
-      super.+=(element)
-      val undoF = () => { -=(element); {} }
+  abstract override def add(element: Element.Generic): Boolean = {
+    val result = super.add(element)
+    if (result) {
+      val undoF = () => { super.remove(element); {} }
       Element.Event.publish(Element.Event.ChildInclude(origin, element, origin.eModified)(undoF))
     }
-    this
+    result
   }
-  abstract override def -=(element: Element.Generic): this.type = {
-    if (contains(element)) {
-      super.-=(element)
-      val undoF = () => { +=(element); {} }
+  abstract override def remove(element: Element.Generic): Boolean = {
+    val result = super.remove(element)
+    if (result) {
+      val undoF = () => { super.+=(element); {} }
       Element.Event.publish(Element.Event.ChildRemove(origin, element, origin.eModified)(undoF))
     }
-    this
+    result
   }
   abstract override def clear(): Unit = {
     val children = this.toSeq
     super.clear
-    val undoF = () => { children.foreach(addEntry) }
+    val undoF = () => { children.foreach(super.add) }
     Element.Event.publish(Element.Event.ChildrenReset(origin, origin.eModified)(undoF))
   }
 }
