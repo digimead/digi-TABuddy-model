@@ -63,6 +63,8 @@ import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.element.Value
 
+import com.escalatesoft.subcut.inject.BindingModule
+
 import language.implicitConversions
 
 /**
@@ -90,23 +92,37 @@ class Model[StashProjection <: Model.Stash](stashArg: StashProjection) extends M
  */
 object Model extends DependencyInjection.PersistentInjectable with Loggable {
   type Generic = Interface[_ <: Stash]
-  implicit def model2implementation(m: Model.type): Model.Generic = m.implementation
+  implicit def model2implementation(m: Model.type): Model.Generic = m.inner
   implicit def bindingModule = DependencyInjection()
+  /** The current model cache */
+  private var currentModel: Option[Interface[_ <: Model.Stash]] = None
+  /** The previous model cache */
+  private var previousModel: Option[Interface[_ <: Model.Stash]] = None
   val scope = new Scope()
-  /** The local origin that is alias of a user or a system or an anything other*/
-  @volatile private var localOrigin: Symbol = inject[Symbol]("Model.Origin")
-  @volatile private var implementation: Model.Generic = inject[Interface[Stash]]
-  @volatile var snapshots = Seq[Long]()
 
-  def origin() = localOrigin
-  def inner() = implementation
-  def commitInjection() {}
-  def updateInjection() {
-    val previous = implementation
-    localOrigin = inject[Symbol]("Model.Origin")
-    implementation = inject[Interface[_ <: Model.Stash]]
-    val undoF = () => {}
-    Element.Event.publish(Element.Event.ModelReplace(previous, implementation, implementation.eModified)(undoF))
+  /*
+   * dependency injection
+   */
+  def inner() = currentModel getOrElse {
+    val model = inject[Interface[_ <: Model.Stash]]
+    currentModel = Option(model)
+    previousModel.foreach { previous =>
+      val undoF = () => {}
+      Element.Event.publish(Element.Event.ModelReplace(previous, model, model.eModified)(undoF))
+    }
+    model
+  }
+  /** The local origin that is alias of a user or a system or an anything other*/
+  def origin() = inject[Symbol]("Model.Origin")
+  override def afterInjection(newModule: BindingModule) = {
+    currentModel = None
+    inner()
+  }
+  override def beforeInjection(newModule: BindingModule) {
+    DependencyInjection.assertLazy[Symbol](Some("Model.Origin"), newModule)
+  }
+  override def onClearInjection(oldModule: BindingModule) {
+    previousModel = Option(inner)
   }
 
   /**
@@ -238,7 +254,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
     /** Get the root element from the particular origin if any */
     def eRoot(origin: Symbol) = Some(this).asInstanceOf[Option[this.type]]
     /** Reset current model */
-    def reset(model: Model.Generic = inject[Interface[Stash]]) {
+    def reset(model: Model.Generic = inner) {
       log.debug("reset model")
       log.debug("dispose depricated " + this)
       // detach model
@@ -249,10 +265,10 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       eChildren.clear
       eIndexRebuid
       log.debug("activate " + model)
-      val previous = implementation
-      implementation = model
+      val previous = inner
+      currentModel = Some(model)
       val undoF = () => {}
-      Element.Event.publish(Element.Event.ModelReplace(previous, implementation, implementation.eModified)(undoF))
+      Element.Event.publish(Element.Event.ModelReplace(previous, model, model.eModified)(undoF))
     }
     /** Stub for setter of model's data */
     def stash_=(value: Model.Stash) =

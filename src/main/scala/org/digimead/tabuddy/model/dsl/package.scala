@@ -43,6 +43,11 @@
 
 package org.digimead.tabuddy.model
 
+import org.digimead.digi.lib.DependencyInjection
+import org.digimead.tabuddy.model.dsl.BasicDSLTypes
+import org.digimead.tabuddy.model.dsl.ComplexDSLTypes
+import org.digimead.tabuddy.model.dsl.DSLType
+
 import com.escalatesoft.subcut.inject.NewBindingModule
 
 package object dsl {
@@ -50,4 +55,5 @@ package object dsl {
     module.bind[Seq[DSLType]] toSingle { Seq(new BasicDSLTypes, new ComplexDSLTypes) }
     module.bind[DSLType.Interface] toSingle { new DSLType.Interface {} }
   })
+  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.dsl.DSLType$")
 }

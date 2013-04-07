@@ -49,7 +49,9 @@ import scala.collection.immutable
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.Loggable
 
-import scala.language.implicitConversions
+import com.escalatesoft.subcut.inject.BindingModule
+
+import language.implicitConversions
 
 trait DSLType {
   /** The map of class -> symbol */
@@ -84,16 +86,17 @@ trait DSLType {
  * Object that contains all DSL types and provides conversion routines
  */
 object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
-  implicit def dsltype2implementation(m: DSLType.type): Interface = m.implementation
+  implicit def dsltype2implementation(m: DSLType.type): Interface = m.inner
   implicit def bindingModule = DependencyInjection()
-  @volatile private var converter = inject[Seq[DSLType]]
-  @volatile private var implementation: Interface = inject[Interface]
 
-  def inner() = implementation
-  def commitInjection() {}
-  def updateInjection() {
-    converter = inject[Seq[DSLType]]
-    implementation = inject[Interface]
+  /*
+   * dependency injection
+   */
+  def inner() = inject[Interface]
+  def converter() = inject[Seq[DSLType]]
+  override def beforeInjection(newModule: BindingModule) {
+    DependencyInjection.assertLazy[Interface](None, newModule)
+    DependencyInjection.assertLazy[Seq[DSLType]](None, newModule)
   }
 
   trait Interface {

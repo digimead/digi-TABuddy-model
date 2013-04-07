@@ -56,5 +56,4 @@ package object model {
     module.bind[Model.Interface[Model.Stash]] toProvider { new Model(new Model.Stash('Default, UUID.randomUUID())) }
   }) ~ org.digimead.tabuddy.model.dsl.default
   DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.Model$")
-  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.dsl.DSLType$")
 }
