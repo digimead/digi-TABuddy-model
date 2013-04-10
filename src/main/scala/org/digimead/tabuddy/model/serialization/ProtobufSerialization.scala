@@ -91,7 +91,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
             case Some(element) =>
               filter(element).foreach(element => hash(element.eUnique) = element)
             case None =>
-              log.error("unable to unpack element " + proto)
+              log.error("unable to unpack data " + proto)
           }
         }
       } catch {
@@ -175,11 +175,21 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
    * Pack Axis[T] to CoordinateProtos.Coordinate.Axis
    */
   protected def packAxis[T <: AnyRef with java.io.Serializable](axis: Axis[T])(implicit m: Manifest[T]): CoordinateProtos.Coordinate.Axis = {
-    CoordinateProtos.Coordinate.Axis.newBuilder().
-      setId(axis.id.name).
-      setType(m.runtimeClass.getName()).
-      setValue(String.valueOf(axis.value)).
-      build()
+    val builder = CoordinateProtos.Coordinate.Axis.newBuilder()
+    DSLType.classSymbolMap.get(axis.m.runtimeClass) match {
+      case Some(typeSymbol) =>
+        DSLType.convertToString(typeSymbol, axis.value) match {
+          case Some(valueData) =>
+            builder.setId(axis.id.name).
+              setType(typeSymbol.name).
+              setValue(valueData)
+          case None =>
+            log.error("unable to convert axis value " + axis.value)
+        }
+      case None =>
+        log.error("unable to convert axis with class %s, suitable type symbol not found".format(axis.m.runtimeClass))
+    }
+    builder.build()
   }
   /**
    * Pack Context to ContextProtos.Context
@@ -226,7 +236,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
                 setContext(packContext(value.context)).
                 setData(valueData).
                 setId(valueID.name).
-                setStatic(valueData.isInstanceOf[Value.Static[_]]).
+                setStatic(value.isInstanceOf[Value.Static[_]]).
                 build())
             case None =>
               log.error("unable to convert value " + value)
@@ -269,8 +279,9 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
     builder.build()
   }
   protected def unpackAxis(proto: CoordinateProtos.Coordinate.Axis): Option[Axis[_ <: AnyRef with java.io.Serializable]] = {
-    DSLType.convertFromString(Symbol(proto.getType()), proto.getValue()).map(value =>
-      Axis(Symbol(proto.getId()), proto.getValue()))
+    val typeSymbol = Symbol(proto.getType())
+    DSLType.convertFromString(typeSymbol, proto.getValue()).map(deserializedValue =>
+      Axis(Symbol(proto.getId()), deserializedValue)(Manifest.classType(DSLType.symbolClassMap(typeSymbol))))
   }
   protected def unpackContext(proto: ContextProtos.Context): Option[Context] = {
     val context = for {
@@ -280,7 +291,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
       digest = if (proto.hasDigest()) Some(proto.getDigest()) else None
     } yield Context(container, file, line, digest)
     if (context.isEmpty)
-      log.debug("unable to unpack context")
+      log.error("unable to unpack context")
     context
   }
   protected def unpackCoordinate(proto: CoordinateProtos.Coordinate): Option[Coordinate] = {
@@ -288,7 +299,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
     if (axes.forall(_.nonEmpty)) {
       Some(Coordinate(axes.flatten: _*))
     } else {
-      log.debug("unable to unpack axes")
+      log.error("unable to unpack axes")
       None
     }
   }
@@ -299,12 +310,12 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
       elementCtor = elementClass.getConstructor(stash.getClass())
     } yield elementCtor.newInstance(stash).asInstanceOf[Element.Generic]
     if (element.isEmpty)
-      log.debug("unable to unpack element")
+      log.error("unable to unpack element")
     element
   } catch {
     // catch all throwables, return None if any
     case e: Throwable =>
-      log.debug("unable to unpack element: " + e)
+      log.error("unable to unpack element: " + e)
       None
   }
   protected def unpackProperties(list: java.util.List[PropertyProtos.Property.Bundle]): org.digimead.tabuddy.model.element.Stash.Data = {
@@ -339,7 +350,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
     } yield Reference(Symbol(proto.getOrigin()),
       new UUID(proto.getUniqueHi(), proto.getUniqueLo()), coordinate)
     if (reference.isEmpty)
-      log.debug("unable to unpack reference")
+      log.error("unable to unpack reference")
     reference
   }
   protected def unpackStash(proto: StashProtos.Stash): Option[Stash] = try {
@@ -372,12 +383,12 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
       stash
     }
     if (stash.isEmpty)
-      log.debug("unable to unpack stash")
+      log.error("unable to unpack stash")
     stash
   } catch {
     // catch all throwables, return None if any
     case e: Throwable =>
-      log.debug("unable to unpack stash: " + e)
+      log.error("unable to unpack stash: " + e)
       None
   }
 }

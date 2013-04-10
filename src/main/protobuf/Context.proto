@@ -54,4 +54,3 @@ message Context {
   optional int32 line = 3;
   optional string digest = 4;
 }
-

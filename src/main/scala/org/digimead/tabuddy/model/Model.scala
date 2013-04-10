@@ -95,9 +95,9 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
   implicit def model2implementation(m: Model.type): Model.Generic = m.inner
   implicit def bindingModule = DependencyInjection()
   /** The current model cache */
-  private var currentModel: Option[Interface[_ <: Model.Stash]] = None
+  @volatile private var currentModel: Option[Interface[_ <: Model.Stash]] = None
   /** The previous model cache */
-  private var previousModel: Option[Interface[_ <: Model.Stash]] = None
+  @volatile private var previousModel: Option[Interface[_ <: Model.Stash]] = None
   val scope = new Scope()
 
   /*
@@ -114,14 +114,14 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
   }
   /** The local origin that is alias of a user or a system or an anything other*/
   def origin() = inject[Symbol]("Model.Origin")
-  override def afterInjection(newModule: BindingModule) = {
+  override def injectionAfter(newModule: BindingModule) = {
     currentModel = None
     inner()
   }
-  override def beforeInjection(newModule: BindingModule) {
+  override def injectionBefore(newModule: BindingModule) {
     DependencyInjection.assertLazy[Symbol](Some("Model.Origin"), newModule)
   }
-  override def onClearInjection(oldModule: BindingModule) {
+  override def injectionOnClear(oldModule: BindingModule) {
     previousModel = Option(inner)
   }
 

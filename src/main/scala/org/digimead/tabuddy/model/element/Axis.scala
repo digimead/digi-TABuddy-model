@@ -43,14 +43,18 @@
 
 package org.digimead.tabuddy.model.element
 
-import scala.language.implicitConversions
+import org.digimead.tabuddy.model.dsl.DSLType
+
+import language.implicitConversions
 
 /** Axis/tag value of coordinate. */
 case class Axis[T <: AnyRef with java.io.Serializable](
   /** Axis user id. */
   val id: Symbol,
   /** Axis value. */
-  val value: T)
+  val value: T)(implicit val m: Manifest[T]) {
+  assert(DSLType.classes(m.runtimeClass), "unknown type " + m.runtimeClass)
+}
 
 /**
  * Companion object for an axis

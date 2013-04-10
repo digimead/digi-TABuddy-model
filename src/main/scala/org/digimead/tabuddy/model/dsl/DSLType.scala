@@ -94,7 +94,7 @@ object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
    */
   def inner() = inject[Interface]
   def converter() = inject[Seq[DSLType]]
-  override def beforeInjection(newModule: BindingModule) {
+  override def injectionBefore(newModule: BindingModule) {
     DependencyInjection.assertLazy[Interface](None, newModule)
     DependencyInjection.assertLazy[Seq[DSLType]](None, newModule)
   }
