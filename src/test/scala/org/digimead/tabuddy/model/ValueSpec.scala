@@ -97,7 +97,7 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         val a: String = test.get
         a should be("123")
     }
-    it("should should may have empty container") {
+    it("should should may have an empty container") {
       config =>
         val rootWorkspace = Model.record('test) { record => }
         // x2value: convert T -> Option[Value[T]]
@@ -111,7 +111,7 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         val a: String = test.get
         a should be("123")
     }
-    it("should search default value at root node") {
+    it("should search a default value at the root node") {
       config =>
         val rootWorkspace = Model.record('test) { record => }
         rootWorkspace.eStash.coordinate.isRoot should be(true)
@@ -130,6 +130,22 @@ class ValueSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
         otherWorkspace.name = "testOther"
         otherWorkspace.name should be("testOther")
         rootWorkspace.name should be("test")
+    }
+    it("should create values with builder functions") {
+      config =>
+        val record1 = Model.record('test) { record => }
+        val value1 = Value.static("A")
+        val value2 = Value.static(record1, "A")
+        val value3 = Value.dinamic(() => "B")
+        val value4 = Value.dinamic(record1, () => "B")
+        value1.get should be(value2.get)
+        value3.get should be(value4.get)
+        value1.context should be(Context.empty)
+        value3.context should be(Context.empty)
+        value2.context should not be (Context.empty)
+        value4.context should not be (Context.empty)
+        value2.context.container should be(record1.eReference)
+        value4.context.container should be(record1.eReference)
     }
   }
   describe("A Value.Context") {

@@ -98,9 +98,14 @@ object Value extends Loggable {
   implicit def string2someValue(x: String)(implicit container: Element.Generic = null) = Some(static(x))
   implicit def string2value(x: String)(implicit container: Element.Generic = null) = static(x)
   implicit def value2x[T <: AnyRef with java.io.Serializable](x: Value[T]): T = x.get()
-  /** Convert value to some value */
-  implicit def value2some[T <: Value[_]](v: T): Option[T] = Some(v)
 
+  /**
+   * Convert [T] to Value.Static
+   */
+  def static[T <: AnyRef with java.io.Serializable: Manifest](container: Element.Generic, x: T): Static[T] = {
+    implicit val e = container
+    static(x)
+  }
   /**
    * Convert [T] to Value.Static
    */
@@ -114,6 +119,13 @@ object Value extends Loggable {
       else
         new Static(x, Model.contextForChild(container, Some(stack(1))))
     }
+  /**
+   * Convert () => [T] to Value.Dinamic
+   */
+  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](container: Element.Generic, x: () => T): Dynamic[T] = {
+    implicit val e = container
+    dinamic(x)
+  }
   /**
    * Convert () => [T] to Value.Dinamic
    */

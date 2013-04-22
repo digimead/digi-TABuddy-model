@@ -49,8 +49,11 @@ import org.digimead.digi.lib.DependencyInjection
 import org.digimead.lib.test.TestHelperLogging
 import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.element.Axis.intToAxis
+import org.digimead.tabuddy.model.element.Context
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Value
+import org.digimead.tabuddy.model.element.Value.int2someValue
 import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
 import org.scalatest.fixture.FunSpec
@@ -146,7 +149,7 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         val copyValue = copy.eGet[Integer]('test).get
         copyValue.context.container.unique should be(copy.eReference.unique)
         record.eReference.unique should not be (copy.eReference.unique)
-        record.eSet('test, copyValue)
+        record.eSet('test, Some(copyValue))
         val recordValue = record.eGet[Integer]('test).get
         recordValue.get should be(copyValue.get)
         recordValue.context.container.unique should be(record.eReference.unique)
@@ -221,5 +224,19 @@ class ElementSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging 
         assert(e2.eChildren.iteratorRecursive().length === 1)
         assert(e3.eChildren.iteratorRecursive().length === 0)
     }
+    it("should throw an exception if type is unknown") {
+      config =>
+        Model.reset()
+        val record = Model.record('test) { record => }
+        val unknownData = ElementSpec.UnknownType(0)
+        val unknownValue = new Value.Static(unknownData, Context.empty)
+        intercept[IllegalArgumentException] {
+          record.eSet('file, Some(unknownValue))
+        }
+    }
   }
+}
+
+object ElementSpec {
+  case class UnknownType(val x: Int)
 }

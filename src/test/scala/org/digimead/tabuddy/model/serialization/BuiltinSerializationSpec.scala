@@ -274,5 +274,28 @@ class BuiltinSerializationSpec_j1 extends FunSpec with ShouldMatchers with TestH
         val deserializedNote2 = deserializedModel | NoteLocation('note2)
         deserializedNote2.name should be("load_filter_added")
     }
+    it("should have a simple API") {
+      config =>
+        // 1st variant
+        var frozen: Seq[Array[Byte]] = Seq()
+        val record = Model.record('test1) { record => }
+        // serialize
+        val a = new BuiltinSerialization
+        a.freeze(record, (element, data) => { frozen = frozen :+ data })
+        // deserialize
+        val b = new BuiltinSerialization
+        val frozenIterator = frozen.iterator
+        intercept[IllegalArgumentException] { // try to deserialize element without type information
+          b.acquire(() => { if (frozenIterator.hasNext) Some(frozenIterator.next) else None })
+        }
+        val test = b.acquire[Record[Record.Stash], Record.Stash](() => { if (frozenIterator.hasNext) Some(frozenIterator.next) else None })
+        // compare
+        assert(test.get === record)
+
+        // 2nd variant
+        val serialized = BuiltinSerialization.to(record)
+        val deserialized = BuiltinSerialization.from(serialized)
+        assert(deserialized.get === record)
+    }
   }
 }

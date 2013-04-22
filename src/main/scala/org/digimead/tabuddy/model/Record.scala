@@ -142,7 +142,6 @@ object Record extends Loggable {
    * C - a user type, that is returned by f()
    * D >: B <: B - is exactly as B, not ancestor, not descendant
    */
-  @log
   def apply[A <: Stash, B <: Interface[A], C, D >: B <: B](elementClass: Class[B], stashClass: Class[A], container: Option[Element.Generic], id: Symbol, scope: Element.Scope,
     rawCoordinate: Seq[Axis[_ <: AnyRef with java.io.Serializable]], f: (D) => C)(implicit a: Manifest[A], d: Manifest[D]): D = synchronized {
     val coordinate = Coordinate(rawCoordinate: _*)

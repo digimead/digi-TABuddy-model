@@ -90,40 +90,13 @@ class Model[StashProjection <: Model.Stash](stashArg: StashProjection) extends M
  * - control context of elements
  * - save and retrieve element and context information
  */
-object Model extends DependencyInjection.PersistentInjectable with Loggable {
+object Model extends Loggable {
   type Generic = Interface[_ <: Stash]
   implicit def model2implementation(m: Model.type): Model.Generic = m.inner
-  implicit def bindingModule = DependencyInjection()
-  /** The current model cache */
-  @volatile private var currentModel: Option[Interface[_ <: Model.Stash]] = None
-  /** The previous model cache */
-  @volatile private var previousModel: Option[Interface[_ <: Model.Stash]] = None
   val scope = new Scope()
 
-  /*
-   * dependency injection
-   */
-  def inner() = currentModel getOrElse {
-    val model = inject[Interface[_ <: Model.Stash]]
-    currentModel = Option(model)
-    previousModel.foreach { previous =>
-      val undoF = () => {}
-      Element.Event.publish(Element.Event.ModelReplace(previous, model, model.eModified)(undoF))
-    }
-    model
-  }
-  /** The local origin that is alias of a user or a system or an anything other*/
-  def origin() = inject[Symbol]("Model.Origin")
-  override def injectionAfter(newModule: BindingModule) = {
-    currentModel = None
-    inner()
-  }
-  override def injectionBefore(newModule: BindingModule) {
-    DependencyInjection.assertLazy[Symbol](Some("Model.Origin"), newModule)
-  }
-  override def injectionOnClear(oldModule: BindingModule) {
-    previousModel = Option(inner)
-  }
+  def inner() = DI.inner
+  def origin() = DI.origin
 
   /**
    * General model interface
@@ -266,7 +239,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       eIndexRebuid
       log.debug("activate " + model)
       val previous = inner
-      currentModel = Some(model)
+      DI.currentModel = Some(model)
       val undoF = () => {}
       Element.Event.publish(Element.Event.ModelReplace(previous, model, model.eModified)(undoF))
     }
@@ -287,7 +260,7 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
       id: Symbol, scope: Element.Scope, unique: UUID, property: org.digimead.tabuddy.model.element.Stash.Data) = this(created, id, unique, property)
     /** User constructor */
     def this(id: Symbol, unique: UUID) = this(Element.timestamp(), id, unique, new org.digimead.tabuddy.model.element.Stash.Data)
-    lazy val context: Context = Context(Reference(Model.origin, unique, Coordinate.root), None, None, None)
+    lazy val context: Context = Context(Reference(Model.DI.origin, unique, Coordinate.root), None, None, None)
     /** Map of all sorted contexts by line number per file */
     val contextMap = new mutable.HashMap[Option[File], Seq[Context]] with mutable.SynchronizedMap[Option[File], Seq[Context]]
     lazy val coordinate: Coordinate = Coordinate.root
@@ -339,6 +312,39 @@ object Model extends DependencyInjection.PersistentInjectable with Loggable {
     }
     /** Validates stash on creation for circular reference */
     override protected def validateForSelfReference() {}
+  }
+  /**
+   * Dependency injection routines
+   */
+  private object DI extends DependencyInjection.PersistentInjectable {
+    implicit def bindingModule = DependencyInjection()
+    /** The current model cache */
+    @volatile var currentModel: Option[Interface[_ <: Model.Stash]] = None
+    /** The previous model cache */
+    @volatile var previousModel: Option[Interface[_ <: Model.Stash]] = None
+
+    def inner() = currentModel getOrElse {
+      val model = inject[Interface[_ <: Model.Stash]]
+      currentModel = Option(model)
+      previousModel.foreach { previous =>
+        val undoF = () => {}
+        Element.Event.publish(Element.Event.ModelReplace(previous, model, model.eModified)(undoF))
+      }
+      model
+    }
+    /** The local origin that is alias of a user or a system or an anything other */
+    def origin() = inject[Symbol]("Model.Origin")
+
+    override def injectionAfter(newModule: BindingModule) = {
+      currentModel = None
+      inner()
+    }
+    override def injectionBefore(newModule: BindingModule) {
+      DependencyInjection.assertLazy[Symbol](Some("Model.Origin"), newModule)
+    }
+    override def injectionOnClear(oldModule: BindingModule) {
+      previousModel = Option(inner)
+    }
   }
 }
 

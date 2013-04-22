@@ -78,7 +78,7 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
    * Child elements
    * NOTE: Circular reference processed by GC
    */
-  val eChildren = new Children(this)
+  lazy val eChildren = new Children(this)
   /**
    * Element reference as implicit parameter
    * NOTE: Circular reference processed by GC
@@ -260,8 +260,12 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
     eSet(id, value, null.asInstanceOf[A])
   /** Set a new property, return an old property */
   def eSet[A <: AnyRef with java.io.Serializable](id: Symbol, value: Option[Value[A]], default: A)(implicit m: Manifest[A]): Option[Value[A]] =
-    DSLType.classSymbolMap.get(m.runtimeClass).flatMap(typeSymbol =>
-      eSet(id, typeSymbol, value, default)).asInstanceOf[Option[Value[A]]]
+    DSLType.classSymbolMap.get(m.runtimeClass) match {
+      case Some(typeSymbol) =>
+        eSet(id, typeSymbol, value, default).asInstanceOf[Option[Value[A]]]
+      case None =>
+        throw new IllegalArgumentException("Unknown type " + m.runtimeClass.getName())
+    }
   /** Set a new property, return an old property */
   def eSet(id: Symbol, typeSymbol: Symbol, value: Option[Value[_ <: AnyRef with java.io.Serializable]]): Option[Value[_ <: AnyRef with java.io.Serializable]] =
     eSet(id, typeSymbol, value, null)
@@ -352,14 +356,23 @@ trait Element[StashProjection <: Stash] extends Loggable with Ordered[Element.Ge
       case that: Element[_] =>
         // 1. can equal
         this.canEqual(that.getClass, that.eStash.getClass) &&
-          // 2. immutable variables are identical
-          this.hashCode == that.hashCode &&
-          // 3. mutable variables are identical
-          this.elementModified == that.elementModified
+          // 2. mutable variables are identical
+          this.elementModified == that.elementModified &&
+          // 3. immutable variables are identical
+          this.hashCode == that.hashCode
       case _ => false
     })
   /** Returns a hash code value for the object. */
-  override def hashCode() = List(getClass, eStash).foldLeft(0)((a, b) => a * 31 + b.hashCode())
+  override def hashCode() = {
+    /*
+       * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
+       * RISC machine (because 31 is the difference of two powers of two). P(33) is
+       * similarly cheap to calculate, but it's performance is marginally worse, and
+       * 33 is composite, which makes me a bit nervous.
+       */
+    val p = 31
+    p * (p + getClass.hashCode) + eStash.hashCode
+  }
   override def toString() = "%s[%s@%s]".format(eStash.scope, eStash.id.name, eStash.coordinate.toString)
 }
 

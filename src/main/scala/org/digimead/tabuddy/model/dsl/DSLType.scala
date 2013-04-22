@@ -85,19 +85,11 @@ trait DSLType {
 /**
  * Object that contains all DSL types and provides conversion routines
  */
-object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
+object DSLType extends  Loggable {
   implicit def dsltype2implementation(m: DSLType.type): Interface = m.inner
-  implicit def bindingModule = DependencyInjection()
 
-  /*
-   * dependency injection
-   */
-  def inner() = inject[Interface]
-  def converter() = inject[Seq[DSLType]]
-  override def injectionBefore(newModule: BindingModule) {
-    DependencyInjection.assertLazy[Interface](None, newModule)
-    DependencyInjection.assertLazy[Seq[DSLType]](None, newModule)
-  }
+  def inner() = DI.implementation
+  def types() = DI.dsltypes
 
   trait Interface {
     /** General type names like String, Boolean, ... */
@@ -143,15 +135,15 @@ object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
       }
     /** Get type symbols */
     protected def getSymbols(): Seq[Symbol] =
-      DSLType.converter.map(_.getTypes).flatten
+      DSLType.types.map(_.getTypes).flatten
     /** Get type classes */
     protected def getClasses(): Seq[Class[_]] =
-      DSLType.converter.map(_.getTypes).flatten.map(symbol =>
-        DSLType.converter.flatMap(_.getTypeClass(symbol))).flatten
+      DSLType.types.map(_.getTypes).flatten.map(symbol =>
+        DSLType.types.flatMap(_.getTypeClass(symbol))).flatten
     /** Get symbol -> class map */
     protected def getSymbolClassMap(): immutable.HashMap[Symbol, Class[_ <: AnyRef with java.io.Serializable]] = {
       val tuples: Seq[(Symbol, Class[_ <: AnyRef with java.io.Serializable])] = getSymbols().map(symbol => {
-        val maybeClazz = DSLType.converter.find(_.getTypes.contains(symbol)).flatMap(_.getTypeClass(symbol))
+        val maybeClazz = DSLType.types.find(_.getTypes.contains(symbol)).flatMap(_.getTypeClass(symbol))
         maybeClazz.map(clazz => (symbol, clazz.asInstanceOf[Class[_ <: AnyRef with java.io.Serializable]]))
       }).flatten
       immutable.HashMap[Symbol, Class[_ <: AnyRef with java.io.Serializable]](tuples: _*)
@@ -162,10 +154,31 @@ object DSLType extends DependencyInjection.PersistentInjectable with Loggable {
     /** Get symbol -> converter map */
     protected def getSymbolConverterMap(): immutable.HashMap[Symbol, DSLType] = {
       val tuples: Seq[(Symbol, DSLType)] = getSymbols().map(symbol => {
-        val maybeConverter = DSLType.converter.find(_.getTypes.contains(symbol))
+        val maybeConverter = DSLType.types.find(_.getTypes.contains(symbol))
         maybeConverter.map(converter => (symbol, converter))
       }).flatten
       immutable.HashMap[Symbol, DSLType](tuples: _*)
+    }
+  }
+  /**
+   * Dependency injection routines
+   */
+  private object DI extends DependencyInjection.PersistentInjectable {
+    implicit def bindingModule = DependencyInjection()
+    /** DSLType implementation DI cache */
+    @volatile var implementation = inject[Interface]
+    /** Registered DSLType DI cache */
+    @volatile var dsltypes = inject[Seq[DSLType]]
+
+    override def injectionAfter(newModule: BindingModule) {
+      dsltypes = inject[Seq[DSLType]]
+      implementation = inject[Interface]
+      val types = dsltypes.map(_.getTypes).flatten
+      assert(types.distinct.size == types.size, "DSL types contains diplicated entities in " + types)
+    }
+    override def injectionBefore(newModule: BindingModule) {
+      DependencyInjection.assertLazy[Interface](None, newModule)
+      DependencyInjection.assertLazy[Seq[DSLType]](None, newModule)
     }
   }
 }

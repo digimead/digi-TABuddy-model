@@ -45,8 +45,10 @@ package org.digimead.tabuddy.model.serialization
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import java.io.ObjectStreamClass
 import java.util.UUID
 
 import scala.annotation.tailrec
@@ -65,13 +67,17 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
    */
   def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[Array[Byte]],
     filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] = {
+    if (ma.runtimeClass == classOf[Nothing])
+      throw new IllegalArgumentException("Element type is undefined")
+    if (mb.runtimeClass == classOf[Nothing])
+      throw new IllegalArgumentException("Stash type is undefined")
     var hash = mutable.HashMap[UUID, Element.Generic]()
     // load elements
     var data = loadElement()
     while (data.nonEmpty) {
       try {
         val bais = new ByteArrayInputStream(data.get)
-        val in = new ObjectInputStream(bais)
+        val in = new BuiltinSerialization.CustomObjectInputStream(bais)
         filter(in.readObject().asInstanceOf[Element.Generic]).foreach(element => hash(element.eUnique) = element)
         in.close()
       } catch {
@@ -152,5 +158,37 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
       }
     }
     freezeWorker(saveElement, filter, saved.flatten: _*)
+  }
+}
+
+object BuiltinSerialization {
+  /** Convert binary data to the element */
+  def from(data: Array[Byte]): Option[Element.Generic] = {
+    val bais = new ByteArrayInputStream(data)
+    val in = new CustomObjectInputStream(bais)
+    val element = in.readObject().asInstanceOf[Element.Generic]
+    in.close()
+    Option(element)
+  }
+  /** Convert the current element without children to binary data */
+  def to(element: Element.Generic): Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    val out = new ObjectOutputStream(baos)
+    out.writeObject(element.eCopy(List()))
+    val data = baos.toByteArray()
+    baos.close()
+    data
+  }
+  /**
+   * ObjectInputStream helper that try to load classes from thread ContextClassLoader
+   */
+  class CustomObjectInputStream(in: InputStream) extends ObjectInputStream(in) {
+    override def resolveClass(desc: ObjectStreamClass): Class[_] = try {
+      val currentTccl = Thread.currentThread.getContextClassLoader()
+      return currentTccl.loadClass(desc.getName())
+    } catch {
+      case e: Exception =>
+        super.resolveClass(desc)
+    }
   }
 }
