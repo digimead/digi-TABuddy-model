@@ -8,3 +8,11 @@ before_script:
  - "echo 'which java' `which java`"
  - "echo JAVA_OPTS $JAVA_OPTS"
  - "export JAVA_OPTS=-Xmx512m"
+before_install:
+  - sudo apt-get update -qq
+  - wget http://protobuf.googlecode.com/files/protobuf-2.5.0.tar.gz
+  - tar zxf protobuf-2.5.0.tar.gz
+  - cd protobuf-2.5.0
+  - ./configure --prefix=/usr
+  - make
+  - sudo make install
