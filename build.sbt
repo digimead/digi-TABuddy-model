@@ -58,6 +58,8 @@ if (sys.env.contains("XBOOTCLASSPATH")) Seq(javacOptions += "-Xbootclasspath:" +
 
 compileOrder := CompileOrder.JavaThenScala
 
+version in sbtprotobuf.ProtobufPlugin.protobufConfig := "2.5.0"
+
 resolvers += "digimead-maven" at "http://storage.googleapis.com/maven.repository.digimead.org/"
 
 moduleConfigurations := {
@@ -69,7 +71,7 @@ moduleConfigurations := {
 
 libraryDependencies ++= Seq(
   "com.escalatesoft.subcut" %% "subcut" % "2.0",
-  "com.google.protobuf" % "protobuf-java" % "2.4.1",
+  "com.google.protobuf" % "protobuf-java" % "2.5.0",
   "org.digimead" %% "digi-lib" % "0.2.3",
   "org.yaml" % "snakeyaml" % "1.12",
   "org.digimead" %% "digi-lib-util" % "0.2.3" % "test",
