@@ -43,55 +43,38 @@
 
 package org.digimead.tabuddy.model.dsl
 
-import java.util.UUID
-
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.lib.test.TestHelperLogging
-import org.digimead.tabuddy.model.Model.model2implementation
-import org.digimead.tabuddy.model.element.Axis.intToAxis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.predef.Note
-import org.digimead.tabuddy.model.predef.Task
-import org.scalatest.fixture.FunSpec
+import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.lib.test.LoggingHelper
+import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
-import com.escalatesoft.subcut.inject.NewBindingModule
-
-import org.digimead.tabuddy.model.TestDSL._
-
-class ComplexDSLTypesSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
+class ComplexDSLTypesSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+  after { adjustLoggingAfter }
+  before {
+    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
+    adjustLoggingBefore
   }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
 
   describe("A ComplexDSLTypes") {
     it("should have proper equality") {
-      config =>
-        val dslType = new ComplexDSLTypes
-        dslType.getTypes should be(Seq('ArrayOfSymbol))
-        dslType.getTypeSymbol(classOf[Array[Int]]) should be(None)
-        dslType.getTypeSymbol(classOf[Array[Symbol]]) should be(Some('ArrayOfSymbol))
-        dslType.getTypeSymbol(classOf[Array[String]]) should be(None)
-        dslType.getTypeSymbol(classOf[Seq[String]]) should be(None)
-        dslType.getTypeSymbol(classOf[Seq[Symbol]]) should be(None)
-        dslType.getTypeSymbol(classOf[List[Symbol]]) should be(None)
+      val dslType = new ComplexDSLTypes
+      dslType.getTypes should be(Seq('ArrayOfSymbol))
+      dslType.getTypeSymbol(classOf[Array[Int]]) should be(None)
+      dslType.getTypeSymbol(classOf[Array[Symbol]]) should be(Some('ArrayOfSymbol))
+      dslType.getTypeSymbol(classOf[Array[String]]) should be(None)
+      dslType.getTypeSymbol(classOf[Seq[String]]) should be(None)
+      dslType.getTypeSymbol(classOf[Seq[Symbol]]) should be(None)
+      dslType.getTypeSymbol(classOf[List[Symbol]]) should be(None)
     }
     it("should have proper converter") {
-      config =>
-        val dslType = new ComplexDSLTypes
-        val saved = dslType.convertToString('ArrayOfSymbol, Array('abba, 'mamba, 'dubba))
-        saved should be("abba mamba dubba")
-        val restored = dslType.convertFromString('ArrayOfSymbol, saved)
-        restored should be (Array('abba, 'mamba, 'dubba))
+      val dslType = new ComplexDSLTypes
+      val saved = dslType.convertToString('ArrayOfSymbol, Array('abba, 'mamba, 'dubba))
+      saved should be("abba mamba dubba")
+      val restored = dslType.convertFromString('ArrayOfSymbol, saved)
+      restored should be(Array('abba, 'mamba, 'dubba))
     }
   }
+
+  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
 }

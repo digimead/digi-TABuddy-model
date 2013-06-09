@@ -51,8 +51,7 @@ import scala.annotation.tailrec
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.collection.mutable
 
-import org.digimead.digi.lib.log.Loggable
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.ContextProtos
 import org.digimead.tabuddy.model.CoordinateProtos
 import org.digimead.tabuddy.model.ElementProtos

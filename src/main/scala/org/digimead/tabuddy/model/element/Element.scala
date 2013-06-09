@@ -57,14 +57,13 @@ import scala.reflect.runtime.universe
 import scala.reflect.runtime.universe.typeOf
 import scala.util.DynamicVariable
 
-import org.digimead.digi.lib.log.Loggable
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
 import org.digimead.tabuddy.model.element.compare.Compare
-import org.digimead.tabuddy.model.element.compare.CompareByModification
+import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
 
 import language.implicitConversions
 
@@ -389,7 +388,7 @@ object Element extends Loggable {
   /** Maximum amount of element nested levels */
   val MAXIMUM_DEEPNESS = 10000
   /** Active elements comparator, local thread */
-  val comparator = new DynamicVariable[Compare](CompareByModification)
+  val comparator = new DynamicVariable[Compare](CompareByTimespamp)
   /** Base nanoseconds for Timestamp shift */
   private var nanoBase = System.nanoTime()
   /** nanoBase renew scheduled thread pool executor */

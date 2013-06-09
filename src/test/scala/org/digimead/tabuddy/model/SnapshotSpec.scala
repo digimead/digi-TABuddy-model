@@ -45,32 +45,24 @@ package org.digimead.tabuddy.model
 
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
-import org.digimead.lib.test.TestHelperLogging
 import org.digimead.tabuddy.model.Model.model2implementation
-import org.scalatest.fixture.FunSpec
 import org.scalatest.matchers.ShouldMatchers
-
 import com.escalatesoft.subcut.inject.NewBindingModule
-
 import org.digimead.tabuddy.model.TestDSL._
+import org.scalatest.FunSpec
+import org.digimead.lib.test.LoggingHelper
+import org.digimead.digi.lib.log.api.Loggable
 
-class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
+class SnapshotSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+  after { adjustLoggingAfter }
+  before {
+    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
+    adjustLoggingBefore
   }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
 
   describe("A Snapshot") {
     it("should contain persistent values") {
-      config =>
-/*        Model.name should be ("")
+      /*        Model.name should be ("")
         Model.sCurrent should be(Element.Snapshot(0L))
         val globalSnapshot = Model.sTake()
         globalSnapshot should not be (null)
@@ -91,4 +83,6 @@ class SnapshotSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging
         }*/
     }
   }
+
+  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
 }

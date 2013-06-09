@@ -44,101 +44,98 @@
 package org.digimead.tabuddy.model
 
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.lib.test.TestHelperLogging
+import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.Model.model2implementation
-import org.digimead.tabuddy.model.element.compare.CompareByContent
-import org.digimead.tabuddy.model.element.compare.CompareByModification
-import org.scalatest.fixture.FunSpec
-import org.scalatest.matchers.ShouldMatchers
-
-import com.escalatesoft.subcut.inject.NewBindingModule
-
 import org.digimead.tabuddy.model.TestDSL._
+import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
+import org.digimead.tabuddy.model.element.compare.CompareByTimestampAndContent
+import org.scalatest.FunSpec
+import org.scalatest.matchers.ShouldMatchers
+import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
 
-class CompareSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
+class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+  after { adjustLoggingAfter }
+  before {
+    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
+    adjustLoggingBefore
   }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
 
   describe("A Compare By Modification") {
     it("should provide proper comparison") {
-      config =>
-        Model.reset()
-        var save: Record[Record.Stash] = null
-        val record = Model.record('root) { r =>
-          save = r.record('level2) { r =>
-            r.name = "123"
-          }
+      Model.reset()
+      var save: Record[Record.Stash] = null
+      val record = Model.record('root) { r =>
+        save = r.record('level2) { r =>
+          r.name = "123"
         }
-        CompareByModification.doWith {
-          val model1 = Model.eCopy()
-          Model.eModel.eq(Model.inner) should be(true)
-          model1.eModel.eq(model1) should be(true)
-          model1.compare(Model) should be(0)
-          model1.name = "111"
-          model1.compare(Model) should be(1) // model1 modified after Model
-          (model1 | RecordLocation('root)).eModel should be(model1)
-          // parent modified after child
-          record.compare(record) should be(0)
-          save.compare(record) should be(-1) // save modified before record
-          Model.compare(record) should be(1) // Model modified after record
-          Model.compare(save) should be(1) // Model modified after save
-          Model.name = "123"
-          Model.compare(record) should be(1) // Model modified after record
-          Model.compare(save) should be(1) // Model modified after record
-          save.name = "321"
-          Model.compare(record) should be(1) // Model modified after record
-          Model.compare(save) should be(1) // Model modified after save
-          record.compare(save) should be(1) // record modified after save
-          (model1 | RecordLocation('root)).compare(record) should be(-1)
-        }
+      }
+      CompareByTimespamp.doWith {
+        val model1 = Model.eCopy()
+        Model.eModel.eq(Model.inner) should be(true)
+        model1.eModel.eq(model1) should be(true)
+        model1.compare(Model) should be(0)
+        model1.name = "111"
+        model1.compare(Model) should be(1) // model1 modified after Model
+        (model1 | RecordLocation('root)).eModel should be(model1)
+        // parent modified after child
+        record.compare(record) should be(0)
+        save.compare(record) should be(-1) // save modified before record
+        Model.compare(record) should be(1) // Model modified after record
+        Model.compare(save) should be(1) // Model modified after save
+        Model.name = "123"
+        Model.compare(record) should be(1) // Model modified after record
+        Model.compare(save) should be(1) // Model modified after record
+        save.name = "321"
+        Model.compare(record) should be(1) // Model modified after record
+        Model.compare(save) should be(1) // Model modified after save
+        record.compare(save) should be(1) // record modified after save
+        (model1 | RecordLocation('root)).compare(record) should be(-1)
+      }
     }
   }
   describe("A Compare By Content") {
     it("should provide proper comparison") {
-      config =>
-        Model.reset()
-        var save: Record[Record.Stash] = null
-        val record = Model.record('root) { r =>
-          save = r.record('level2) { r =>
-            r.name = "123"
-          }
+      Model.reset()
+      var save: Record[Record.Stash] = null
+      val record = Model.record('root) { r =>
+        save = r.record('level2) { r =>
+          r.name = "123"
         }
-        CompareByContent.doWith {
-          val model1 = Model.eCopy()
-          Model.eModel.eq(Model.inner) should be(true)
-          model1.eModel.eq(model1) should be(true)
-          model1.compare(Model) should be(0)
-          model1.name = "111"
-          model1.compare(Model) should be(1) // model1 modified after Model
-          (model1 | RecordLocation('root)).eModel should be(model1)
-          model1.name = Model.name
-          model1.compare(Model) should be(0)
-          // parent modified after child
-          record.compare(record) should be(0)
-          save.compare(record) should be(-1) // save modified before record
-          Model.compare(record) should be(1) // Model modified after record
-          Model.compare(save) should be(1) // Model modified after save
-          Model.name = "123"
-          Model.compare(record) should be(1) // Model modified after record
-          Model.compare(save) should be(1) // Model modified after record
-          save.name = "321"
-          Model.compare(record) should be(1) // Model modified after record
-          Model.compare(save) should be(1) // Model modified after save
-          record.compare(save) should be(1) // record modified after save
-          model1.compare(Model) should be(-1) // model1 modified before Model
-          model1.name = "123"
-          (model1 | RecordLocation('root) | RecordLocation('level2)).name = "321"
-          model1.compare(Model) should be(0) // model1 modified after Model but content is equal
-        }
+      }
+      CompareByTimestampAndContent.doWith {
+        val model1 = Model.eCopy()
+        Model.eModel.eq(Model.inner) should be(true)
+        model1.eModel.eq(model1) should be(true)
+        model1.compare(Model) should be(0)
+        model1.name = "111"
+        model1.compare(Model) should be(1) // model1 modified after Model
+        (model1 | RecordLocation('root)).eModel should be(model1)
+        model1.name = Model.name
+        model1.compare(Model) should be(0)
+        // parent modified after child
+        record.compare(record) should be(0)
+        save.compare(record) should be(-1) // save modified before record
+        Model.compare(record) should be(1) // Model modified after record
+        Model.compare(save) should be(1) // Model modified after save
+        Model.name = "123"
+        Model.compare(record) should be(1) // Model modified after record
+        Model.compare(save) should be(1) // Model modified after record
+        save.name = "321"
+        Model.compare(record) should be(1) // Model modified after record
+        Model.compare(save) should be(1) // Model modified after save
+        record.compare(save) should be(1) // record modified after save
+        model1.compare(Model) should be(0) // model1 modified before Model BUT model1 content and Model content are the same
+        Model.name = "333"
+        model1.compare(Model) should be(-1) // model1 modified before Model
+        model1.name = "444"
+        model1.compare(Model) should be(1) // model1 modified before Model
+        Model.name = "444"
+        //(model1 | RecordLocation('root) | RecordLocation('level2)).name = "321"
+        model1.compare(Model) should be(0) // model1 modified after Model but content is equal
+      }
     }
   }
+
+  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
 }

@@ -47,7 +47,7 @@ import scala.Option.option2Iterable
 import scala.collection.immutable
 
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.Loggable
+import org.digimead.digi.lib.log.api.Loggable
 
 import com.escalatesoft.subcut.inject.BindingModule
 
@@ -85,7 +85,7 @@ trait DSLType {
 /**
  * Object that contains all DSL types and provides conversion routines
  */
-object DSLType extends  Loggable {
+object DSLType extends Loggable {
   implicit def dsltype2implementation(m: DSLType.type): Interface = m.inner
 
   def inner() = DI.implementation
@@ -164,21 +164,14 @@ object DSLType extends  Loggable {
    * Dependency injection routines
    */
   private object DI extends DependencyInjection.PersistentInjectable {
-    implicit def bindingModule = DependencyInjection()
     /** DSLType implementation DI cache */
-    @volatile var implementation = inject[Interface]
+    lazy val implementation = inject[Interface]
     /** Registered DSLType DI cache */
-    @volatile var dsltypes = inject[Seq[DSLType]]
-
-    override def injectionAfter(newModule: BindingModule) {
-      dsltypes = inject[Seq[DSLType]]
-      implementation = inject[Interface]
-      val types = dsltypes.map(_.getTypes).flatten
+    lazy val dsltypes = {
+      val result = inject[Seq[DSLType]]
+      val types = result.map(_.getTypes).flatten
       assert(types.distinct.size == types.size, "DSL types contains diplicated entities in " + types)
-    }
-    override def injectionBefore(newModule: BindingModule) {
-      DependencyInjection.assertLazy[Interface](None, newModule)
-      DependencyInjection.assertLazy[Seq[DSLType]](None, newModule)
+      result
     }
   }
 }

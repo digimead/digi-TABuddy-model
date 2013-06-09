@@ -45,7 +45,6 @@ package org.digimead.tabuddy.model.element
 
 import scala.collection.mutable
 
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
 import org.digimead.tabuddy.model.Model
 
 /**

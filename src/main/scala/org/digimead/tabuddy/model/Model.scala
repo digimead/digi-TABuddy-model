@@ -54,8 +54,7 @@ import scala.util.DynamicVariable
 
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
-import org.digimead.digi.lib.log.Loggable
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Children
 import org.digimead.tabuddy.model.element.Context
 import org.digimead.tabuddy.model.element.Coordinate
@@ -317,7 +316,6 @@ object Model extends Loggable {
    * Dependency injection routines
    */
   private object DI extends DependencyInjection.PersistentInjectable {
-    implicit def bindingModule = DependencyInjection()
     /** The current model cache */
     @volatile var currentModel: Option[Interface[_ <: Model.Stash]] = None
     /** The previous model cache */
@@ -335,15 +333,9 @@ object Model extends Loggable {
     /** The local origin that is alias of a user or a system or an anything other */
     def origin() = inject[Symbol]("Model.Origin")
 
-    override def injectionAfter(newModule: BindingModule) = {
+    override def injectionCommit(newModule: BindingModule) = {
       currentModel = None
       inner()
-    }
-    override def injectionBefore(newModule: BindingModule) {
-      DependencyInjection.assertLazy[Symbol](Some("Model.Origin"), newModule)
-    }
-    override def injectionOnClear(oldModule: BindingModule) {
-      previousModel = Option(inner)
     }
   }
 }

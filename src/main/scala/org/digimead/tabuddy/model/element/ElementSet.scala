@@ -45,7 +45,7 @@ package org.digimead.tabuddy.model.element
 
 import scala.collection.mutable
 
-import org.digimead.digi.lib.log.Loggable
+import org.digimead.digi.lib.log.api.Loggable
 
 trait ElementSet extends mutable.LinkedHashSet[Element.Generic] with Loggable {
   val origin: Element.Generic

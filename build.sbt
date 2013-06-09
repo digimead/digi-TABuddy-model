@@ -17,7 +17,7 @@
 
 import sbt.osgi.manager._
 
-activateOSGiManager ++ sbt.scct.ScctPlugin.instrumentSettings ++ sbtprotobuf.ProtobufPlugin.protobufSettings
+OSGiManager ++ sbt.scct.ScctPlugin.instrumentSettings ++ sbtprotobuf.ProtobufPlugin.protobufSettings
 
 name := "Digi-TABuddy-Model"
 
@@ -29,7 +29,7 @@ organization := "org.digimead"
 
 organizationHomepage := Some(url("http://digimead.org"))
 
-homepage := Some(url("https://github.com/ezh/digi-lib-util"))
+homepage := Some(url("https://github.com/digimead/digi-TABuddy-model"))
 
 version <<= (baseDirectory) { (b) => scala.io.Source.fromFile(b / "version").mkString.trim }
 
@@ -39,7 +39,7 @@ inConfig(OSGiConf)({
     osgiBndBundleSymbolicName := "org.digimead.tabuddy.model",
     osgiBndBundleCopyright := "Copyright © 2013 Alexey B. Aksenov/Ezh. All rights reserved.",
     osgiBndExportPackage := List("org.digimead.*"),
-    osgiBndImportPackage := List("!org.aspectj.lang", "*"),
+    osgiBndImportPackage := List("!org.aspectj.*", "*"),
     osgiBndBundleLicense := "http://www.apache.org/licenses/LICENSE-2.0.txt;description=The Apache Software License, Version 2.0"
   )
 })
@@ -58,35 +58,38 @@ if (sys.env.contains("XBOOTCLASSPATH")) Seq(javacOptions += "-Xbootclasspath:" +
 
 compileOrder := CompileOrder.JavaThenScala
 
+sources in Compile in doc ~= (_ filter {file => false})
+
+//
+// Custom local options
+//
+
 version in sbtprotobuf.ProtobufPlugin.protobufConfig := "2.5.0"
 
 resolvers += "digimead-maven" at "http://storage.googleapis.com/maven.repository.digimead.org/"
 
-moduleConfigurations := {
-  val digi = "digimead" at "http://storage.googleapis.com/maven.repository.digimead.org/"
-  Seq(
-    ModuleConfiguration("org.digimead", "digi-lib", digi)
-  )
-}
-
 libraryDependencies ++= Seq(
-  "com.escalatesoft.subcut" %% "subcut" % "2.0",
   "com.google.protobuf" % "protobuf-java" % "2.5.0",
-  "org.digimead" %% "digi-lib" % "0.2.3",
+  "org.digimead" %% "digi-lib" % "0.2.3.1",
   "org.yaml" % "snakeyaml" % "1.12",
-  "org.digimead" %% "digi-lib-util" % "0.2.3" % "test",
-  "org.digimead" %% "digi-lib-slf4j" % "0.2.2" % "test",
-  "org.digimead" %% "digi-lib-test" % "0.2.2" % "test",
-  "org.scalatest" %% "scalatest" % "1.9.1" % "test"
-     excludeAll(ExclusionRule("org.scala-lang", "scala-reflect"), ExclusionRule("org.scala-lang", "scala-actors"))
+  "org.digimead" %% "digi-lib-test" % "0.2.2.1" % "test"
 )
+
+//
+// Testing
+//
 
 parallelExecution in Test := false
 
 parallelExecution in sbt.scct.ScctPlugin.ScctTest := false
 
-sources in Compile in doc ~= (_ filter {file => false})
-
-//sourceDirectory in Test <<= baseDirectory / "Testing Infrastructure Is Absent"
+testGrouping <<= (definedTests in Test) map { tests =>
+  tests map { test =>
+    new Tests.Group(
+      name = test.name,
+      tests = Seq(test),
+      runPolicy = Tests.SubProcess(javaOptions = Seq.empty[String]))
+  }
+}
 
 //logLevel := Level.Debug

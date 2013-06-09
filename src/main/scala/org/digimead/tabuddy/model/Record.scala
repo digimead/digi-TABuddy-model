@@ -46,8 +46,7 @@ package org.digimead.tabuddy.model
 import java.util.UUID
 
 import org.digimead.digi.lib.aop.log
-import org.digimead.digi.lib.log.Loggable
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.element.Axis
 import org.digimead.tabuddy.model.element.Context

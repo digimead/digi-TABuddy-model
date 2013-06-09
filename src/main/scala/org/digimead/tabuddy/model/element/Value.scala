@@ -45,7 +45,7 @@ package org.digimead.tabuddy.model.element
 
 import java.io.Serializable
 
-import org.digimead.digi.lib.log.Loggable
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.dsl.DSLType

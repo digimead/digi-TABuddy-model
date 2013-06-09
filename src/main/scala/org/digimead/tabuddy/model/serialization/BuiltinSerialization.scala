@@ -54,7 +54,6 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.mutable
 
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Stash

@@ -44,13 +44,14 @@
 package org.digimead.tabuddy.model
 
 import java.util.UUID
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.ref.WeakReference
-import org.digimead.digi.lib.log.logger.RichLogger.rich2slf4j
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Coordinate
+
 import org.digimead.tabuddy.model.element.Axis
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
 
 trait ModelIndex {

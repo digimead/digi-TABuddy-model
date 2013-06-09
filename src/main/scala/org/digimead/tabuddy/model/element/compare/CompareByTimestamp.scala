@@ -45,44 +45,11 @@ package org.digimead.tabuddy.model.element.compare
 
 import org.digimead.tabuddy.model.element.Element
 
-object CompareByContent extends Compare {
+object CompareByTimespamp extends Compare {
   /** Compares this object with the specified object for order. */
   def compare(e1: Element.Generic, e2: Element.Generic): Int =
     e1.eModified.milliseconds compare e2.eModified.milliseconds match {
-      case 0 =>
-        e1.eModified.nanoShift compare e2.eModified.nanoShift
-      case c =>
-        // modification time different but
-        val e1Data = e1.eStash.property
-        val e2Data = e2.eStash.property
-        // 1. can equal
-        val equal = e1.canEqual(e2.getClass, e2.eStash.getClass) &&
-          // 2. immutable variables are identical
-          e1.hashCode == e2.hashCode && {
-            // 3. stash equals
-            e1.eStash == e2.eStash || { // OR
-              // 3. can equal
-              e1.eStash.canEqual(e2.eStash) &&
-                // 4. immutable variables are identical
-                e1.eStash.hashCode == e2.eStash.hashCode &&
-                // 5. mutable variables values are identical
-                e1Data.keys.forall { valuesType =>
-                  if (e1Data(valuesType).isEmpty) {
-                    // drop empty valuesType
-                    !e2Data.contains(valuesType) || e2Data(valuesType).isEmpty
-                  } else if (!e2Data.contains(valuesType)) {
-                    false
-                  } else {
-                    val e1Values = e1Data(valuesType)
-                    val e2Values = e2Data(valuesType)
-                    e1Values == e2Values && {
-                      // 6. compare values
-                      e1Values.keys.forall(propertySymbol => e1Values(propertySymbol) == e2Values(propertySymbol))
-                    }
-                  }
-                }
-            }
-          }
-        if (equal) 0 else c
+      case 0 => e1.eModified.nanoShift compare e2.eModified.nanoShift
+      case c => c
     }
 }

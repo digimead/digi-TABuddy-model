@@ -87,7 +87,7 @@
 package org.digimead.tabuddy.model.dsl
 
 import scala.collection.immutable
-import org.digimead.digi.lib.log.Loggable
+import org.digimead.digi.lib.log.api.Loggable
 
 class BasicDSLTypes extends DSLType with Loggable {
   protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](

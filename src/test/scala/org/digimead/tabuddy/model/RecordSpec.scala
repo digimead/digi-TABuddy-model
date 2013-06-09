@@ -44,78 +44,70 @@
 package org.digimead.tabuddy.model
 
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.aop.log
-import org.digimead.lib.test.TestHelperLogging
+import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.Record.Stash
+import org.digimead.tabuddy.model.TestDSL.element2rich
+import org.digimead.tabuddy.model.TestDSL.model2rich
 import org.digimead.tabuddy.model.element.Coordinate
-import org.scalatest.fixture.FunSpec
+import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
-import com.escalatesoft.subcut.inject.NewBindingModule
-
-import org.digimead.tabuddy.model.TestDSL._
-
-class RecordSpec_j1 extends FunSpec with ShouldMatchers with TestHelperLogging {
-  type FixtureParam = Map[String, Any]
-
-  override def withFixture(test: OneArgTest) {
-    DependencyInjection.get.foreach(_ => DependencyInjection.clear)
-    DependencyInjection.set(defaultConfig(test.configMap) ~ org.digimead.tabuddy.model.default)
-    withLogging(test.configMap) {
-      test(test.configMap)
-    }
+class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+  after { adjustLoggingAfter }
+  before {
+    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
+    adjustLoggingBefore
   }
-
-  def resetConfig(newConfig: NewBindingModule = new NewBindingModule(module => {})) = DependencyInjection.reset(newConfig ~ DependencyInjection())
 
   describe("A Record") {
     it("should create new instance with apply()") {
-      config =>
-        val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Some(Model.inner), 'test1, Record.scope, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-        val record2 = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-        val record2a = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-        assert(record2a eq record2)
+      val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Some(Model.inner), 'test1, Record.scope, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+      val record2 = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+      val record2a = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
+      assert(record2a eq record2)
     }
     it("should support nested elements") {
-      config =>
-        var record_1a: Record[Record.Stash] = null
-        var record_2a: Record[Record.Stash] = null
-        var record_1b: Record[Record.Stash] = null
-        var record_2b: Record[Record.Stash] = null
-        // define record
-        val record_0 = Model.record('baseLevel) { r =>
-          record_1a = r.record('level1a) { r =>
-            record_2a = r.record('level2a) { r =>
-              r.name = "record_2a"
-            }
-            r.name = "record_1a"
+      var record_1a: Record[Record.Stash] = null
+      var record_2a: Record[Record.Stash] = null
+      var record_1b: Record[Record.Stash] = null
+      var record_2b: Record[Record.Stash] = null
+      // define record
+      val record_0 = Model.record('baseLevel) { r =>
+        record_1a = r.record('level1a) { r =>
+          record_2a = r.record('level2a) { r =>
+            r.name = "record_2a"
           }
-          record_1b = r.record('level1b) { r =>
-            record_2b = r.record('level2b) { r =>
-              r.name = "record_2b"
-            }
-            r.name = "record_1b"
-          }
-          r.name = "record_0"
+          r.name = "record_1a"
         }
-        // check description
-        record_0.name should be("record_0")
-        record_1a.name should be("record_1a")
-        record_2a.name should be("record_2a")
-        record_1b.name should be("record_1b")
-        record_2b.name should be("record_2b")
-        // check child elements
-        record_0.eChildren should equal(Set(record_1a, record_1b))
-        record_1a.eChildren should equal(Set(record_2a))
-        record_1b.eChildren should equal(Set(record_2b))
-        // check elements with same id
-        val treeA = Model.record('test) { r =>
-          r.record('test) { r =>
-            r.record('test) { _.name = "ok" }
+        record_1b = r.record('level1b) { r =>
+          record_2b = r.record('level2b) { r =>
+            r.name = "record_2b"
           }
+          r.name = "record_1b"
         }
-        //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.name) should be(Some("ok"))
+        r.name = "record_0"
+      }
+      // check description
+      record_0.name should be("record_0")
+      record_1a.name should be("record_1a")
+      record_2a.name should be("record_2a")
+      record_1b.name should be("record_1b")
+      record_2b.name should be("record_2b")
+      // check child elements
+      record_0.eChildren should equal(Set(record_1a, record_1b))
+      record_1a.eChildren should equal(Set(record_2a))
+      record_1b.eChildren should equal(Set(record_2b))
+      // check elements with same id
+      val treeA = Model.record('test) { r =>
+        r.record('test) { r =>
+          r.record('test) { _.name = "ok" }
+        }
+      }
+      //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.name) should be(Some("ok"))
     }
   }
+
+  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
 }
