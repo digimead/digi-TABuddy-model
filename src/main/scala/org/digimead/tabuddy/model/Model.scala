@@ -52,7 +52,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.DynamicVariable
 
-import org.digimead.digi.lib.DependencyInjection
+import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.aop.log
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Children
@@ -333,7 +333,7 @@ object Model extends Loggable {
     /** The local origin that is alias of a user or a system or an anything other */
     def origin() = inject[Symbol]("Model.Origin")
 
-    override def injectionCommit(newModule: BindingModule) = {
+    override def injectionCommit() = {
       currentModel = None
       inner()
     }

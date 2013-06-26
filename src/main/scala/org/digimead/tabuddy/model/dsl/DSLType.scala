@@ -46,7 +46,7 @@ package org.digimead.tabuddy.model.dsl
 import scala.Option.option2Iterable
 import scala.collection.immutable
 
-import org.digimead.digi.lib.DependencyInjection
+import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 
 import com.escalatesoft.subcut.inject.BindingModule
