@@ -94,6 +94,9 @@ object Model extends Loggable {
   implicit def model2implementation(m: Model.type): Model.Generic = m.inner
   val scope = new Scope()
 
+  /** Assert that A is not generic. */
+  def assertNonGeneric[A](implicit m: Manifest[A]): Unit = if (m.runtimeClass == classOf[java.lang.Object])
+    throw new IllegalArgumentException(s"Generic type '${m}' assertion failed.")
   def inner() = DI.inner
   def origin() = DI.origin
 

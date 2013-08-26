@@ -166,12 +166,28 @@ object DSLType extends Loggable {
   private object DI extends DependencyInjection.PersistentInjectable {
     /** DSLType implementation DI cache */
     lazy val implementation = inject[Interface]
-    /** Registered DSLType DI cache */
+    /**
+     * Collection of DSL types.
+     *
+     * Each collected DSL type must be:
+     *  1. an instance of DSLType
+     *  2. has name that starts with "DSLType."
+     */
     lazy val dsltypes = {
-      val result = inject[Seq[DSLType]]
-      val types = result.map(_.getTypes).flatten
+      val types = bindingModule.bindings.filter {
+        case (key, value) => classOf[DSLType].isAssignableFrom(key.m.runtimeClass)
+      }.map {
+        case (key, value) =>
+          key.name match {
+            case Some(name) if name.startsWith("DSLType.") =>
+              log.debug(s"'${name}' loaded.")
+            case _ =>
+              log.debug(s"'${key.name.getOrElse("Unnamed")}' DSL type skipped.")
+          }
+          bindingModule.injectOptional(key).asInstanceOf[Option[DSLType]]
+      }.flatten.toSeq
       assert(types.distinct.size == types.size, "DSL types contains diplicated entities in " + types)
-      result
+      types
     }
   }
 }

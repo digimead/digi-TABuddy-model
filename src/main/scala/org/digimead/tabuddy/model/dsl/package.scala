@@ -52,7 +52,8 @@ import com.escalatesoft.subcut.inject.NewBindingModule
 
 package object dsl {
   lazy val default = new NewBindingModule(module => {
-    module.bind[Seq[DSLType]] toSingle { Seq(new BasicDSLTypes, new ComplexDSLTypes) }
+    module.bind[DSLType] identifiedBy ("DSLType.Basic") toSingle { new BasicDSLTypes }
+    module.bind[DSLType] identifiedBy ("DSLType.Complex") toSingle { new ComplexDSLTypes }
     module.bind[DSLType.Interface] toSingle { new DSLType.Interface {} }
   })
   DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.dsl.DSLType$DI$")
