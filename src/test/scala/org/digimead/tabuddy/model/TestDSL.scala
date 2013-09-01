@@ -18,19 +18,19 @@
 
 package org.digimead.tabuddy.model
 
-import org.digimead.tabuddy.model.predef.Note
-import org.digimead.tabuddy.model.predef.Task
-import org.digimead.tabuddy.model.element.Element
+//import org.digimead.tabuddy.model.predef.Note
+//import org.digimead.tabuddy.model.predef.Task
 import org.digimead.tabuddy.model.dsl.DSL
+import org.digimead.tabuddy.model.element.Element
 
-class TestDSL(val DLS_element: Element.Generic)
+class TestDSL(val element: Element)
   extends DSL.RichElement
   with Record.DSL.RichElement
-  with Note.DSL.RichElement
-  with Task.DSL.RichElement
+//  with Note.DSL.RichElement
+//  with Task.DSL.RichElement
 
-object TestDSL
-  extends DSL[TestDSL](e => new TestDSL(e))
-  with Record.DSL
-  with Note.DSL
-  with Task.DSL
+//object TestDSL
+//  extends DSL[TestDSL](e => new TestDSL(e))
+//  with Record.DSL
+//  with Note.DSL
+//  with Task.DSL

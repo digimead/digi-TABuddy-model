@@ -16,28 +16,30 @@
  * limitations under the License.
  */
 
-package org.digimead.tabuddy.model.element
+package org.digimead.tabuddy.model.graph
 
 import scala.collection.mutable
+import scala.ref.WeakReference
 
-import org.digimead.digi.lib.log.api.Loggable
+/**
+ * Trait contains element boxes that is provided lazy loading.
+ */
+trait NodeSet extends mutable.LinkedHashSet[Node] {
+  val parentNode: WeakReference[Node]
 
-trait ElementSet extends mutable.LinkedHashSet[Element.Generic] with Loggable {
-  val origin: Element.Generic
-
-  abstract override def add(element: Element.Generic): Boolean = {
-    val result = super.add(element)
+  abstract override def add(node: Node): Boolean = {
+    val result = super.add(node)
     if (result) {
-      val undoF = () => { super.remove(element); {} }
-      Element.Event.publish(Element.Event.ChildInclude(origin, element, origin.eModified)(undoF))
+      val undoF = () => { super.remove(node); {} }
+      //Element.Event.publish(Element.Event.ChildInclude(parentNode.get, node.get, parentNode.get.eModified)(undoF))
     }
     result
   }
-  abstract override def remove(element: Element.Generic): Boolean = {
-    val result = super.remove(element)
+  abstract override def remove(node: Node): Boolean = {
+    val result = super.remove(node)
     if (result) {
-      val undoF = () => { super.+=(element); {} }
-      Element.Event.publish(Element.Event.ChildRemove(origin, element, origin.eModified)(undoF))
+      val undoF = () => { super.+=(node); {} }
+      //Element.Event.publish(Element.Event.ChildRemove(parentNode.get, node.get, parentNode.get.eModified)(undoF))
     }
     result
   }
@@ -45,6 +47,6 @@ trait ElementSet extends mutable.LinkedHashSet[Element.Generic] with Loggable {
     val children = this.toSeq
     super.clear
     val undoF = () => { children.foreach(super.add) }
-    Element.Event.publish(Element.Event.ChildrenReset(origin, origin.eModified)(undoF))
+    //Element.Event.publish(Element.Event.ChildrenReset(parentNode.get, parentNode.get.eModified)(undoF))
   }
 }

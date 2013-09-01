@@ -20,10 +20,9 @@ package org.digimead.tabuddy.model
 
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.aop.log
-import org.digimead.tabuddy.model.Model.model2implementation
 import org.scalatest.matchers.ShouldMatchers
 import com.escalatesoft.subcut.inject.NewBindingModule
-import org.digimead.tabuddy.model.TestDSL._
+//import org.digimead.tabuddy.model.TestDSL._
 import org.scalatest.FunSpec
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.digi.lib.log.api.Loggable

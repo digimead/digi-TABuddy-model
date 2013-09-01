@@ -37,17 +37,13 @@ import org.digimead.tabuddy.model.StashProtos
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
 import org.digimead.tabuddy.model.element.Axis
-import org.digimead.tabuddy.model.element.Context
 import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Element.Scope
 import org.digimead.tabuddy.model.element.Element.Timestamp
 import org.digimead.tabuddy.model.element.Reference
-import org.digimead.tabuddy.model.element.Stash
-import org.digimead.tabuddy.model.element.Stash.Data
 import org.digimead.tabuddy.model.element.Value
 
-class ProtobufSerialization extends Serialization[Array[Byte]] {
+/*class ProtobufSerialization extends Serialization[Array[Byte]] {
   /**
    * Load elements from Iterable[Array[Byte]] with loadElement().
    * Filter/adjust loaded element with filter()
@@ -107,7 +103,7 @@ class ProtobufSerialization extends Serialization[Array[Byte]] {
     rootElements.find(_.isInstanceOf[Model.Interface[_]]) match {
       case Some(model) =>
         // return model as expected type
-        model.eStash.model = Some(model.asInstanceOf[Model.Generic])
+        //model.eStash.model = Some(model.asInstanceOf[Model.Generic])
         model.asInstanceOf[Model.Generic].eIndexRebuid()
         model.eAs[A, B]
       case None if rootElements.size == 1 =>
@@ -365,11 +361,11 @@ object ProtobufSerialization extends Loggable {
         classOf[Coordinate],
         classOf[Element.Timestamp],
         classOf[Symbol],
+        classOf[Element.Timestamp],
         classOf[Element.Scope],
         classOf[UUID],
         classOf[org.digimead.tabuddy.model.element.Stash.Data])
-      val stash = stashCtor.newInstance(context, coordinate, created, id, scope, unique, properies).asInstanceOf[Stash]
-      stash.modified = modified
+      val stash = stashCtor.newInstance(context, coordinate, created, id, modified, scope, unique, properies).asInstanceOf[Stash]
       assert(stash.scope.getClass().getName() == scopeClassName, "Incorrect scope class: got %s, expected %s".format(stash.scope.getClass().getName(), scopeClassName))
       stash
     }
@@ -383,3 +379,4 @@ object ProtobufSerialization extends Loggable {
       None
   }
 }
+*/

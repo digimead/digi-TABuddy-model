@@ -19,19 +19,20 @@
 package org.digimead.tabuddy.model
 
 import java.util.UUID
-
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.ref.WeakReference
-
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Axis
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.graph.Context
 
 trait ModelIndex {
-  this: Model.Interface[_ <: Model.Stash] =>
-  type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element.Generic]] with mutable.SynchronizedMap[Symbol, WeakReference[Element.Generic]]
+  this: Model with Loggable =>
+  type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
   type HashMapPerAxis = mutable.HashMap[Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Coordinate, HashMapPerOrigin]
   type HashMapPerId = mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
   /**
@@ -40,29 +41,29 @@ trait ModelIndex {
    */
   @transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
 
-  /** Get element for unique id at the specific coordinate and default origin */
-  def e(unique: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element.Generic] =
-    e(Reference(eStash.id, unique, Coordinate(coordinate: _*)))
-  /** Get element for unique id at the specific coordinate and origin */
-  def e(origin: Symbol, unique: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element.Generic] =
-    e(Reference(origin, unique, Coordinate(coordinate: _*)))
-  /** Get element for unique id at the specific coordinate and origin */
-  def e(origin: Symbol, unique: UUID, coordinate: Coordinate): Option[Element.Generic] =
-    e(Reference(origin, unique, coordinate))
-  /** Get element for unique id at the specific coordinate and default origin */
-  def e(unique: UUID, coordinate: Coordinate): Option[Element.Generic] =
-    e(Reference(eStash.context.container.origin, unique, coordinate))
-  /** Get element for unique id at the specific coordinate and origin */
-  def e(reference: Reference): Option[Element.Generic] = {
-    for {
-      allAreasWithId <- index.get(reference.unique)
-      allAreasWithIdPerAxis <- allAreasWithId.get(reference.coordinate)
-      element <- allAreasWithIdPerAxis.get(reference.origin)
-    } yield element.get
-  } getOrElse None
+  /** Get element for unique id at the specific coordinate. */
+  def e(unique: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =
+    e(Reference(eStash.origin, unique, Coordinate(coordinate: _*)))
+  /** Get element for unique id at the specific coordinate. */
+  def e(unique: UUID, coordinate: Coordinate): Option[Element] =
+    e(Reference(eStash.origin, unique, coordinate))
+  /** Get element for the reference from the current graph. */
+  def e(reference: Reference): Option[Element] = eBox.node.getGraph.flatMap { graph =>
+    if (reference.origin != graph.origin)
+      throw new IllegalArgumentException(s"""Unable to process reference from graph "${reference.origin}" within "${graph.origin}" one.""")
+    e(reference.unique).flatMap { _.getProjection(reference.coordinate).map(_.get) }
+  }
+  /** Get node for the context from the current graph. */
+  def e(context: Context): Option[Node] = eBox.node.getGraph.flatMap { graph =>
+    if (context.origin != graph.origin)
+      throw new IllegalArgumentException(s"""Unable to process context from graph "${context.origin}" within "${graph.origin}" one.""")
+    e(context.unique)
+  }
+  /** Get node for the unique id from the current graph. */
+  def e(unique: UUID): Option[Node] = eBox.node.getGraph.flatMap(_.nodes.get(unique))
   /** Add/replace an element(s) to index. */
   @tailrec
-  protected final def eRegister(elements: Element.Generic*) {
+  protected final def eRegister(elements: Element*) {
     val children = elements.map { element =>
       log.debug("register %s at elements index".format(element))
       val Reference(origin, unique, coordinate) = element.eReference
@@ -72,11 +73,11 @@ trait ModelIndex {
         field
       }
       val originField = coordinateField get (coordinate) getOrElse {
-        val field = new mutable.HashMap[Symbol, WeakReference[Element.Generic]] with mutable.SynchronizedMap[Symbol, WeakReference[Element.Generic]]
+        val field = new mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
         coordinateField(coordinate) = field
         field
       }
-      originField(origin) = new WeakReference[Element.Generic](element)
+      originField(origin) = new WeakReference[Element](element)
       element.eChildren
     }
     if (children.isEmpty) return
@@ -86,13 +87,13 @@ trait ModelIndex {
    * Rebuild index.
    */
   def eIndexRebuid() {
-    log.debug("rebuild index for " + this.eModel)
+    //log.debug("rebuild index for " + this.eModel)
     index.clear
-    eRegister(eModel)
+    //eRegister(eModel)
   }
   /** Remove an element(s) from index. */
   @tailrec
-  protected final def eUnregister(elements: Element.Generic*) {
+  protected final def eUnregister(elements: Element*) {
     val children = elements.map { element =>
       log.debug("unregister %s from elements index".format(element))
       val Reference(origin, unique, coordinate) = element.eReference

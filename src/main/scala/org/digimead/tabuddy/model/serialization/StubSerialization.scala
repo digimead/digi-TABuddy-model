@@ -27,14 +27,13 @@ class Stub extends Serialization[Unit] {
    * Filter/adjust loaded element with filter()
    * Return deserialized element.
    */
-  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[Unit],
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] = None
+  def acquire[A <: Element](loadElement: () => Option[Unit],
+    filter: (Element) => Option[Element] = filterAccept)(implicit ma: Manifest[A]): Option[A] = None
   /**
    * Get serialized element.
    * Filter/adjust children with filter()
    * Save adjusted child to [???] with saveElement().
    */
-  def freeze(element: Element.Generic,
-    saveElement: (Element.Generic, Unit) => Unit,
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept): Unit = {}
+  def freeze(element: Element, saveElement: (Element, Unit) => Unit,
+    filter: (Element) => Option[Element] = filterAccept): Unit = {}
 }

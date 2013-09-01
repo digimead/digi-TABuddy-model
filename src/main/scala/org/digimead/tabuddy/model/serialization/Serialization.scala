@@ -28,18 +28,17 @@ trait Serialization[T] extends Loggable {
    * Filter/adjust a loaded element with filter()
    * Return a deserialized element.
    */
-  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[T],
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A]
+  def acquire[A <: Element](loadElement: () => Option[T],
+    filter: (Element) => Option[Element] = filterAccept)(implicit ma: Manifest[A]): Option[A]
   /**
    * Get a serialized element.
    * Filter/adjust a child with filter()
    * Save adjusted children to [T] with saveElement().
    */
-  def freeze(element: Element.Generic,
-    saveElement: (Element.Generic, T) => Unit,
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)
+  def freeze(element: Element, saveElement: (Element, T) => Unit,
+    filter: (Element) => Option[Element] = filterAccept)
   /** Serialization filter that accept all elements */
-  def filterAccept(element: Element.Generic): Option[Element.Generic] = Some(element)
+  def filterAccept(element: Element): Option[Element] = Some(element)
   /** Serialization filter that accept all elements */
-  def filterDeny(element: Element.Generic): Option[Element.Generic] = None
+  def filterDeny(element: Element): Option[Element] = None
 }

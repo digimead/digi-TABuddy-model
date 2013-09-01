@@ -20,7 +20,7 @@ package org.digimead.tabuddy.model.element.compare
 
 import org.digimead.tabuddy.model.element.Element
 
-trait Compare extends Ordering[Element.Generic] {
+trait Compare extends Ordering[Element] {
   def doWith[T](f: => T): T = {
     Element.comparator.value = this
     f

@@ -22,7 +22,7 @@ import org.digimead.tabuddy.model.element.Element
 
 object CompareByTimespamp extends Compare {
   /** Compares this object with the specified object for order. */
-  def compare(e1: Element.Generic, e2: Element.Generic): Int =
+  def compare(e1: Element, e2: Element): Int =
     e1.eModified.milliseconds compare e2.eModified.milliseconds match {
       case 0 => e1.eModified.nanoShift compare e2.eModified.nanoShift
       case c => c

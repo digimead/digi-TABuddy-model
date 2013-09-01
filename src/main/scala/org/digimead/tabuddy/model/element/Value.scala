@@ -19,14 +19,12 @@
 package org.digimead.tabuddy.model.element
 
 import java.io.Serializable
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
-
 import language.implicitConversions
+import org.digimead.tabuddy.model.graph.Context
 
 /**
  * Trait that provide general interface for Value implementation
@@ -35,6 +33,8 @@ sealed trait Value[T] extends AnyRef with java.io.Serializable {
   /** Value context information */
   val context: Context
 
+  /** Commit complex property (if needed) while saving. */
+  def commit(element: Element)
   /** Copy constructor */
   def copy(context: Context = this.context): this.type
   /** Get value. */
@@ -56,63 +56,63 @@ sealed trait Value[T] extends AnyRef with java.io.Serializable {
  * Singleton that contain Static and Dynamic Value implementation.
  */
 object Value extends Loggable {
-  implicit def byte2someValue(x: Byte)(implicit container: Element.Generic = null) = Some(static(Byte.box(x)))
-  implicit def byte2value(x: Byte)(implicit container: Element.Generic = null) = static(Byte.box(x))
-  implicit def double2someValue(x: Double)(implicit container: Element.Generic = null) = Some(static(Double.box(x)))
-  implicit def double2value(x: Double)(implicit container: Element.Generic = null) = static(Double.box(x))
-  implicit def float2someValue(x: Float)(implicit container: Element.Generic = null) = Some(static(Float.box(x)))
-  implicit def float2value(x: Float)(implicit container: Element.Generic = null) = static(Float.box(x))
-  implicit def int2someValue(x: Int)(implicit container: Element.Generic = null) = Some(static(Int.box(x)))
-  implicit def int2value(x: Int)(implicit container: Element.Generic = null) = static(Int.box(x))
-  implicit def long2someValue(x: Long)(implicit container: Element.Generic = null) = Some(static(Long.box(x)))
-  implicit def long2value(x: Long)(implicit container: Element.Generic = null) = static(Long.box(x))
-  implicit def short2someValue(x: Short)(implicit container: Element.Generic = null) = Some(static(Short.box(x)))
-  implicit def short2value(x: Short)(implicit container: Element.Generic = null) = static(Short.box(x))
-  implicit def bool2someValue(x: Boolean)(implicit container: Element.Generic = null) = Some(static(Boolean.box(x)))
-  implicit def bool2value(x: Boolean)(implicit container: Element.Generic = null) = static(Boolean.box(x))
-  implicit def string2someValue(x: String)(implicit container: Element.Generic = null) = Some(static(x))
-  implicit def string2value(x: String)(implicit container: Element.Generic = null) = static(x)
+  implicit def byte2someValue(x: Byte)(implicit container: Element = null) = Some(static(Byte.box(x)))
+  implicit def byte2value(x: Byte)(implicit container: Element = null) = static(Byte.box(x))
+  implicit def double2someValue(x: Double)(implicit container: Element = null) = Some(static(Double.box(x)))
+  implicit def double2value(x: Double)(implicit container: Element = null) = static(Double.box(x))
+  implicit def float2someValue(x: Float)(implicit container: Element = null) = Some(static(Float.box(x)))
+  implicit def float2value(x: Float)(implicit container: Element = null) = static(Float.box(x))
+  implicit def int2someValue(x: Int)(implicit container: Element = null) = Some(static(Int.box(x)))
+  implicit def int2value(x: Int)(implicit container: Element = null) = static(Int.box(x))
+  implicit def long2someValue(x: Long)(implicit container: Element = null) = Some(static(Long.box(x)))
+  implicit def long2value(x: Long)(implicit container: Element = null) = static(Long.box(x))
+  implicit def short2someValue(x: Short)(implicit container: Element = null) = Some(static(Short.box(x)))
+  implicit def short2value(x: Short)(implicit container: Element = null) = static(Short.box(x))
+  implicit def bool2someValue(x: Boolean)(implicit container: Element = null) = Some(static(Boolean.box(x)))
+  implicit def bool2value(x: Boolean)(implicit container: Element = null) = static(Boolean.box(x))
+  implicit def string2someValue(x: String)(implicit container: Element = null) = Some(static(x))
+  implicit def string2value(x: String)(implicit container: Element = null) = static(x)
   implicit def value2x[T <: AnyRef with java.io.Serializable](x: Value[T]): T = x.get()
 
   /**
    * Convert [T] to Value.Static
    */
-  def static[T <: AnyRef with java.io.Serializable: Manifest](container: Element.Generic, x: T): Static[T] = {
+  def static[T <: AnyRef with java.io.Serializable: Manifest](container: Element, x: T): Static[T] = {
     implicit val e = container
     static(x)
   }
   /**
    * Convert [T] to Value.Static
    */
-  def static[T <: AnyRef with java.io.Serializable](x: T)(implicit container: Element.Generic = null, m: Manifest[T]): Static[T] =
+  def static[T <: AnyRef with java.io.Serializable](x: T)(implicit container: Element = null, m: Manifest[T]): Static[T] =
     if (container == null)
-      new Static(x, Context.empty)
+      new Static(x, Context())
     else {
       val stack = new Throwable().getStackTrace()
       if (stack.size < 1)
-        new Static(x, Context.virtual(container))
+        new Static(x, Context(container))
       else
-        new Static(x, Model.contextForChild(container, Some(stack(1))))
+        new Static(x, container.eModel.contextForChild(container, Some(stack(1))))
     }
   /**
    * Convert () => [T] to Value.Dinamic
    */
-  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](container: Element.Generic, x: () => T): Dynamic[T] = {
+  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](container: Element, x: () => T): Dynamic[T] = {
     implicit val e = container
     dinamic(x)
   }
   /**
    * Convert () => [T] to Value.Dinamic
    */
-  def dinamic[T <: AnyRef with java.io.Serializable](x: () => T)(implicit container: Element.Generic = null, m: Manifest[T]): Dynamic[T] =
+  def dinamic[T <: AnyRef with java.io.Serializable](x: () => T)(implicit container: Element = null, m: Manifest[T]): Dynamic[T] =
     if (container == null)
-      new Dynamic(x, Context.empty)
+      new Dynamic(x, Context())
     else {
       val stack = new Throwable().getStackTrace()
       if (stack.size < 1)
-        new Dynamic(x, Context.virtual(container))
+        new Dynamic(x, Context(container))
       else
-        new Dynamic(x, Model.contextForChild(container, Some(stack(1))))
+        new Dynamic(x, container.eModel.contextForChild(container, Some(stack(1))))
     }
 
   /**
@@ -125,6 +125,8 @@ object Value extends Loggable {
     val context: Context)(implicit m: Manifest[T]) extends Value[T] {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
+    /** Commit complex property (if needed) while saving. */
+    def commit(element: Element) = DSLType.commit[T](this, element)
     /** Copy constructor */
     def copy(context: Context = this.context): this.type = (new Dynamic(data, context)).asInstanceOf[this.type]
     /** Get value. */
@@ -159,6 +161,8 @@ object Value extends Loggable {
     val context: Context)(implicit m: Manifest[T]) extends Value[T] {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
+    /** Commit complex property (if needed) while saving. */
+    def commit(element: Element) = DSLType.commit[T](this, element)
     /** Copy constructor */
     def copy(context: Context = this.context): this.type = (new Static(data, context)).asInstanceOf[this.type]
     /** Get value. */

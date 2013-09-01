@@ -21,8 +21,11 @@ package org.digimead.tabuddy.model.element
 import java.util.UUID
 
 /**
- * Element reference that point to particular unique element registered at Element.index
+ * Element reference points to particular unique element.
  */
+// origin - exclusive attribute of Graph
+// unique - exclusive attribute of Node
+// coordinate - exclusive attribute of ElementBox
 case class Reference(origin: Symbol, unique: UUID, coordinate: Coordinate) {
   override def toString() = "[%s://%s at %s]".format(origin.name, unique, coordinate)
 }

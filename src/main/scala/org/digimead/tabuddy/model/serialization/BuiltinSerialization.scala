@@ -30,10 +30,8 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Stash
 
-class BuiltinSerialization extends Serialization[Array[Byte]] {
+/*class BuiltinSerialization extends Serialization[Array[Byte]] {
   /**
    * Load elements from Iterable[Array[Byte]] with loadElement().
    * Filter/adjust loaded element with filter()
@@ -87,7 +85,7 @@ class BuiltinSerialization extends Serialization[Array[Byte]] {
     rootElements.find(_.isInstanceOf[Model.Interface[_]]) match {
       case Some(model) =>
         // return model as expected type
-        model.eStash.model = Some(model.asInstanceOf[Model.Generic])
+        //model.eStash.model = Some(model.asInstanceOf[Model.Generic])
         model.asInstanceOf[Model.Generic].eIndexRebuid()
         model.eAs[A, B]
       case None if rootElements.size == 1 =>
@@ -166,3 +164,4 @@ object BuiltinSerialization {
     }
   }
 }
+*/

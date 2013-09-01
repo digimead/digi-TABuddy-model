@@ -20,16 +20,28 @@ package org.digimead.tabuddy.model.dsl
 
 import org.digimead.digi.lib.aop.log
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.Model.model2implementation
 import org.digimead.tabuddy.model.Record
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.LocationGeneric
-
 import scala.language.implicitConversions
+import java.util.UUID
+import org.digimead.tabuddy.model.serialization.Serialization
+import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.ElementBox
+import org.digimead.tabuddy.model.element.Coordinate
+import scala.ref.WeakReference
+import java.util.concurrent.atomic.AtomicReference
+import org.digimead.tabuddy.model.graph.Context
+import org.digimead.tabuddy.model.element.Stash
 
-abstract class DSL[T](builder: Element.Generic => T) {
-  implicit def element2rich(e: Element.Generic): T = builder(e)
-  implicit def model2rich(e: Model.type): T = builder(e)
+trait DSL[Rich <: DSL.RichElement] {
+  val builder: Element => Rich
+  implicit def element2rich(e: Element): Rich = builder(e)
+  //implicit def model2rich(e: Model.type): T = builder(e)
+
+  def model()
 }
 
 object DSL {
@@ -37,17 +49,17 @@ object DSL {
    * Base class for DSL builders
    */
   trait RichElement {
-    val DLS_element: Element.Generic
+    val element: Element
 
     /**
      * Create or retrieve element child
      */
-    def |[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
+    /*def |[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
       Record(ma.runtimeClass.asInstanceOf[Class[A]], mb.runtimeClass.asInstanceOf[Class[B]], Some(DLS_element), l.id, l.scope, l.coordinate.coordinate, (n: A) => {})
     /**
      * Retrieve element child if any
      */
     def &[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] =
-      DLS_element.eFind[A, B](l.id, l.coordinate)
+      DLS_element.eFind[A, B](l.id, l.coordinate)*/
   }
 }

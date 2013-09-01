@@ -23,8 +23,8 @@ import scala.collection.immutable
 
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
-
-import com.escalatesoft.subcut.inject.BindingModule
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Value
 
 import language.implicitConversions
 
@@ -35,6 +35,10 @@ trait DSLType {
   protected lazy val typeSymbolClassMap: immutable.HashMap[Symbol, Class[_]] =
     immutable.HashMap[Symbol, Class[_]](typeClassSymbolMap.map(t => (t._2, t._1)).toSeq: _*)
 
+  /**
+   * Commit complex type (if needed) while saving
+   */
+  def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable, element: Element) {}
   /**
    * Convert value from string
    */
@@ -78,6 +82,16 @@ object DSLType extends Loggable {
     /** Type name -> converter map */
     lazy val symbolConverterMap: immutable.HashMap[Symbol, DSLType] = getSymbolConverterMap()
 
+    /**
+     * Commit complex type (if needed) while saving
+     */
+    def commit[T](value: Value[T], element: Element)(implicit m: Manifest[T]): Unit =
+      classSymbolMap.get(m.runtimeClass).map(symbolType => commit(symbolType, value, element))
+    /**
+     * Commit complex type (if needed) while saving
+     */
+    def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable, element: Element): Unit =
+      symbolConverterMap.get(typeSymbol).foreach(converter => converter.commit(typeSymbol, value, element))
     /**
      * Convert value from string
      */

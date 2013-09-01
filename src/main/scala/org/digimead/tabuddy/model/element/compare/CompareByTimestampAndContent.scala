@@ -22,7 +22,7 @@ import org.digimead.tabuddy.model.element.Element
 
 object CompareByTimestampAndContent extends Compare {
   /** Compares this object with the specified object for order. */
-  def compare(e1: Element.Generic, e2: Element.Generic): Int =
+  def compare(e1: Element, e2: Element): Int =
     e1.eModified.milliseconds compare e2.eModified.milliseconds match {
       case 0 =>
         e1.eModified.nanoShift compare e2.eModified.nanoShift match {
@@ -36,11 +36,11 @@ object CompareByTimestampAndContent extends Compare {
         if (isEqual(e1, e2)) 0 else c
     }
   /** Compare current elements without children */
-  protected def isEqual(e1: Element.Generic, e2: Element.Generic): Boolean = {
+  protected def isEqual(e1: Element, e2: Element): Boolean = {
     val e1Data = e1.eStash.property
     val e2Data = e2.eStash.property
     // 1. can equal
-    e1.canEqual(e2.getClass, e2.eStash.getClass) &&
+    /*e1.canEqual(e2.getClass, e2.eStash.getClass) &&
       // 2. immutable variables are identical
       e1.hashCode == e2.hashCode && {
         // 3. stash equals
@@ -66,6 +66,7 @@ object CompareByTimestampAndContent extends Compare {
               }
             }
         }
-      }
+      }*/
+    true
   }
 }

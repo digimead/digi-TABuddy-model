@@ -23,95 +23,225 @@ import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
-import org.digimead.tabuddy.model.Model.model2implementation
-import org.digimead.tabuddy.model.Record.Stash
-import org.digimead.tabuddy.model.TestDSL._
+import org.digimead.tabuddy.model.dsl.DSL
 import org.digimead.tabuddy.model.element.Axis.intToAxis
-import org.digimead.tabuddy.model.element.Context
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.Value.int2someValue
+import org.digimead.tabuddy.model.element.Stash
+import org.digimead.tabuddy.model.graph.Context
+import org.digimead.tabuddy.model.graph.ElementBox
+import org.digimead.tabuddy.model.graph.ElementBox.box2interface
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.Graph.graph2interface
+import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.predef.Note
-import org.digimead.tabuddy.model.predef.Note.Stash
 import org.digimead.tabuddy.model.predef.Task
-import org.digimead.tabuddy.model.predef.Task.Stash
+import org.digimead.tabuddy.model.serialization.Stub
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
+import com.escalatesoft.subcut.inject.NewBindingModule
+
+import language.implicitConversions
+
 class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+  lazy val diConfig = new NewBindingModule(module => {
+    module.bind[Symbol => Node] toSingle { (symbol: Symbol) => null }
+  }) ~ org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
-    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
+    DependencyInjection(diConfig, false)
     adjustLoggingBefore
   }
 
+  def multithread[A](nIterations: Int, nThreads: Int, visible: Boolean = true)(f: Int => A) {
+    if (org.apache.log4j.Logger.getRootLogger().getAllAppenders().nextElement().getClass().getSimpleName() != "NullAppender") {
+      log.___glance("Debug logging enabled - multithreading disabled.")
+      f(0)
+      return
+    }
+    val ts = System.currentTimeMillis()
+    val threads = for (t <- 0 until nThreads * 2 if t % 2 == 0) yield {
+      val x = t * nIterations
+      new Thread(new Runnable {
+        def run = for (i <- x until x + nIterations) { f(i) }
+      })
+    }
+    threads.foreach(_.start)
+    threads.foreach(_.join)
+    if (visible)
+      System.err.println("TOTAL: " + (System.currentTimeMillis() - ts))
+  }
+
   describe("An Element") {
-    it("should have proper equality") {
-      val record = Model.record('root) { r => }
-      val note = Model.note('note) { n => }
-      val task = Model.task('task) { t => }
-
-      // common test that demonstrate JVM architecture cripple
-      classOf[Record[Record.Stash]] should be(classOf[Record[Record.Stash]])
-      // JVM erasure pitfall
-      classOf[Record[Record.Stash]] should be(classOf[Record[Note.Stash]])
-
-      /* actual tests */
-      record.canEqual(classOf[Record[Int]], classOf[Record.Stash]) should be(true)
-      record.canEqual(classOf[Record[Any]], classOf[Note.Stash]) should be(false)
-      record.canEqual(classOf[Record[String]], classOf[Task.Stash]) should be(false)
-      record.canEqual(classOf[Note[Int]], classOf[Record.Stash]) should be(false)
-
-      note.canEqual(classOf[Note[String]], classOf[Record.Stash]) should be(false)
-      note.canEqual(classOf[Note[Any]], classOf[Note.Stash]) should be(true)
-      note.canEqual(classOf[Note[Boolean]], classOf[Task.Stash]) should be(false)
-      note.canEqual(classOf[Task[Int]], classOf[Note.Stash]) should be(false)
-
-      task.canEqual(classOf[Task[Double]], classOf[Record.Stash]) should be(false)
-      task.canEqual(classOf[Task[BigInt]], classOf[Note.Stash]) should be(false)
-      task.canEqual(classOf[Task[Nothing]], classOf[Task.Stash]) should be(true)
-      task.canEqual(classOf[Record[Int]], classOf[Task.Stash]) should be(false)
+    ignore("should have proper copy") {
+      import ElementSpec.ElementSpecDSL._
+      implicit val modeStashClass = classOf[Model.Stash]
+      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      graph should not be null
+      val myModel = graph.model
+      myModel should not be null
+      // 100000 iterations x 10 threads x 3 elements = 3000000 elements
+      // 3000000 is about 4.5GB mem
+      // 300000/10Th processed within 19012ms = ~15315 eCopy(write) operations per second on home PC
+      // ~4600/1Th eCopy(write) ops in single thread
+      // ~12500/10Th eCopy(write) ops in multi thread
+      multithread(1000, 10) { i =>
+        val record1 = myModel.record('root) { r => r }
+        record1 should not be null
+        val record2 = record1.eCopy(record1.eNode, ('x, i))
+        record2 should not be null
+        val note1 = myModel.note('note) { n => }
+        note1 should not be null
+        val note2 = note1.eCopy(note1.eNode, ('x, i))
+        note2 should not be null
+        val task1 = myModel.task('task) { t => }
+        task1 should not be null
+        val task2 = task1.eCopy(task1.eNode, ('x, i))
+        task2 should not be null
+      }
     }
-    it("should have proper constraints") {
-      val r1 = Model.record('a) { r => }
-      val rctx = r1.eStash.context
-      val rcoord = r1.eStash.coordinate
-      val rid = r1.eStash.id
-      val runique = r1.eStash.unique
-      // create element projection at different coordinate
-      Model.eAttach(new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, Record.scope, runique, new org.digimead.tabuddy.model.element.Stash.Data)))
-      // create element with same coordinate
-      evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, rcoord, Element.timestamp(), rid, Record.scope, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
-      // create element with same id and different unique
-      evaluating { Model.eChildren += new Record[Record.Stash](new Record.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, Record.scope, UUID.randomUUID(), new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
-      // create element with different type
-      evaluating { Model.eChildren += new Note[Note.Stash](new Note.Stash(rctx, Coordinate(('a, 1)), Element.timestamp(), rid, Record.scope, runique, new org.digimead.tabuddy.model.element.Stash.Data)) } should produce[AssertionError]
+    ignore("should have proper constraints") {
+      import ElementSpec.ElementSpecDSL._
+      implicit val modeStashClass = classOf[Model.Stash]
+      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val myModel = graph.model
+      multithread(1000, 10) { i =>
+        val r1 = graph.model.record('a) { r => r }
+        val rctx = r1.eContext
+        val rcoord = r1.eStash.coordinate
+        val rid = r1.eStash.id
+        val runique = r1.eStash.unique
+        // create element projection at different coordinate
+        log.___glance(s"Copy ${r1} to ('x, 1).")
+        val r1projection = r1.eCopy(r1.eNode, ('x, 1 + i))
+        val r2 = graph.model.record('a, ('x, 2 + i)) { r => r }
+        //graph.node.getChildren.size should be(1)
+        //graph.node.getChildren.head.getProjections.size should be(2)
+        // create element with different type
+        evaluating { graph.model.note('a, ('x, 3 + i)) { n => } } should produce[IllegalArgumentException]
+        //graph.node.getChildren.head.getProjections.size should be(2)
+        //log.___glance(s"${r1.eBox.get} projections are ${r1.eNode.getProjections}")
+        val r3 = graph.model.record('b, ('xcbv, 4 + i)) { r => r }
+        val r4 = r3.record('c, ('ertw, 4 + i)) { r => r }
+      }
+      val r3 = graph.model.record('b, ('qwe, 4)) { r => r }
+      val r4 = r3.record('c, ('sdf, 4)) { r => r }
+      //log.___glance("? \n" + Graph.dump(graph, false))
+      // create element with inconsistent context origin
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          implicit val shashClass = classOf[Record.Stash]
+          val timestamp = Element.timestamp()
+          ElementBox[Record](Context('q, r3.eNode.unique), Coordinate.root, timestamp, node, timestamp, Record.scope, node.rootElementBox.serialization)
+        }
+      } should produce[IllegalArgumentException]
+      // create element with inconsistent context unique
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          implicit val shashClass = classOf[Record.Stash]
+          val timestamp = Element.timestamp()
+          ElementBox[Record](Context(node.graph.get.origin, UUID.randomUUID()), Coordinate.root, timestamp, node, timestamp, Record.scope, node.rootElementBox.serialization)
+        }
+      } should produce[IllegalArgumentException]
+      // successful create new element
+      r4.eNode.threadSafe { node =>
+        val timestamp = Element.timestamp()
+        val stash = new Record.Stash(Coordinate(('cxv, 6)), timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
+        ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+      }
+      // create element with inconsistent context origin
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          val timestamp = Element.timestamp()
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
+          ElementBox[Record](Context('q, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+        }
+      } should produce[IllegalArgumentException]
+      // create element with inconsistent context unique
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          val timestamp = Element.timestamp()
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
+          ElementBox[Record](Context(node.graph.get.origin, UUID.randomUUID()), node, node.rootElementBox.serialization, stash)
+        }
+      } should produce[IllegalArgumentException]
+      // create element with inconsistent stash id
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          val timestamp = Element.timestamp()
+          val stash = new Record.Stash(Coordinate.root, timestamp, 'hjgfjfghf, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
+          ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+        }
+      } should produce[IllegalArgumentException]
+      // create element with inconsistent stash unique
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          val timestamp = Element.timestamp()
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, UUID.randomUUID())
+          ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+        }
+      } should produce[IllegalArgumentException]
+      // create element with inconsistent stash origin
+      evaluating {
+        r4.eNode.threadSafe { node =>
+          val timestamp = Element.timestamp()
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, 'asdf, new Stash.Data, Record.scope, UUID.randomUUID())
+          ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+        }
+      } should produce[IllegalArgumentException]
     }
-    it("should register elements in model") {
-      val r1 = Model.record('a) { r => }
-      r1.eStash.context.container should not be (null)
-      Model.e(r1.eStash.context.container) should be(Some(Model.inner))
+    ignore("should register elements in model") {
+      import ElementSpec.ElementSpecDSL._
+      implicit val modeStashClass = classOf[Model.Stash]
+      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val myModel = graph.model
+      val r1 = myModel.record('a) { r => r }
+      r1.eBox.context.origin should not be (null)
+      r1.eBox.context.unique should not be (null)
+      myModel.e(r1.eBox.context) should be(Some(myModel.eBox.node))
+      myModel.e(r1.eReference) should be(Some(r1))
+      myModel.e(myModel.eReference) should be(Some(myModel))
+      r1.eBox.context.origin.name should be(r1.eReference.origin.name)
+      r1.eBox.context.unique should be(myModel.eReference.unique)
     }
     it("should have proper copy constructor") {
-      Model.reset()
-      var save: Record[Record.Stash] = null
-      val record = Model.record('root) { r =>
-        r.name = "root"
-        save = r.record('level2) { r =>
-          r.name = "level2"
-          r.record('level3) { r =>
-            r.name = "level3"
+      import ElementSpec.ElementSpecDSL._
+      implicit val modeStashClass = classOf[Model.Stash]
+      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val myModel = graph.model
+      var save: Record = null
+      val record: Record = myModel.record('root) { r1 =>
+        r1.name = "root"
+        r1.element.eGet[String]('name).get.get should be("root")
+        r1.name should be("root")
+        val a: Record = r1
+        a.name should be("root")
+        save = r1.record('level2) { r2 =>
+          r2.name = "level2"
+          r2.element.eGet[String]('name).get.get should be("level2")
+          r2.record('level3) { r3 =>
+            r3.name = "level3"
+            r3.name should be("level3")
           }
+          r2.name = "level2a"
+          r2
         }
+        r1
       }
-      save.eSet[Integer]('test, 123)
+      record.name should be("root")
+      val record2 = record.eBox.node.getChildren.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record]
+      record2.name should be("level2a")
+      record2 should be(save)
+      val record3 = record2.eBox.node.getChildren.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record]
+      record3.name should be("level3")
+      save = save.eSet[Integer]('test, 123)
       val saveValue = save.eGet[Integer]('test).get
-      saveValue.context.container.unique should be(save.eReference.unique)
-      val copy = save.eCopy()
-      copy.eId.name should be("level2")
-      copy.name should be("level2")
-      copy.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("level3")
+      saveValue.context.unique should be(save.eReference.unique)
+      val copy = save.eCopy(save.eNode, ('a, 1))
+      copy.eId.name should be("level2a")
+      copy.name should be("level2a")
+      /*copy.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("level3")
       val copyValue = copy.eGet[Integer]('test).get
       copyValue.context.container.unique should be(copy.eReference.unique)
       record.eReference.unique should not be (copy.eReference.unique)
@@ -130,9 +260,9 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       Model.e(newRecord.eReference) should not be ('empty)
       record.eChildren -= save
       Model.e(save.eReference) should be(None)
-      record.eChildren += newRecord
+      record.eChildren += newRecord*/
     }
-    it("should determinate ancestors") {
+    /*it("should determinate ancestors") {
       Model.reset()
       var recordL2: Record[Record.Stash] = null
       var recordL3: Record[Record.Stash] = null
@@ -195,7 +325,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       intercept[IllegalArgumentException] {
         record.eSet('file, Some(unknownValue))
       }
-    }
+    }*/
   }
 
   override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
@@ -203,4 +333,14 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
 
 object ElementSpec {
   case class UnknownType(val x: Int)
+
+  object ElementSpecDSL {
+    class TestDSL(val element: Element)
+      extends DSL.RichElement
+      with Record.DSL.RichElement
+      with Note.DSL.RichElement
+      with Task.DSL.RichElement
+    implicit def e2DSL[A <: Element](e: A): TestDSL = new TestDSL(e)
+    implicit def me2DSL[A <: Element](me: Element.Mutable[A]): TestDSL = new TestDSL(me.element)
+  }
 }
