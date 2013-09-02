@@ -18,19 +18,30 @@
 
 package org.digimead.tabuddy.model
 
-//import org.digimead.tabuddy.model.predef.Note
-//import org.digimead.tabuddy.model.predef.Task
+import org.digimead.tabuddy.model.predef.Note
+import org.digimead.tabuddy.model.predef.Task
 import org.digimead.tabuddy.model.dsl.DSL
 import org.digimead.tabuddy.model.element.Element
 
-class TestDSL(val element: Element)
-  extends DSL.RichElement
-  with Record.DSL.RichElement
-//  with Note.DSL.RichElement
-//  with Task.DSL.RichElement
+import language.implicitConversions
 
-//object TestDSL
-//  extends DSL[TestDSL](e => new TestDSL(e))
-//  with Record.DSL
-//  with Note.DSL
-//  with Task.DSL
+/* with Model.DSL.RichElement[A]
+  with Record.DSL.RichElement[A]
+  with Note.DSL.RichElement[A]
+  with Task.DSL.RichElement[A]*/
+
+object TestDSL extends DSL with Record.DSL with Model.DSL {
+  implicit def e2DSL[A <: Element](e: A) = new ElementSpecificDSL(e)
+  implicit def me2DSL[A <: Element](me: Element.Mutable[A]) = new ElementSpecificDSL(me.element)
+  implicit def eRecord2DSL[A <: Record.Like](e: A) = new RecordSpecificDSL(e)
+  implicit def meRecord2DSL[A <: Record.Like](me: Element.Mutable[A]) = new RecordSpecificDSL(me.element)
+  implicit def eNote2DSL[A <: Note.Like](e: A) = new NoteSpecificDSL(e)
+  implicit def meNote2DSL[A <: Note.Like](me: Element.Mutable[A]) = new NoteSpecificDSL(me.element)
+  implicit def eTask2DSL[A <: Task.Like](e: A) = new TaskSpecificDSL(e)
+  implicit def meTask2DSL[A <: Task.Like](me: Element.Mutable[A]) = new TaskSpecificDSL(me.element)
+  implicit def eModel2DSL[A <: Model.Like](e: A) = new ModelSpecificDSL(e)
+  implicit def meModel2DSL[A <: Model.Like](me: Element.Mutable[A]) = new ModelSpecificDSL(me.element)
+
+  implicit val recordStashClass: Class[_ <: Record.Stash] = classOf[Record.Stash]
+  implicit val modeStashClass: Class[_ <: Model.Stash] = classOf[Model.Stash]
+}

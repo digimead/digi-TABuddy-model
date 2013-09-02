@@ -49,16 +49,31 @@ object Record extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    this: org.digimead.tabuddy.model.dsl.DSL[_] =>
-    case class RecordLocation(override val id: Symbol,
-      override val coordinate: Coordinate = Coordinate.root)
-      extends LocationGeneric[Record](id, Record.scope, coordinate)
+    case class RecordLocation(val id: Symbol, val unique: Option[UUID] = None,
+      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Record],
+        val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric[Record] {
+      val scope = Record.scope
+    }
   }
   object DSL {
-    trait RichElement {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichElement =>
-      /** Create new record or retrieve exists one and apply fTransform to. */
-      def record[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] => A): A = {
+    trait RichGeneric {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      /** Create a new record or retrieve exists one. */
+      def record(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Record =
+        withRecord(id, rawCoordinate: _*)(x => x)
+      /**
+       * Create a new record or retrieve exists one and apply fTransform to
+       *
+       * @return record
+       */
+      def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] => A): Record =
+        withRecord(id, rawCoordinate: _*)((x) => { fTransform(x); x })
+      /**
+       * Create a new record or retrieve exists one and apply fTransform to.
+       *
+       * @return fTransform result
+       */
+      def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] => A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
         element.eBox.node.threadSafe { parentNode =>
@@ -80,7 +95,13 @@ object Record extends Loggable {
           }
         }
       }
-      def toRecord() = element.eAs[Record]
+      /** Safe cast element to Record.Like. */
+      def toRecord() = element.eAs[Record.Like]
+    }
+    trait RichSpecific[A <: Record.Like] {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      /** Create mutable record element. */
+      def mutable(): Record.Mutable[A] = new Record.Mutable(element)
     }
   }
   /** Base trait for all records. */
@@ -107,7 +128,7 @@ object Record extends Loggable {
         "%s: %s".format(eStash.scope, eStash.id) + properties
       else
         "%s: %s \"%s\"".format(eStash.scope, eStash.id, name) + properties
-      val childrenDump = eChildren.map(_.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      val childrenDump = eChildren.map(_.getElementBoxes).flatten.map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     def eGetOrElseRoot(id: Symbol, typeSignature: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =
@@ -127,7 +148,7 @@ object Record extends Loggable {
   }
   /** The marker object that describes record scope. */
   class Scope(override val modificator: Symbol = 'Record) extends Element.Scope(modificator) {
-    def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.Record.Scope]
+    def canEqual(other: Any): Boolean = other.isInstanceOf[Record.Scope]
   }
   /** Record stash. */
   class Stash(val coordinate: Coordinate,
@@ -140,14 +161,14 @@ object Record extends Loggable {
     val unique: UUID)
     extends Stash.Like {
     /** Stash type. */
-    type StashType = Stash
+    type StashType = Record.Stash
     /** Scope type. */
     type ScopeType = Record.Scope
   }
   object Stash {
     trait Like extends org.digimead.tabuddy.model.element.Stash.Like {
       /** Stash type. */
-      type Stash <: Like
+      type Stash <: Record.Like
       /** Scope type. */
       type ScopeType <: Record.Scope
     }

@@ -23,19 +23,18 @@ import scala.ref.WeakReference
 /**
  * Element children container
  */
-class NodeChildren(val parentNode: WeakReference[Node]) extends NodeSet {
+class NodeChildren(val containerNode: WeakReference[Node]) extends NodeSet {
   override def +=(elementNode: Node): this.type = {
-    //parentNode.get.eStash.model.foreach(model => eAttach(model: Model, parentNode.get, elementNode.get))
+    elementNode.threadSafe { node => node.parentNode = containerNode.get }
     super.+=(elementNode)
   }
   override def -=(elementNode: Node): this.type = {
     val result = super.-=(elementNode)
-    //parentNode.get.eStash.model.foreach(model => eDetach(model, elementNode.get))
+    elementNode.threadSafe { node => node.parentNode = None }
     result
   }
   override def clear(): Unit = {
-    //parentNode.get.eStash.model.foreach(model =>
-    //  this.foreach(child => eDetach(model, child.get)))
+    this.foreach(childNode => childNode.threadSafe { node => node.parentNode = None })
     super.clear
   }
 
@@ -44,15 +43,15 @@ class NodeChildren(val parentNode: WeakReference[Node]) extends NodeSet {
    * @param transformNodeChildren - function that provide sorting/filtering capability
    * @return the new iterator
    */
-  def iteratorRecursive(transformNodeChildren: (Node, NodeChildren) => Seq[Node] = (parent, children) => children.toSeq): Iterator[Node] = null
- /*   new Iterator[Node] {
-      val iterator = parentNode.get.map { parent =>
-          transformNodeChildren(parent, NodeChildren.this).foldLeft(Iterator[Node]())((acc, child) =>
-        acc ++ Iterator(child) ++ child.children.iteratorRecursive(transformNodeChildren))
-      }
+  def iteratorRecursive(transformNodeChildren: (Node, NodeChildren) => Seq[Node] = (parent, children) => children.toSeq): Iterator[Node] =
+    new Iterator[Node] {
+      val iterator = containerNode.get.map { parent =>
+        transformNodeChildren(parent, NodeChildren.this).foldLeft(Iterator[Node]())((acc, child) =>
+          acc ++ Iterator(child) ++ child.threadSafe { _.children.iteratorRecursive(transformNodeChildren) })
+      }.getOrElse(Iterator[Node]())
       def hasNext: Boolean = iterator.hasNext
       def next(): Node = iterator.next
-    }*/
+    }
 
   /**
    * Attach element to the model

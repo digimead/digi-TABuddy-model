@@ -46,16 +46,31 @@ object Note extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    this: org.digimead.tabuddy.model.dsl.DSL[_] =>
-    case class NoteLocation(override val id: Symbol,
-      override val coordinate: Coordinate = Coordinate.root)
-      extends LocationGeneric[Note](id, Note.scope, coordinate)
+    case class NoteLocation(val id: Symbol, val unique: Option[UUID] = None,
+      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Note],
+        val stashClass: Class[_ <: Note#StashType]) extends LocationGeneric[Note] {
+      val scope = Note.scope
+    }
   }
   object DSL {
-    trait RichElement {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichElement =>
-      /** Create new note or retrieve exists one and apply fTransform to. */
-      def note[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Note => A): Note = {
+    trait RichGeneric {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      /** Create a new note or retrieve exists one. */
+      def note(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Note =
+        withNote(id, rawCoordinate: _*)(x => x)
+      /**
+       * Create a new note or retrieve exists one and apply fTransform to
+       *
+       * @return note
+       */
+      def takeNode[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] => A): Note =
+        withNote(id, rawCoordinate: _*)((x) => { fTransform(x); x })
+      /**
+       * Create a new note or retrieve exists one and apply fTransform to.
+       *
+       * @return fTransform result
+       */
+      def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] => A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
         element.eBox.node.threadSafe { parentNode =>
@@ -65,21 +80,25 @@ object Note extends Loggable {
                 log.debug(s"Get or create note element for exists ${node}.")
                 implicit val shashClass = classOf[Note.Stash]
                 val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
-                fTransform(note)
-                note
+                fTransform(new Mutable(note))
               }
             case None =>
               parentNode.createChild(id, UUID.randomUUID()) { node =>
                 log.debug(s"Get or create note element for new ${node}.")
                 implicit val shashClass = classOf[Note.Stash]
                 val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
-                fTransform(note)
-                note
+                fTransform(new Mutable(note))
               }
           }
         }
       }
-      def toNote() = element.eAs[Note]
+      /** Safe cast element to Note.Like. */
+      def toNote() = element.eAs[Note.Like]
+    }
+    trait RichSpecific[A <: Note.Like] {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      /** Create mutable note element. */
+      def mutable(): Note.Mutable[A] = new Note.Mutable(element)
     }
   }
   /** Base trait for all records. */
@@ -87,6 +106,8 @@ object Note extends Loggable {
     this: Loggable =>
     type ElementType <: Like
   }
+  /** Mutable representation of Note.Like. */
+  class Mutable[A <: Like](e: A) extends Record.Mutable[A](e)
   /** The marker object that describes note scope. */
   class Scope(override val modificator: Symbol = 'Note) extends Record.Scope(modificator) {
     override def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.predef.Note.Scope]
@@ -102,14 +123,14 @@ object Note extends Loggable {
     val unique: UUID)
     extends Stash.Like {
     /** Stash type. */
-    type StashType = Stash
+    type StashType = Note.Stash
     /** Scope type. */
     type ScopeType = Note.Scope
   }
   object Stash {
     trait Like extends Record.Stash.Like {
       /** Stash type. */
-      type Stash <: Like
+      type Stash <: Note.Like
       /** Scope type. */
       type ScopeType <: Note.Scope
     }

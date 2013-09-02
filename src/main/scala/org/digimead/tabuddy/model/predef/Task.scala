@@ -44,16 +44,31 @@ object Task extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    this: org.digimead.tabuddy.model.dsl.DSL[_] =>
-    case class TaskLocation(override val id: Symbol,
-      override val coordinate: Coordinate = Coordinate.root)
-      extends LocationGeneric[Task](id, Task.scope, coordinate)
+    case class TaskLocation(val id: Symbol, val unique: Option[UUID] = None,
+      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Task],
+        val stashClass: Class[_ <: Task#StashType]) extends LocationGeneric[Task] {
+      val scope = Task.scope
+    }
   }
   object DSL {
-    trait RichElement {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichElement =>
-      /** Create new task or retrieve exists one and apply fTransform to. */
-      def task[T](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Task => T): Task = {
+    trait RichGeneric {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      /** Create a new task or retrieve exists one. */
+      def task(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Task =
+        withTask(id, rawCoordinate: _*)(x => x)
+      /**
+       * Create a new task or retrieve exists one and apply fTransform to
+       *
+       * @return task
+       */
+      def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] => A): Task =
+        withTask(id, rawCoordinate: _*)((x) => { fTransform(x); x })
+      /**
+       * Create a new task or retrieve exists one and apply fTransform to.
+       *
+       * @return fTransform result
+       */
+      def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] => A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
         element.eBox.node.threadSafe { parentNode =>
@@ -62,22 +77,26 @@ object Task extends Loggable {
               childNode.threadSafe { node =>
                 log.debug(s"Get or create task element for exists ${node}.")
                 implicit val shashClass = classOf[Task.Stash]
-                val note = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
-                fTransform(note)
-                note
+                val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
+                fTransform(new Mutable(task))
               }
             case None =>
               parentNode.createChild(id, UUID.randomUUID()) { node =>
                 log.debug(s"Get or create task element for new ${node}.")
                 implicit val shashClass = classOf[Task.Stash]
-                val note = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
-                fTransform(note)
-                note
+                val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
+                fTransform(new Mutable(task))
               }
           }
         }
       }
-      def toTask() = element.eAs[Task]
+      /** Safe cast element to Task.Like. */
+      def toTask() = element.eAs[Task.Like]
+    }
+    trait RichSpecific[A <: Task.Like] {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      /** Create mutable task element. */
+      def mutable(): Task.Mutable[A] = new Task.Mutable(element)
     }
   }
   /** Base trait for all tasks. */
@@ -85,6 +104,8 @@ object Task extends Loggable {
     this: Loggable =>
     type ElementType <: Like
   }
+  /** Mutable representation of Task.Like. */
+  class Mutable[A <: Task.Like](e: A) extends Note.Mutable[A](e)
   /** The marker object that describes task scope. */
   class Scope(override val modificator: Symbol = 'Task) extends Note.Scope(modificator) {
     override def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.predef.Task.Scope]
@@ -100,14 +121,14 @@ object Task extends Loggable {
     val unique: UUID)
     extends Stash.Like {
     /** Stash type. */
-    type StashType = Stash
+    type StashType = Task.Stash
     /** Scope type. */
     type ScopeType = Task.Scope
   }
   object Stash {
     trait Like extends Note.Stash.Like {
       /** Stash type. */
-      type Stash <: Like
+      type Stash <: Task.Like
       /** Scope type. */
       type ScopeType <: Task.Scope
     }

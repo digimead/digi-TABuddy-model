@@ -22,10 +22,10 @@ import scala.collection.mutable
 import scala.ref.WeakReference
 
 /**
- * Trait contains element boxes that is provided lazy loading.
+ * Trait that contains element boxes that is provided lazy loading.
  */
 trait NodeSet extends mutable.LinkedHashSet[Node] {
-  val parentNode: WeakReference[Node]
+  val containerNode: WeakReference[Node]
 
   abstract override def add(node: Node): Boolean = {
     val result = super.add(node)

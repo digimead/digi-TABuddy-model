@@ -23,9 +23,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import scala.ref.WeakReference
-import scala.util.DynamicVariable
 import scala.collection.immutable
+import scala.util.DynamicVariable
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.dsl.DSLType
@@ -37,6 +36,8 @@ import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.Serialization
+import language.implicitConversions
+import scala.annotation.tailrec
 
 /**
  * Base element
@@ -68,70 +69,33 @@ trait Element extends Equals {
     eStash.property.foreach { case (typeKey, value) => value.foreach { case (idKey, value) => value.commit(this) } }
   /** Compares this object with the specified object for order. */
   def compare(that: Element): Int = Element.comparator.value.compare(this, that)
-  /** Build an ancestors sequence */
-  def eAncestors(): Seq[Element] = {
-    /*    @tailrec
-    def ancestors(current: Element, acc: Seq[Element]): Seq[Element] = {
-      val ancestor = Model.e(current.eStash.context.container) match {
-        case Some(ancestor) =>
-          if (ancestor == Model.inner || ancestor.isInstanceOf[Model.Interface[_]])
-            if (ancestor == current)
-              return acc // model
-            else
-              return acc :+ ancestor // regular element
-          ancestor
-        case None =>
-          return acc
-      }
+  /** Build an ancestors sequence. */
+  def eAncestors(): Seq[Node] = {
+    @tailrec
+    def ancestors(current: Node, acc: Seq[Node]): Seq[Node] = {
       if (acc.size > Element.MAXIMUM_DEEPNESS) {
         log.fatal("element level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
         return acc
       }
-      ancestors(ancestor, acc :+ ancestor)
-    }
-    ancestors(this, Seq())*/
-    Seq()
-  }
-  /** Build an ancestor references sequence */
-  def eAncestorReferences(): Seq[Reference] = {
-    /*@tailrec
-    def ancestors(current: Element, acc: Seq[Reference]): Seq[Reference] = {
-      val ancestor = Model.e(current.eStash.context.container) match {
-        case Some(ancestor) =>
-          if (ancestor == Model.inner || ancestor.isInstanceOf[Model.Interface[_]])
-            if (ancestor == current)
-              return acc // model
-            else
-              return acc :+ current.eStash.context.container // regular element
-          ancestor
-        case None =>
-          return acc
+      current.getParent match {
+        case n @ Some(parent) if acc.lastOption != n && parent != current => ancestors(parent, acc :+ parent)
+        case _ => acc
       }
-      if (acc.size > Element.MAXIMUM_DEEPNESS) {
-        log.fatal("element level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
-        return acc
-      }
-      ancestors(ancestor, acc :+ current.eStash.context.container)
     }
-    ancestors(this, Seq())*/
-    Seq()
+    ancestors(eNode, Seq())
   }
   /**
    * As an optional instance of for Element
    *
    * for example:
-   *   element.eAs[Task[Task.Stash], Task.Stash]
-   *   element.eAs[Note[Note.Stash], Note.Stash]
-   *   element.eAs[Record[Record.Stash], Record.Stash]
+   *   element.eAs[Task.Like]
+   *   element.eAs[Note.Like]
+   *   element.eAs[Record.Like]
    */
-  def eAs[A <: Element]()(implicit m: Manifest[A]): Option[A] = {
-    if (getClass.isAssignableFrom(m.runtimeClass))
-      Some(this.asInstanceOf[A])
-    else
-      None
-  }
+  def eAs[A <: Element]()(implicit m: Manifest[A]): Option[A] =
+    if (m.runtimeClass.isAssignableFrom(getClass)) Some(this.asInstanceOf[A]) else None
   /** Get element children. */
-  def eChildren(): Set[Element] = Set[Element]()
+  def eChildren(): Set[Node] = eBox.node.getChildren
   /** Get element context. */
   def eContext(): Context = eBox.context
   /** Get element coordinate */
@@ -170,13 +134,8 @@ trait Element extends Equals {
   def eFilter(filter: Element => Boolean): Seq[Element] =
     this.eFilter(Seq(this), filter, Seq())
   /** Find child element. */
-  def eFind[A <: Element](id: Symbol, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(implicit a: Manifest[A]): Option[A] =
-    eFind[A](id, Coordinate(coordinate: _*))
-  /** Find child element. */
-  def eFind[A <: Element](id: Symbol, coordinate: Coordinate)(implicit a: Manifest[A]): Option[A] =
-    eChildren.find { element =>
-      element.eStash.id == id && element.eStash.coordinate == coordinate
-    } match {
+  def eFind[A <: Element](p: A => Boolean)(implicit a: Manifest[A]): Option[A] =
+    eChildren.view.map(_.getElementBoxes).flatten.find { box => box.elementType == a && p(box.get.asInstanceOf[A]) } match {
       case e @ Some(element) if element.getClass.isAssignableFrom(a.runtimeClass) => e.asInstanceOf[Option[A]]
       case _ => None
     }
@@ -538,7 +497,9 @@ object Element extends Loggable {
     //  }
   }*/
   /** Emulate mutable behavior for immutable element. */
-  abstract class Mutable[A <: Element](@volatile var element: A)
+  abstract class Mutable[A <: Element](@volatile var element: A) {
+    def immutable[A]() = element
+  }
   object Mutable {
     implicit def mutable2immutable[A <: Element](m: Mutable[A]): A = m.element
   }
@@ -567,19 +528,11 @@ object Element extends Loggable {
      *   - `1 > 0` when  `this > that`
      *
      */
-    def compare(that: Timestamp): Int = {
-      val msResult = this.milliseconds.compare(that.milliseconds)
-      if (msResult < 0)
-        return -1
-      else if (msResult > 0)
-        return 1
-      val nsResult = this.nanoShift.compare(that.nanoShift)
-      if (nsResult < 0)
-        return -1
-      else if (nsResult > 0)
-        return 1
-      0
-    }
+    def compare(that: Timestamp): Int =
+      this.milliseconds compare that.milliseconds match {
+        case 0 => this.nanoShift compare that.nanoShift
+        case c => c
+      }
 
     override def toString() = s"Timestamp[$milliseconds:$nanoShift]"
   }

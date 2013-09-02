@@ -18,48 +18,69 @@
 
 package org.digimead.tabuddy.model.dsl
 
-import org.digimead.digi.lib.aop.log
+import java.util.UUID
+
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Record
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.LocationGeneric
-import scala.language.implicitConversions
-import java.util.UUID
-import org.digimead.tabuddy.model.serialization.Serialization
-import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.element.Coordinate
-import scala.ref.WeakReference
-import java.util.concurrent.atomic.AtomicReference
-import org.digimead.tabuddy.model.graph.Context
-import org.digimead.tabuddy.model.element.Stash
+import org.digimead.tabuddy.model.graph.ElementBox.box2interface
+import org.digimead.tabuddy.model.predef.Note
+import org.digimead.tabuddy.model.predef.Task
 
-trait DSL[Rich <: DSL.RichElement] {
-  val builder: Element => Rich
-  implicit def element2rich(e: Element): Rich = builder(e)
-  //implicit def model2rich(e: Model.type): T = builder(e)
+abstract class DSL() {
+  /** Type that points to something with generic (common for every element) DSL routine. */
+  type DSLGeneric = ElementGenericDSL
 
-  def model()
+  trait ElementGenericDSL extends DSL.RichGeneric
+    with Record.DSL.RichGeneric
+    with Model.DSL.RichGeneric
+    with Note.DSL.RichGeneric
+    with Task.DSL.RichGeneric
+
+  class ElementSpecificDSL[A <: Element](val element: A) extends DSL.RichSpecific[A] with DSLGeneric
+  class RecordSpecificDSL[A <: Record.Like](e: A) extends ElementSpecificDSL(e) with Record.DSL.RichSpecific[A]
+  class NoteSpecificDSL[A <: Note.Like](e: A) extends RecordSpecificDSL(e) with Note.DSL.RichSpecific[A] {
+    override def mutable(): Note.Mutable[A] = new Note.Mutable(element)
+  }
+  class TaskSpecificDSL[A <: Task.Like](e: A) extends NoteSpecificDSL(e) with Task.DSL.RichSpecific[A] {
+    override def mutable(): Task.Mutable[A] = new Task.Mutable(element)
+  }
+  class ModelSpecificDSL[A <: Model.Like](e: A) extends RecordSpecificDSL(e) with Model.DSL.RichSpecific[A] {
+    override def mutable(): Model.Mutable[A] = new Model.Mutable(element)
+  }
 }
 
 object DSL {
-  /**
-   * Base class for DSL builders
-   */
-  trait RichElement {
-    val element: Element
+  /** Base trait for element generic DSL builder. */
+  trait RichGeneric {
+    implicit val element: Element
 
-    /**
-     * Create or retrieve element child
-     */
-    /*def |[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): A =
-      Record(ma.runtimeClass.asInstanceOf[Class[A]], mb.runtimeClass.asInstanceOf[Class[B]], Some(DLS_element), l.id, l.scope, l.coordinate.coordinate, (n: A) => {})
-    /**
-     * Retrieve element child if any
-     */
-    def &[A <: Record.Interface[B], B <: Record.Stash](l: LocationGeneric[A, B])(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] =
-      DLS_element.eFind[A, B](l.id, l.coordinate)*/
+    /** Create or retrieve child of the current element. */
+    def |[A <: Element](l: LocationGeneric[A]): A =
+      element.eNode.getChildren().find(node => node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
+        case Some(node) =>
+          node.threadSafe { node =>
+            Option(node.rootElementBox).map(_.elementType).foreach(existsElementType =>
+              if (!existsElementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
+                throw new IllegalArgumentException(s"Unable to cast ${l.elementType.runtimeClass} to ${existsElementType}."))
+            node.getProjection(l.coordinate) match {
+              case Some(box) => box.get.asInstanceOf[A]
+              case None => ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
+            }
+          }
+        case None =>
+          element.eNode.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())) { node =>
+            ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
+          }
+      }
+    /** Retrieve child of the current element if any. */
+    def &[A <: Element](l: LocationGeneric[A]): Option[A] =
+      element.eFind[A](e => e.eId == l.id && e.eStash.coordinate == l.coordinate && l.unique.map(_ == e.eUnique).getOrElse(true))(l.elementType)
+  }
+  /** Base trait for element specific DSL builder. */
+  trait RichSpecific[A <: Element] {
+    implicit val element: A
   }
 }

@@ -18,17 +18,29 @@
 
 package org.digimead.tabuddy.model.element
 
+import java.util.UUID
+
 /**
- * Abstract location description
+ * Abstract location description.
  */
-abstract class LocationGeneric[A <: Element](val id: Symbol, val scope: Element.Scope,
-  val coordinate: Coordinate)(implicit em: Manifest[A]) {
-  lazy val elementManifest = em
+trait LocationGeneric[A <: Element] {
+  /** Element box coordinate. */
+  val coordinate: Coordinate
+  /** Element type. */
+  val elementType: Manifest[A]
+  /** Node id. */
+  val id: Symbol
+  /** Element scope. */
+  val scope: A#StashType#ScopeType
+  /** Element stash type. */
+  val stashClass: Class[_ <: A#StashType]
+  /** Node unique. */
+  val unique: Option[UUID]
 }
 
 /**
- * Element reference that point to relative location
+ * An element reference that points to the relative location.
  */
-case class Location[A <: Element](override val id: Symbol, override val scope: Element.Scope,
-  override val coordinate: Coordinate = Coordinate.root)(implicit em: Manifest[A])
-  extends LocationGeneric[A](id, scope, coordinate)
+case class Location[A <: Element](val id: Symbol, val unique: Option[UUID], val scope: A#StashType#ScopeType,
+  val coordinate: Coordinate)(implicit val elementType: Manifest[A], val stashClass: Class[_ <: A#StashType])
+  extends LocationGeneric[A]

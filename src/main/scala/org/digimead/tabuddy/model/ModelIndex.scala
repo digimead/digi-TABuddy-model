@@ -32,14 +32,14 @@ import org.digimead.tabuddy.model.graph.Context
 
 trait ModelIndex {
   this: Model with Loggable =>
-  type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
-  type HashMapPerAxis = mutable.HashMap[Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Coordinate, HashMapPerOrigin]
-  type HashMapPerId = mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
+  //type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
+  //type HashMapPerAxis = mutable.HashMap[Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Coordinate, HashMapPerOrigin]
+  //type HashMapPerId = mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
   /**
    * Nested HashMap of all elements
    * Id(Symbol) -> Axis(Coordinate) -> Origin(Symbol) = Generic
    */
-  @transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
+  //@transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
 
   /** Get element for unique id at the specific coordinate. */
   def e(unique: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =
@@ -61,54 +61,4 @@ trait ModelIndex {
   }
   /** Get node for the unique id from the current graph. */
   def e(unique: UUID): Option[Node] = eBox.node.getGraph.flatMap(_.nodes.get(unique))
-  /** Add/replace an element(s) to index. */
-  @tailrec
-  protected final def eRegister(elements: Element*) {
-    val children = elements.map { element =>
-      log.debug("register %s at elements index".format(element))
-      val Reference(origin, unique, coordinate) = element.eReference
-      val coordinateField = index get (unique) getOrElse {
-        val field = new mutable.HashMap[Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Coordinate, HashMapPerOrigin]
-        index(unique) = field
-        field
-      }
-      val originField = coordinateField get (coordinate) getOrElse {
-        val field = new mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
-        coordinateField(coordinate) = field
-        field
-      }
-      originField(origin) = new WeakReference[Element](element)
-      element.eChildren
-    }
-    if (children.isEmpty) return
-    eRegister(children.flatten: _*)
-  }
-  /**
-   * Rebuild index.
-   */
-  def eIndexRebuid() {
-    //log.debug("rebuild index for " + this.eModel)
-    index.clear
-    //eRegister(eModel)
-  }
-  /** Remove an element(s) from index. */
-  @tailrec
-  protected final def eUnregister(elements: Element*) {
-    val children = elements.map { element =>
-      log.debug("unregister %s from elements index".format(element))
-      val Reference(origin, unique, coordinate) = element.eReference
-      index get (unique) foreach { coordinateField =>
-        coordinateField get (coordinate) foreach { originField =>
-          originField.remove(origin)
-          if (originField.isEmpty)
-            coordinateField.remove(coordinate)
-        }
-        if (coordinateField.isEmpty)
-          index.remove(unique)
-      }
-      element.eChildren
-    }
-    if (children.isEmpty) return
-    eUnregister(children.flatten: _*)
-  }
 }

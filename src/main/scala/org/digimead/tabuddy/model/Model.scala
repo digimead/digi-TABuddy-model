@@ -18,27 +18,25 @@
 
 package org.digimead.tabuddy.model
 
+import java.io.File
+import java.net.URI
 import java.util.UUID
-import scala.language.implicitConversions
-import scala.ref.WeakReference
+
+import scala.Array.canBuildFrom
+import scala.collection.mutable
+import scala.util.DynamicVariable
+
+import org.digimead.digi.lib.aop.log
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Stash
-import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.digi.lib.aop.log
-import org.digimead.digi.lib.log.api.Loggable
-import java.util.UUID
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Reference
-import scala.util.DynamicVariable
-import scala.collection.mutable
-import java.io.File
-import org.digimead.tabuddy.model.element.Value
-import java.net.URI
+import org.digimead.tabuddy.model.element.LocationGeneric
 import org.digimead.tabuddy.model.graph.Context
+import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Node
+
+import scala.language.implicitConversions
 
 /**
  * Common model.
@@ -61,35 +59,38 @@ class Model(stashArg: Model.Stash)(@transient implicit val eBox: ElementBox[Mode
 object Model extends Loggable {
   val scope = new Scope()
 
-  /** Create model */
-  //  def apply(coordinate: Coordinate = Coordinate.root, created: Element.Timestamp, id: Symbol,
-  //    modified: Element.Timestamp, origin: Symbol, property: Stash.Data = new Stash.Data,
-  //    unique: UUID)(implicit box: WeakReference[ElementBox[Model]]): Model =
-  //    new Model(new Stash(coordinate, created, id, modified, origin, property, Model.scope, unique))
-
   /** Assert that A is not generic. */
   def assertNonGeneric[A](implicit m: Manifest[A]): Unit = if (m.runtimeClass == classOf[java.lang.Object])
     throw new IllegalArgumentException(s"Generic type '${m}' assertion failed.")
-  //def create() = DI.createModel
   /** The local origin that is alias of a user or a system or an anything other */
   def defaultOrigin() = DI.defaultOrigin
 
-  trait Like extends Element {
+  /** Part of DSL.Builder for end user. */
+  trait DSL {
+    case class ModelLocation(val id: Symbol, val unique: Option[UUID],
+      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Model],
+        val stashClass: Class[_ <: Model#StashType]) extends LocationGeneric[Model] {
+      val scope = Model.scope
+    }
+  }
+  object DSL {
+    trait RichGeneric {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      /** Safe cast element to Model.Like. */
+      def toModel() = element.eAs[Model.Like]
+    }
+    trait RichSpecific[A <: Model.Like] {
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      /** Create mutable model element. */
+      def mutable(): Model.Mutable[A] = new Model.Mutable(element)
+    }
+  }
+  /** Base trait for all models. */
+  trait Like extends Record.Like {
     this: ModelIndex with Loggable =>
     type StashType <: Model.Stash.Like
     type ElementType <: Like
 
-    //stashArg.model = Some(this)
-    //eRegister(this)
-
-    //override def eModel = this
-    //def eStash = stashArg
-    //def eStash_=(value: StashProjection): Unit = {}
-
-    /** create new instance with specific stash */
-    //protected def eNewInstance(stash: StashProjection): this.type = new Model(stash).asInstanceOf[this.type]
-
-    //override def toString() = "%s://%s[%s@GLOBAL]".format(eStash.context.container.origin.name, eStash.scope, eStash.id.name)
     /**
      * Add context information to context map
      */
@@ -161,10 +162,8 @@ object Model extends Loggable {
         log.debugWhere("reset local document context")
       eStash.documentMap.value = documentMap
     }
-    def name = eGetOrElseRoot[String]('name).map(_.get) getOrElse ""
-    def name_=(value: String) = eSet('name, value, "")
     /** Dump the model content. */
-    def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
+    override def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
       def dumpProperties() = {
         val result = eStash.property.map {
           case (id, sequence) =>
@@ -178,20 +177,21 @@ object Model extends Loggable {
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
       val self = "%s: %s".format(eStash.scope, eStash.id) + properties
-      val childrenDump = eChildren.map(_.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      val childrenDump = eChildren.map(_.getElementBoxes).flatten.map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
-    /** Get a property or else get the property from the root element. */
-    def eGetOrElseRoot(id: Symbol, typeSymbol: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =
-      // TODO
-      // NOT TRUEThe model is always at the root
-      eGet(id, typeSymbol)
+    /** Get Model for this element. */
+    override def eModel = this
     /** Get a container */
     override def eParent(): Option[Node] = None
+
+    override def toString() = "%s://%s[%s@GLOBAL]".format(eStash.origin.name, eStash.scope, eStash.id.name)
   }
+  /** Mutable representation of Model.Like. */
+  class Mutable[A <: Like](e: A) extends Record.Mutable[A](e)
   /** The marker object that describes model scope */
-  class Scope(override val modificator: Symbol = 'Model) extends Element.Scope(modificator) {
-    def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.Model.Scope]
+  class Scope(override val modificator: Symbol = 'Model) extends Record.Scope(modificator) {
+    override def canEqual(other: Any): Boolean = other.isInstanceOf[Model.Scope]
   }
   /**
    * Model common stash trait.
@@ -206,14 +206,14 @@ object Model extends Loggable {
     val scope: Model.Scope,
     val unique: UUID) extends Stash.Like {
     /** Stash type. */
-    type StashType = Stash
+    type StashType = Model.Stash
     /** Scope type. */
     type ScopeType = Model.Scope
   }
   object Stash {
-    trait Like extends org.digimead.tabuddy.model.element.Stash.Like {
+    trait Like extends Record.Stash.Like {
       /** Stash type. */
-      type Stash <: Like
+      type Stash <: Model.Like
       /** Scope type. */
       type ScopeType <: Model.Scope
       /** Map of all sorted contexts by line number per file */
@@ -239,15 +239,6 @@ object Model extends Loggable {
    * Dependency injection routines.
    */
   private object DI extends DependencyInjection.PersistentInjectable {
-    def createModel() = {
-      val model = inject[Model.Like]
-      //      currentModel = Option(model)
-      //      previousModel.foreach { previous =>
-      //        val undoF = () => {}
-      //        Element.Event.publish(Element.Event.ModelReplace(previous, model, model.eModified)(undoF))
-      //      }
-      model
-    }
     /** The local origin that is alias of a user or a system or an anything other */
     def defaultOrigin() = inject[Symbol]("Model.Origin")
   }

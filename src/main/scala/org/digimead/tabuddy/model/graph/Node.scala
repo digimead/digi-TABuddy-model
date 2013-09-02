@@ -63,14 +63,21 @@ trait Node {
       throw new IllegalArgumentException("Node with the same identifier is already exists.")
     val newNode = Node(id, UUID.randomUUID())
     val result = newNode.threadSafe { node =>
-      node.parentNode = Some(Node.this)
+      children += newNode
       f(node)
     }
-    children += newNode
     result
   }
+  /**
+   * Lock this node and all child nodes.
+   * Synchronization lock spread from the leaves and finish at the current node.
+   */
+  def freeze[A](f: Node.ThreadUnsafe => A): A =
+    synchronized { children.foldLeft(f)((nestedFn, child) => child.freeze { child => (node) => nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe]) }
   /** Get children nodes. */
   def getChildren(): immutable.Set[Node] = synchronized { children.toSet }
+  /** Get node element boxes. */
+  def getElementBoxes(): Seq[ElementBox[_ <: Element]] = synchronized { Option(rootElementBox).toSeq ++ projectionElementBoxes.values }
   /** Get graph. */
   def getGraph(): Option[Graph[_ <: Model.Like]] = synchronized { graphReference }
   /** Get modified timestamp. */
@@ -85,7 +92,8 @@ trait Node {
       projectionElementBoxes.get(key)
   }
   /** Get projection's element boxes. */
-  def getProjections(): immutable.Map[Coordinate, ElementBox[_ <: Element]] = synchronized { immutable.Map(projectionElementBoxes.toSeq: _*) }
+  def getProjections(): immutable.Map[Coordinate, ElementBox[_ <: Element]] =
+    synchronized { immutable.Map(projectionElementBoxes.updated(Coordinate.root, rootElementBox).toSeq: _*) }
   /** Get root element box. */
   def getRootElementBox() = synchronized { rootElementBox }
   /** Touch modification time of the current node. */
