@@ -52,36 +52,36 @@ object Task extends Loggable {
   }
   object DSL {
     trait RichGeneric {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Create a new task or retrieve exists one. */
       def task(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Task =
-        withTask(id, rawCoordinate: _*)(x => x)
+        withTask(id, rawCoordinate: _*)(x ⇒ x.immutable)
       /**
        * Create a new task or retrieve exists one and apply fTransform to
        *
        * @return task
        */
-      def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] => A): Task =
-        withTask(id, rawCoordinate: _*)((x) => { fTransform(x); x })
+      def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): Task =
+        withTask(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.immutable })
       /**
        * Create a new task or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
        */
-      def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] => A): A = {
+      def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eBox.node.threadSafe { parentNode =>
+        element.eBox.node.threadSafe { parentNode ⇒
           parentNode.children.find { _.id == id } match {
-            case Some(childNode) =>
-              childNode.threadSafe { node =>
+            case Some(childNode) ⇒
+              childNode.threadSafe { node ⇒
                 log.debug(s"Get or create task element for exists ${node}.")
                 implicit val shashClass = classOf[Task.Stash]
                 val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
                 fTransform(new Mutable(task))
               }
-            case None =>
-              parentNode.createChild(id, UUID.randomUUID()) { node =>
+            case None ⇒
+              parentNode.createChild(id, UUID.randomUUID()) { node ⇒
                 log.debug(s"Get or create task element for new ${node}.")
                 implicit val shashClass = classOf[Task.Stash]
                 val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
@@ -94,14 +94,14 @@ object Task extends Loggable {
       def toTask() = element.eAs[Task.Like]
     }
     trait RichSpecific[A <: Task.Like] {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
       /** Create mutable task element. */
       def mutable(): Task.Mutable[A] = new Task.Mutable(element)
     }
   }
   /** Base trait for all tasks. */
   trait Like extends Note.Like {
-    this: Loggable =>
+    this: Loggable ⇒
     type ElementType <: Like
   }
   /** Mutable representation of Task.Like. */

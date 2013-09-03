@@ -53,7 +53,7 @@ object Stash {
    *
    * (origin, unique, coordinate) is element reference that allow unambiguously identify this data piece.
    */
-  trait Like {
+  trait Like extends Equals {
     /** Stash type. */
     type StashType <: Like
     /** Scope type */
@@ -87,17 +87,21 @@ object Stash {
       unique: UUID = this.unique): StashType = {
       assert(scope == this.scope, "Incorrect scope %s, must be %s".format(scope, this.scope))
       val newStashCtor = this.getClass.getConstructors.find(_.getParameterTypes() match {
-        case Array(coordinateArg, createdArg, idArg, modifiedArg, originArg, dataArg, scopeArg, uuidArg) =>
+        case Array(coordinateArg, createdArg, idArg, modifiedArg, originArg, dataArg, scopeArg, uuidArg) ⇒
           scopeArg.isAssignableFrom(scope.getClass) && coordinateArg.isAssignableFrom(coordinate.getClass()) &&
             createdArg.isAssignableFrom(created.getClass()) && idArg.isAssignableFrom(id.getClass()) &&
             modifiedArg.isAssignableFrom(modified.getClass()) && originArg.isAssignableFrom(origin.getClass()) &&
             dataArg.isAssignableFrom(property.getClass()) && uuidArg.isAssignableFrom(unique.getClass)
-        case _ => false
+        case _ ⇒ false
       }) getOrElse {
         throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")
       }
       val data = new Stash.Data
       newStashCtor.newInstance(coordinate, created, id, modified, origin, property, scope, unique).asInstanceOf[StashType]
+    }
+    override def canEqual(that: Any): Boolean = that match {
+      case _: this.type ⇒ true
+      case _ ⇒ false
     }
   }
 }

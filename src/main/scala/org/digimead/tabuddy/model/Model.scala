@@ -75,19 +75,19 @@ object Model extends Loggable {
   }
   object DSL {
     trait RichGeneric {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Safe cast element to Model.Like. */
       def toModel() = element.eAs[Model.Like]
     }
     trait RichSpecific[A <: Model.Like] {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
       /** Create mutable model element. */
       def mutable(): Model.Mutable[A] = new Model.Mutable(element)
     }
   }
   /** Base trait for all models. */
   trait Like extends Record.Like {
-    this: ModelIndex with Loggable =>
+    this: ModelIndex with Loggable ⇒
     type StashType <: Model.Stash.Like
     type ElementType <: Like
 
@@ -98,9 +98,9 @@ object Model extends Loggable {
     def contextAdd(context: Context): Unit = {
       log.info("add new context [%s]".format(context))
       eStash.contextMap.get(context.file) match {
-        case Some(fileMap) =>
+        case Some(fileMap) ⇒
           eStash.contextMap(context.file) = (eStash.contextMap(context.file) :+ context).sortBy(_.line)
-        case None =>
+        case None ⇒
           eStash.contextMap(context.file) = Seq(context)
       }
     }
@@ -126,15 +126,15 @@ object Model extends Loggable {
       val map = eStash.documentMap.value
       if (line < 1) return None
       if (map.isEmpty) return None
-      for (i <- 0 until map.size) yield {
+      for (i ← 0 until map.size) yield {
         map(i).line match {
-          case Some(mapLine) if mapLine > line =>
+          case Some(mapLine) if mapLine > line ⇒
             if (i == 0) {
               log.fatal("incorrect shift for buildContextFromDocument want: %s, i: %d, map: %s".format(line, i, map.mkString("\n")))
               return None
             } else
               return Some(Context(element.eReference, map(i - 1).file, Some(line - (map.head.line.getOrElse(0) - 1)), map(i - 1).digest))
-          case _ =>
+          case _ ⇒
         }
       }
       Some(Context(element.eReference, map.last.file, Some(line - (map.head.line.getOrElse(0) - 1)), map.last.digest))
@@ -143,10 +143,10 @@ object Model extends Loggable {
      * Create context information from the specific container
      */
     def contextForChild(container: Element, t: Option[StackTraceElement]): Context = t match {
-      case Some(stack) if stack.getFileName() == "(inline)" && eStash.documentMap.value.nonEmpty =>
+      case Some(stack) if stack.getFileName() == "(inline)" && eStash.documentMap.value.nonEmpty ⇒
         // loaded as runtime Scala code && documentMap defined
         Context(container.eReference, None, Some(stack.getLineNumber()), None)
-      case _ =>
+      case _ ⇒
         // everything other - virtual context
         Context(container)
     }
@@ -166,9 +166,9 @@ object Model extends Loggable {
     override def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
       def dumpProperties() = {
         val result = eStash.property.map {
-          case (id, sequence) =>
+          case (id, sequence) ⇒
             sequence.map {
-              case (typeSymbol, value) =>
+              case (typeSymbol, value) ⇒
                 "%s: %s".format(id, value)
             }
         }.flatten
@@ -177,7 +177,8 @@ object Model extends Loggable {
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
       val self = "%s: %s".format(eStash.scope, eStash.id) + properties
-      val childrenDump = eChildren.map(_.getElementBoxes).flatten.map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      val childrenDump = eNode.threadSafe(_.iterator.map(_.getElementBoxes).flatten.
+        map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     /** Get Model for this element. */

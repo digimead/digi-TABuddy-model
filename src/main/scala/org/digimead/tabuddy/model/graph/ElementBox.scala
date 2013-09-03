@@ -56,13 +56,27 @@ import language.implicitConversions
  * (<- ElementBox <-> Element) is CG'ed part.
  */
 abstract class ElementBox[A <: Element](val context: Context, val coordinate: Coordinate,
-  initial: => Option[A])(implicit val elementType: Manifest[A], val node: Node, val serialization: Serialization[_]) {
+  initial: ⇒ Option[A])(implicit val elementType: Manifest[A], val node: Node, val serialization: Serialization[_]) {
   def this(context: Context, coordinate: Coordinate, initial: AtomicReference[A])(implicit elementType: Manifest[A],
     node: Node, serialization: Serialization[_]) = this(context, coordinate, Option(initial.get))(elementType, node, serialization)
   /** Get reference of this element. */
   def eReference(): Option[Reference] = for {
-    graph <- node.getGraph
+    graph ← node.getGraph
   } yield Reference(graph.origin, node.unique, coordinate)
+  /** Copy current element box. */
+  def copy(context: Context = this.context,
+    coordinate: Coordinate = this.coordinate,
+    node: Node = this.node,
+    serialization: Serialization[_] = this.serialization): ElementBox[A] = {
+    val element = get()
+    val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
+    val elementBox = ElementBox[A](context, coordinate, elementElementForwardReference)(elementType = implicitly, node = node, serialization = serialization)
+    val elementCopy = element.eCopy(elementBox.asInstanceOf[ElementBox[element.ElementType]], element.eStash.copy(coordinate = coordinate, id = node.id,
+      origin = node.getGraph.get.origin, unique = node.unique).asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
+    elementElementForwardReference.set(elementCopy)
+    elementBox.get
+    elementBox
+  }
   /** Get element. */
   def get(): A
   /** (Re)Load element. */
@@ -99,14 +113,14 @@ object ElementBox {
       /*
        * Validate
        */
-      Option(elementNode.rootElementBox).foreach { targetRootElement =>
+      Option(elementNode.rootElementBox).foreach { targetRootElement ⇒
         // addition subtype(A) to supertype(that) is legal
         if (!m.runtimeClass.isAssignableFrom(targetRootElement.elementType.runtimeClass))
           throw new IllegalArgumentException(s"Unable to mix ${m} with ${targetRootElement.elementType}.")
       }
       for {
-        graphOrigin <- elementNode.graph.map(_.origin)
-        parentUnique <- elementNode.parentNode.map(_.unique)
+        graphOrigin ← elementNode.graph.map(_.origin)
+        parentUnique ← elementNode.parentNode.map(_.unique)
       } {
         if (context.origin != graphOrigin)
           throw new IllegalArgumentException(s"Unable to create element box. Context origin: ${context.origin}. Node origin ${graphOrigin}")
@@ -139,14 +153,14 @@ object ElementBox {
       /*
        * Validate
        */
-      Option(elementNode.getRootElementBox).foreach { targetRootElement =>
+      Option(elementNode.getRootElementBox).foreach { targetRootElement ⇒
         // addition subtype(A) to supertype(that) is legal
         if (!m.runtimeClass.isAssignableFrom(targetRootElement.elementType.runtimeClass))
           throw new IllegalArgumentException(s"Unable to mix ${m} with ${targetRootElement.elementType}.")
       }
       for {
-        graphOrigin <- elementNode.graph.map(_.origin)
-        parentUnique <- elementNode.parentNode.map(_.unique)
+        graphOrigin ← elementNode.graph.map(_.origin)
+        parentUnique ← elementNode.parentNode.map(_.unique)
       } {
         if (context.origin != graphOrigin)
           throw new IllegalArgumentException(s"Unable to create element box. Context origin: ${context.origin}. Node origin ${graphOrigin}.")
@@ -189,13 +203,13 @@ object ElementBox {
         Option(node.rootElementBox)
       else
         node.projectionElementBoxes.get(coordinate)
-      requiredBox.map(box => box.get.eAs[A].
+      requiredBox.map(box ⇒ box.get.eAs[A].
         getOrElse { throw new IllegalAccessException(s"Found ${box.get}, but it type isn't ${m.runtimeClass}.") }).
         getOrElse {
           val timestamp = Element.timestamp()
           val elementBox = for {
-            parent <- node.parentNode
-            graph <- node.graph
+            parent ← node.parentNode
+            graph ← node.graph
           } yield ElementBox[A](Context(graph.origin, parent.unique), coordinate, timestamp, node, timestamp, scope, serialization)
           elementBox.getOrElse { throw new IllegalStateException("Unable to create element box.") }.get
         }
@@ -205,7 +219,7 @@ object ElementBox {
    * Hard element reference that always contain element instance.
    */
   class Hard[A <: Element](context: Context, coordinate: Coordinate,
-    initial: => A)(implicit elementType: Manifest[A], node: Node, serialization: Serialization[_])
+    initial: ⇒ A)(implicit elementType: Manifest[A], node: Node, serialization: Serialization[_])
     extends ElementBox[A](context, coordinate, Option(initial)) {
     def this(context: Context, coordinate: Coordinate, initial: AtomicReference[A])(implicit elementType: Manifest[A],
       node: Node, serialization: Serialization[_]) = this(context, coordinate, initial.get)(elementType, node, serialization)

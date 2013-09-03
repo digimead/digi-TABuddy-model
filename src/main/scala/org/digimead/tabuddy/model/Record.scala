@@ -57,36 +57,36 @@ object Record extends Loggable {
   }
   object DSL {
     trait RichGeneric {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Create a new record or retrieve exists one. */
       def record(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Record =
-        withRecord(id, rawCoordinate: _*)(x => x)
+        withRecord(id, rawCoordinate: _*)(x ⇒ x.immutable)
       /**
        * Create a new record or retrieve exists one and apply fTransform to
        *
        * @return record
        */
-      def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] => A): Record =
-        withRecord(id, rawCoordinate: _*)((x) => { fTransform(x); x })
+      def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] ⇒ A): Record =
+        withRecord(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.immutable })
       /**
        * Create a new record or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
        */
-      def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] => A): A = {
+      def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eBox.node.threadSafe { parentNode =>
+        element.eBox.node.threadSafe { parentNode ⇒
           parentNode.children.find { _.id == id } match {
-            case Some(childNode) =>
-              childNode.threadSafe { node =>
+            case Some(childNode) ⇒
+              childNode.threadSafe { node ⇒
                 log.debug(s"Get or create record element for exists ${node}.")
                 implicit val shashClass = classOf[Record.Stash]
                 val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
                 fTransform(new Mutable(record))
               }
-            case None =>
-              parentNode.createChild(id, UUID.randomUUID()) { node =>
+            case None ⇒
+              parentNode.createChild(id, UUID.randomUUID()) { node ⇒
                 log.debug(s"Get or create record element for new ${node}.")
                 implicit val shashClass = classOf[Record.Stash]
                 val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
@@ -99,14 +99,14 @@ object Record extends Loggable {
       def toRecord() = element.eAs[Record.Like]
     }
     trait RichSpecific[A <: Record.Like] {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
       /** Create mutable record element. */
       def mutable(): Record.Mutable[A] = new Record.Mutable(element)
     }
   }
   /** Base trait for all records. */
   trait Like extends Element {
-    this: Loggable =>
+    this: Loggable ⇒
     type ElementType <: Like
     type StashType <: Stash.Like
 
@@ -114,9 +114,9 @@ object Record extends Loggable {
     def eDump(brief: Boolean, padding: Int = 2): String = {
       def dumpProperties() = {
         val result = eStash.property.map {
-          case (id, sequence) =>
+          case (id, sequence) ⇒
             sequence.map {
-              case (typeSymbol, value) =>
+              case (typeSymbol, value) ⇒
                 "%s: %s".format(id, value)
             }
         }.flatten
@@ -128,7 +128,8 @@ object Record extends Loggable {
         "%s: %s".format(eStash.scope, eStash.id) + properties
       else
         "%s: %s \"%s\"".format(eStash.scope, eStash.id, name) + properties
-      val childrenDump = eChildren.map(_.getElementBoxes).flatten.map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim
+      val childrenDump = eNode.threadSafe(_.iterator.map(_.getElementBoxes).flatten.
+        map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     def eGetOrElseRoot(id: Symbol, typeSignature: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =

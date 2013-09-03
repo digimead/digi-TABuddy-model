@@ -46,6 +46,30 @@ class Graph[A <: Model.Like](val node: Node, val origin: Symbol)(implicit val mo
   /** Path to graph storage. */
   @volatile var location: Option[URI] = None
 
+  /** Copy graph. */
+  def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freeze { sourceModelNode =>
+    val timestamp = Element.timestamp()
+    /*
+     * Create graph and model node
+     */
+    val targetModelNode = Node.model(id, unique)
+    val graph = Graph[A](targetModelNode, origin)
+    targetModelNode.threadSafe { targetNode =>
+      targetModelNode.initializeModelNode(graph)
+      targetNode.rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
+      sourceModelNode.projectionElementBoxes.foreach {
+        case (coordinate, box) =>
+          targetNode.projectionElementBoxes(coordinate) = box.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
+      }
+      if (graph.modelType != graph.node.getRootElementBox.elementType)
+        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.getRootElementBox.elementType}")
+      /*
+       * Copy model children
+       */
+      sourceModelNode.children.foreach(_.copy(targetNode, true))
+    }
+    graph
+  }
   /** Get graph model. */
   def model(): A = node.getRootElementBox.get.asInstanceOf[A]
 }
@@ -64,7 +88,7 @@ object Graph {
       unique: UUID)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val timestamp = Element.timestamp()
       val modelNode = Node.model(id, unique)
-      val modelGraph = Graph[A](modelNode, id)
+      val modelGraph = Graph[A](modelNode, origin)
       modelNode.threadSafe { node =>
         modelNode.initializeModelNode(modelGraph)
         val modelBox = ElementBox[A](Context(origin, modelNode.unique), Coordinate.root, timestamp, node, timestamp, scope, serialization)

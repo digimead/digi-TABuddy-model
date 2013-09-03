@@ -59,25 +59,25 @@ object DSL {
 
     /** Create or retrieve child of the current element. */
     def |[A <: Element](l: LocationGeneric[A]): A =
-      element.eNode.getChildren().find(node => node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
-        case Some(node) =>
-          node.threadSafe { node =>
-            Option(node.rootElementBox).map(_.elementType).foreach(existsElementType =>
+      element.eNode.threadSafe(_.iterator.find(node ⇒ node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
+        case Some(node) ⇒
+          node.threadSafe { node ⇒
+            Option(node.rootElementBox).map(_.elementType).foreach(existsElementType ⇒
               if (!existsElementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
                 throw new IllegalArgumentException(s"Unable to cast ${l.elementType.runtimeClass} to ${existsElementType}."))
             node.getProjection(l.coordinate) match {
-              case Some(box) => box.get.asInstanceOf[A]
-              case None => ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
+              case Some(box) ⇒ box.get.asInstanceOf[A]
+              case None ⇒ ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
             }
           }
-        case None =>
-          element.eNode.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())) { node =>
+        case None ⇒
+          element.eNode.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())) { node ⇒
             ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
           }
-      }
+      })
     /** Retrieve child of the current element if any. */
     def &[A <: Element](l: LocationGeneric[A]): Option[A] =
-      element.eFind[A](e => e.eId == l.id && e.eStash.coordinate == l.coordinate && l.unique.map(_ == e.eUnique).getOrElse(true))(l.elementType)
+      element.eFind[A](e ⇒ e.eId == l.id && e.eStash.coordinate == l.coordinate && l.unique.map(_ == e.eUnique).getOrElse(true))(l.elementType)
   }
   /** Base trait for element specific DSL builder. */
   trait RichSpecific[A <: Element] {

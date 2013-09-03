@@ -18,23 +18,24 @@
 
 package org.digimead.tabuddy.model.graph
 
+import scala.collection.mutable
 import scala.ref.WeakReference
 
 /**
  * Element children container
  */
-class NodeChildren(val containerNode: WeakReference[Node]) extends NodeSet {
+class NodeChildren(val containerNode: WeakReference[Node]) extends mutable.LinkedHashSet[Node] {
   override def +=(elementNode: Node): this.type = {
-    elementNode.threadSafe { node => node.parentNode = containerNode.get }
+    elementNode.threadSafe { node ⇒ node.parentNode = containerNode.get }
     super.+=(elementNode)
   }
   override def -=(elementNode: Node): this.type = {
     val result = super.-=(elementNode)
-    elementNode.threadSafe { node => node.parentNode = None }
+    elementNode.threadSafe { node ⇒ node.parentNode = None }
     result
   }
   override def clear(): Unit = {
-    this.foreach(childNode => childNode.threadSafe { node => node.parentNode = None })
+    this.foreach(childNode ⇒ childNode.threadSafe { node ⇒ node.parentNode = None })
     super.clear
   }
 
@@ -43,50 +44,13 @@ class NodeChildren(val containerNode: WeakReference[Node]) extends NodeSet {
    * @param transformNodeChildren - function that provide sorting/filtering capability
    * @return the new iterator
    */
-  def iteratorRecursive(transformNodeChildren: (Node, NodeChildren) => Seq[Node] = (parent, children) => children.toSeq): Iterator[Node] =
+  def iteratorRecursive(transformNodeChildren: (Node, NodeChildren) ⇒ Seq[Node] = (parent, children) ⇒ children.toSeq): Iterator[Node] =
     new Iterator[Node] {
-      val iterator = containerNode.get.map { parent =>
-        transformNodeChildren(parent, NodeChildren.this).foldLeft(Iterator[Node]())((acc, child) =>
+      val iterator = containerNode.get.map { parent ⇒
+        transformNodeChildren(parent, NodeChildren.this).foldLeft(Iterator[Node]())((acc, child) ⇒
           acc ++ Iterator(child) ++ child.threadSafe { _.children.iteratorRecursive(transformNodeChildren) })
       }.getOrElse(Iterator[Node]())
       def hasNext: Boolean = iterator.hasNext
       def next(): Node = iterator.next
     }
-
-  /**
-   * Attach element to the model
-   */
-  /*protected def eAttach(model: Model, container: Element, element: Element) = synchronized {
-    log.debug("attach %s to %s".format(element.eReference, container.eReference))
-    assert(element.eStash.model.isEmpty && !element.eNodeChildren.iteratorRecursive().exists(_.get.eStash.model.nonEmpty),
-      "Unable to reattach %s, please detach it first".format(element))
-    assert(container.eStash.model == Some(model),
-      "Unable to attach %s to unknown container %s".format(element, container))
-    // modify element
-    val newStash = element.eStash.copy(context = element.eStash.context.copy(container = container.eReference),
-      model = container.eStash.model)
-    //Element.check(element, newStash) // throw exception
-    //element.eNodeChildren.iteratorRecursive().foreach { element =>
-    //  element.eParent.get.eNodeChildren.update(element.eCopy(stash = element.eStash.copy(model = Some(model))), true)
-   // }
-    //element.asInstanceOf[Element].eStash = newStash // update stash with new that points to the new container and the model
-    //model.eAttach(element)
-  }*/
-  /**
-   * Detach element from the model
-   */
-  /*protected def eDetach[T <: Element](model: Model, element: T, copy: Boolean = false): T = synchronized {
-    val detached = if (copy) {
-      //log.debug("dettach copy of %s from %s".format(element.eReference, model.eReference))
-      // detach copy
-      element.eCopy()
-    } else {
-      // detach original
-      model.eDetach(element)
-      element
-    }
-    //element.eFilter(_ => true).foreach(_.eStash.model = None)
-    //element.eStash.model = None
-    element
-  }*/
 }

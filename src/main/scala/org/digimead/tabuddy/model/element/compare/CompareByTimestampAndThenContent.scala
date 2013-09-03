@@ -20,18 +20,18 @@ package org.digimead.tabuddy.model.element.compare
 
 import org.digimead.tabuddy.model.element.Element
 
-object CompareByTimestampAndContent extends Compare {
+object CompareByTimestampAndThenContent extends Compare {
   /** Compares this object with the specified object for order. */
   def compare(e1: Element, e2: Element): Int =
     e1.eModified.milliseconds compare e2.eModified.milliseconds match {
-      case 0 =>
+      case 0 ⇒
         e1.eModified.nanoShift compare e2.eModified.nanoShift match {
-          case 0 => 0
-          case c =>
+          case 0 ⇒ 0
+          case c ⇒
             // modification time different but
             if (isEqual(e1, e2)) 0 else c
         }
-      case c =>
+      case c ⇒
         // modification time different but
         if (isEqual(e1, e2)) 0 else c
     }
@@ -40,7 +40,7 @@ object CompareByTimestampAndContent extends Compare {
     val e1Data = e1.eStash.property
     val e2Data = e2.eStash.property
     // 1. can equal
-    /*e1.canEqual(e2.getClass, e2.eStash.getClass) &&
+    e1.canEqual(e2) &&
       // 2. immutable variables are identical
       e1.hashCode == e2.hashCode && {
         // 3. stash equals
@@ -48,9 +48,9 @@ object CompareByTimestampAndContent extends Compare {
           // 3. can equal
           e1.eStash.canEqual(e2.eStash) &&
             // 4. immutable variables are identical
-            e1.eStash.hashCode == e2.eStash.hashCode &&
-            // 5. mutable variables values are identical
-            e1Data.keys.forall { valuesType =>
+            e1.eStash.scope == e2.eStash.scope &&
+            // 5. property variables values are identical
+            e1Data.keys.forall { valuesType ⇒
               if (e1Data(valuesType).isEmpty) {
                 // drop empty valuesType
                 !e2Data.contains(valuesType) || e2Data(valuesType).isEmpty
@@ -61,12 +61,11 @@ object CompareByTimestampAndContent extends Compare {
                 val e2Values = e2Data(valuesType)
                 e1Values == e2Values && {
                   // 6. compare values
-                  e1Values.keys.forall(propertySymbol => e1Values(propertySymbol) == e2Values(propertySymbol))
+                  e1Values.keys.forall(propertySymbol ⇒ e1Values(propertySymbol) == e2Values(propertySymbol))
                 }
               }
             }
         }
-      }*/
-    true
+      }
   }
 }

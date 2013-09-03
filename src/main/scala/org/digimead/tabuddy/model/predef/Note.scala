@@ -54,36 +54,36 @@ object Note extends Loggable {
   }
   object DSL {
     trait RichGeneric {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Create a new note or retrieve exists one. */
       def note(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Note =
-        withNote(id, rawCoordinate: _*)(x => x)
+        withNote(id, rawCoordinate: _*)(x ⇒ x.immutable)
       /**
        * Create a new note or retrieve exists one and apply fTransform to
        *
        * @return note
        */
-      def takeNode[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] => A): Note =
-        withNote(id, rawCoordinate: _*)((x) => { fTransform(x); x })
+      def takeNode[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] ⇒ A): Note =
+        withNote(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.immutable })
       /**
        * Create a new note or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
        */
-      def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] => A): A = {
+      def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eBox.node.threadSafe { parentNode =>
+        element.eBox.node.threadSafe { parentNode ⇒
           parentNode.children.find { _.id == id } match {
-            case Some(childNode) =>
-              childNode.threadSafe { node =>
+            case Some(childNode) ⇒
+              childNode.threadSafe { node ⇒
                 log.debug(s"Get or create note element for exists ${node}.")
                 implicit val shashClass = classOf[Note.Stash]
                 val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
                 fTransform(new Mutable(note))
               }
-            case None =>
-              parentNode.createChild(id, UUID.randomUUID()) { node =>
+            case None ⇒
+              parentNode.createChild(id, UUID.randomUUID()) { node ⇒
                 log.debug(s"Get or create note element for new ${node}.")
                 implicit val shashClass = classOf[Note.Stash]
                 val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
@@ -96,14 +96,14 @@ object Note extends Loggable {
       def toNote() = element.eAs[Note.Like]
     }
     trait RichSpecific[A <: Note.Like] {
-      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] =>
+      this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
       /** Create mutable note element. */
       def mutable(): Note.Mutable[A] = new Note.Mutable(element)
     }
   }
   /** Base trait for all records. */
   trait Like extends Record.Like {
-    this: Loggable =>
+    this: Loggable ⇒
     type ElementType <: Like
   }
   /** Mutable representation of Note.Like. */
