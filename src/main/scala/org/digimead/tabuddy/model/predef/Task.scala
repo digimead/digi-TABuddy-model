@@ -31,7 +31,7 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Task element.
  */
-class Task(stashArg: Task.Stash)(@transient implicit val eBox: ElementBox[Task]) extends Task.Like with Loggable {
+class Task(stashArg: Task.Stash)(@transient val eBox: () => ElementBox[Task]) extends Task.Like with Loggable {
   type ElementType = Task
   type StashType = Task.Stash
 
@@ -71,7 +71,7 @@ object Task extends Loggable {
       def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eBox.node.threadSafe { parentNode ⇒
+        element.eNode.threadSafe { parentNode ⇒
           parentNode.children.find { _.id == id } match {
             case Some(childNode) ⇒
               childNode.threadSafe { node ⇒
@@ -95,14 +95,17 @@ object Task extends Loggable {
     }
     trait RichSpecific[A <: Task.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
-      /** Create mutable task element. */
-      def mutable(): Task.Mutable[A] = new Task.Mutable(element)
     }
   }
   /** Base trait for all tasks. */
   trait Like extends Note.Like {
     this: Loggable ⇒
     type ElementType <: Like
+
+    /** Get mutable representation. */
+    override def eMutable(): Task.Mutable[ElementType] = new Task.Mutable(this.asInstanceOf[ElementType])
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[Task.Like]
   }
   /** Mutable representation of Task.Like. */
   class Mutable[A <: Task.Like](e: A) extends Note.Mutable[A](e)

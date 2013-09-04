@@ -75,6 +75,44 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
   }
 
   describe("An Element") {
+    it("should have proper equality") {
+      import TestDSL._
+      // graph 1
+      val graph1 = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+      val rA1 = model1.takeRecord('rA) { r ⇒
+        r.takeRecord('rAB) { r ⇒
+          r.takeRecord('rLeaf) { r ⇒
+            r.name = "123"
+          }
+        }
+      }.eMutable
+      val rAB1 = (rA1 & RecordLocation('rAB)).get.eMutable
+      val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).get.eMutable
+      // graph 2
+      val graph2 = graph1.copy('john2)
+      val model2 = graph2.model.eMutable
+      val rA2 = (model2 & RecordLocation('rA)).get.eMutable
+      val rAB2 = (rA2 & RecordLocation('rAB)).get.eMutable
+      val rLeaf2 = (rAB2 & RecordLocation('rLeaf)).get.eMutable
+
+      model1.immutable.canEqual(model2.immutable) should be(true)
+      model1.eStash.canEqual(model2.eStash) should be(true)
+
+      rA1.eStash should be (rA1.eStash)
+      val curtom_rA1 = new Record(rA1.eStash)(rAB2.eBox) // different eBox
+      curtom_rA1.canEqual(rA1.immutable) should be (true)
+      curtom_rA1.eStash should be (rA1.eStash)
+      curtom_rA1 should be(rA1.immutable)
+
+      val rLeaf2_orig = rLeaf2.immutable
+      rLeaf2.name should be ("123")
+      rLeaf2.name = "321"
+      rLeaf2_orig should not be (rLeaf2.immutable)
+
+      model1 should be (model1.immutable)
+      model1.immutable should be (model1)
+    }
     it("should have proper copy") {
       import TestDSL._
       val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
@@ -86,7 +124,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       // 300000/10Th processed within 7458ms = ~40500 eCopy(write) operations per second on notebook
       // ~?/1Th eCopy(write) ops in single thread
       // ~?/10Th eCopy(write) ops in multi thread
-      multithread(10000, 10) { i ⇒
+      multithread(1000, 10) { i ⇒
         val record1 = myModel.withRecord('root) { r ⇒ r }
         record1 should not be null
         val record2 = record1.eCopy(record1.eNode, ('x, i))
@@ -195,13 +233,13 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
       val myModel = graph.model
       val r1 = myModel.withRecord('a) { r ⇒ r }
-      r1.eBox.context.origin should not be (null)
-      r1.eBox.context.unique should not be (null)
-      myModel.e(r1.eBox.context) should be(Some(myModel.eBox.node))
+      r1.eBox().context.origin should not be (null)
+      r1.eBox().context.unique should not be (null)
+      myModel.e(r1.eBox().context) should be(Some(myModel.eNode))
       myModel.e(r1.eReference) should be(Some(r1: Element))
       myModel.e(myModel.eReference) should be(Some(myModel))
-      r1.eBox.context.origin.name should be(r1.eReference.origin.name)
-      r1.eBox.context.unique should be(myModel.eReference.unique)
+      r1.eBox().context.origin.name should be(r1.eReference.origin.name)
+      r1.eBox().context.unique should be(myModel.eReference.unique)
     }
     it("should have proper copy constructor") {
       import TestDSL._
@@ -255,7 +293,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val newRecord2 = save.eNode.getParent.map(_.threadSafe { parent ⇒
         parent.createChild('new, UUID.randomUUID()) { child ⇒
           newChild = child
-          save.eCopy(child, save.eStash.copy(id = 'new, unique = child.unique), save.eBox.serialization)
+          save.eCopy(child, save.eStash.copy(id = 'new, unique = child.unique), save.eBox().serialization)
         }
       })
       newRecord2 should be('nonEmpty)

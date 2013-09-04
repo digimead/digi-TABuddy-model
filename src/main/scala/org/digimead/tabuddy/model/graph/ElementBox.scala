@@ -71,7 +71,7 @@ abstract class ElementBox[A <: Element](val context: Context, val coordinate: Co
     val element = get()
     val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
     val elementBox = ElementBox[A](context, coordinate, elementElementForwardReference)(elementType = implicitly, node = node, serialization = serialization)
-    val elementCopy = element.eCopy(elementBox.asInstanceOf[ElementBox[element.ElementType]], element.eStash.copy(coordinate = coordinate, id = node.id,
+    val elementCopy = element.eCopy(() ⇒ elementBox.asInstanceOf[ElementBox[element.ElementType]], element.eStash.copy(coordinate = coordinate, id = node.id,
       origin = node.getGraph.get.origin, unique = node.unique).asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
     elementElementForwardReference.set(elementCopy)
     elementBox.get
@@ -141,7 +141,7 @@ object ElementBox {
       else
         elementNode.projectionElementBoxes(coordinate) = elementBox
       // 3rd. Create element.
-      val element = Element.apply[A](elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
+      val element = Element.apply[A](() => elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
       elementElementForwardReference.set(element)
       elementBox.get
       if (elementBox.get == null)
@@ -189,7 +189,7 @@ object ElementBox {
       else
         elementNode.projectionElementBoxes(stash.coordinate) = elementBox
       // 3rd. Create element.
-      val element = Element.apply[A](elementBox, stash)
+      val element = Element.apply[A](() => elementBox, stash)
       elementElementForwardReference.set(element)
       elementBox.get
       if (elementBox.get == null)

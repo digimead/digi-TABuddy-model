@@ -101,7 +101,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eStash.scope) should be(myModel2.eStash.scope)
           (myModel1.eStash.property) should be(myModel2.eStash.property)
 
-          val myModel1Mutable = myModel1.mutable
+          val myModel1Mutable = myModel1.eMutable
           val model1BranchNodes = myModel1Mutable.eNode.threadSafe(_.iteratorRecursive.toIndexedSeq)
           model1BranchNodes should be(Seq(record.eNode, save.eNode))
 
@@ -123,7 +123,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           myModel1Mutable.compare(record) should be(1) // Model modified after record
           myModel1Mutable.compare(save) should be(1) // Model modified after record
 
-          val saveMutable = save.mutable
+          val saveMutable = save.eMutable
           saveMutable.name = "321"
           model1BranchNodes.map(_.getRootElementBox.get).sorted.map(_.eId.name) should be(Seq("root", "level2"))
           myModel1Mutable.compare(record) should be(1) // Model modified after
@@ -132,7 +132,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
 
           (myModel1Mutable | RecordLocation('root)).compare(record) should be(0)
 
-          record.mutable.name = "321"
+          record.eMutable.name = "321"
           model1BranchNodes.map(_.getRootElementBox.get).sorted.map(_.eId.name) should be(Seq("level2", "root"))
         }
       }
@@ -143,25 +143,29 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       import TestDSL._
       multithread(1000, 10) { i ⇒
         val graph1 = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
-        val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").mutable
+        val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
         val rA1 = model1.takeRecord('rA) { r ⇒
+          Thread.sleep(10)
           r.takeRecord('rB) { r ⇒
+            Thread.sleep(10)
             r.takeRecord('rLeaf) { r ⇒
               r.name = "123"
             }
           }
-        }.mutable
-        val rB1 = (rA1 & RecordLocation('rB)).get.mutable
-        val rLeaf1 = (rB1 & RecordLocation('rLeaf)).get.mutable
+        }.eMutable
+        val rB1 = (rA1 & RecordLocation('rB)).get.eMutable
+        val rLeaf1 = (rB1 & RecordLocation('rLeaf)).get.eMutable
 
         val graph2 = graph1.copy('john2)
         graph1.model.eStash.created should be(graph2.model.eStash.created)
-        val model2 = graph2.model.mutable
-        val rA2 = (model2 & RecordLocation('rA)).get.mutable
-        val rB2 = (rA2 & RecordLocation('rB)).get.mutable
-        val rLeaf2 = (rB2 & RecordLocation('rLeaf)).get.mutable
+        val model2 = graph2.model.eMutable
+        val rA2 = (model2 & RecordLocation('rA)).get.eMutable
+        val rB2 = (rA2 & RecordLocation('rB)).get.eMutable
+        val rLeaf2 = (rB2 & RecordLocation('rLeaf)).get.eMutable
 
         CompareByTimestampAndThenContent.doWith {
+          Element.comparator.value should be(CompareByTimestampAndThenContent)
+          rB1.compare(rA1) should be(1) // rB1 modified after rA1 record
           model1.immutable should not be (model2.immutable)
           rA1.immutable should not be (rA2.immutable)
           rB1.immutable should not be (rB2.immutable)
@@ -184,32 +188,44 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           rA1.compare(rB2) should not be (0)
           rB1.compare(rLeaf2) should not be (0)
 
+          // modify model
+          model1.compare(model2) should be(0)
+          model1 should not be (model2)
+          model1.name = "111"
+          model1.compare(model2) should be(1) // model1 modified after Model
+          model1 should not be (model2)
+          (model1 | RecordLocation('root)).eModel should be(model1)
+          model1.name = model2.name
+          model1.compare(model2) should be(0)
+          model1 should not be (model2)
 
-          /*model1.name = "111"
-        model1.compare(Model) should be(1) // model1 modified after Model
-        (model1 | RecordLocation('root)).eModel should be(model1)
-        model1.name = Model.name
-        model1.compare(Model) should be(0)
-        // parent modified after child
-        record.compare(record) should be(0)
-        save.compare(record) should be(-1) // save modified before record
-        Model.compare(record) should be(1) // Model modified after record
-        Model.compare(save) should be(1) // Model modified after save
-        Model.name = "123"
-        Model.compare(record) should be(1) // Model modified after record
-        Model.compare(save) should be(1) // Model modified after record
-        save.name = "321"
-        Model.compare(record) should be(1) // Model modified after record
-        Model.compare(save) should be(1) // Model modified after save
-        record.compare(save) should be(1) // record modified after save
-        model1.compare(Model) should be(0) // model1 modified before Model BUT model1 content and Model content are the same
-        Model.name = "333"
-        model1.compare(Model) should be(-1) // model1 modified before Model
-        model1.name = "444"
-        model1.compare(Model) should be(1) // model1 modified before Model
-        Model.name = "444"
-        //(model1 | RecordLocation('root) | RecordLocation('level2)).name = "321"
-        model1.compare(Model) should be(0) // model1 modified after Model but content is equal*/
+          // parent modified after child
+          rA1.compare(rA2) should be(0)
+          rB1.compare(rA1) should be(1) // rB1 modified after rA1
+          model1.compare(rA1) should be(1) // model1 modified after rA1
+          model1.compare(rB1) should be(1) // model1 modified after rB1
+          model1.compare(model2) should be(0) // model1 modified after model2, but content is the same
+          model1.name = "111"
+          model1.compare(model2) should be(1) // model1 modified after model2, but content is the same
+          model2.compare(rA2) should be(-1) // model2 modified before rA1
+          model2.name = "123"
+          model2.compare(rA2) should be(1) // model2 modified after rA1
+          model1.compare(rA2) should be(1) // Model modified after rA2
+          rA2.name = "321"
+          model1.compare(rA2) should be(-1) // model1 modified before rA2
+          model1.compare(rB2) should be(1) // model1 modified after rB2
+          rA1.compare(rA2) should be(-1) // rA1 modified before rA2
+          rA1.name = rA2.name
+          rA1.compare(rA2) should be(0)
+          model1.name = "333"
+          model1.compare(model2) should be(1) // model1 modified after model2
+          model2.name = "444"
+          model1.compare(model2) should be(-1) // model1 modified before model2
+          model1.name = "444"
+          (model1 | RecordLocation('rA) | RecordLocation('rB)).eMutable.name = "AAA"
+          (model1 | RecordLocation('rA) | RecordLocation('rB)).compare(rB2) should be(1)
+          rB2.name = "AAA"
+          (model1 | RecordLocation('rA) | RecordLocation('rB)).compare(rB2) should be(0)
         }
       }
     }

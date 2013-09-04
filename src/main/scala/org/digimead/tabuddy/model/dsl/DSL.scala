@@ -41,15 +41,9 @@ abstract class DSL() {
 
   class ElementSpecificDSL[A <: Element](val element: A) extends DSL.RichSpecific[A] with DSLGeneric
   class RecordSpecificDSL[A <: Record.Like](e: A) extends ElementSpecificDSL(e) with Record.DSL.RichSpecific[A]
-  class NoteSpecificDSL[A <: Note.Like](e: A) extends RecordSpecificDSL(e) with Note.DSL.RichSpecific[A] {
-    override def mutable(): Note.Mutable[A] = new Note.Mutable(element)
-  }
-  class TaskSpecificDSL[A <: Task.Like](e: A) extends NoteSpecificDSL(e) with Task.DSL.RichSpecific[A] {
-    override def mutable(): Task.Mutable[A] = new Task.Mutable(element)
-  }
-  class ModelSpecificDSL[A <: Model.Like](e: A) extends RecordSpecificDSL(e) with Model.DSL.RichSpecific[A] {
-    override def mutable(): Model.Mutable[A] = new Model.Mutable(element)
-  }
+  class NoteSpecificDSL[A <: Note.Like](e: A) extends RecordSpecificDSL(e) with Note.DSL.RichSpecific[A]
+  class TaskSpecificDSL[A <: Task.Like](e: A) extends NoteSpecificDSL(e) with Task.DSL.RichSpecific[A]
+  class ModelSpecificDSL[A <: Model.Like](e: A) extends RecordSpecificDSL(e) with Model.DSL.RichSpecific[A]
 }
 
 object DSL {

@@ -46,7 +46,7 @@ object Stash {
   //   cons:
   //     every modification recreate nested hash structure
   //     greedy
-  /** Element properties: ID -> typeSymbol, Value */
+  /** Element properties: valueId -> typeSymbolId, Value */
   type Data = immutable.HashMap[Symbol, immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]]]
   /**
    * Element actual data.
@@ -99,9 +99,12 @@ object Stash {
       val data = new Stash.Data
       newStashCtor.newInstance(coordinate, created, id, modified, origin, property, scope, unique).asInstanceOf[StashType]
     }
-    override def canEqual(that: Any): Boolean = that match {
-      case _: this.type ⇒ true
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[Stash.Like]
+    override def equals(that: Any): Boolean = that match {
+      case that: Element ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
       case _ ⇒ false
     }
+    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](coordinate, created, id, modified, origin, property, scope, unique))
   }
 }

@@ -42,39 +42,7 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
   }
 
   describe("A Model") {
-    it("should be reseted in a right way") {
-      //Model.reset()
-      //Model.inner.isInstanceOf[MyModel] should be(true)
-      //val mymodel = Model.inner.asInstanceOf[MyModel]
-      /*var record2: Element.Generic = null
-      val record = Model.record('root) { r =>
-        record2 = r.record('b) { r => }
-      }
-      val note = Model.note('note) { n => }
-      val task = Model.task('task) { t => }
-
-      // before reset
-      Model.eChildren should have size (3)
-      Model.eFilter(_ => true) should have size (4)
-      record.eChildren should not be ('empty)
-      mymodel.getIndex should not be ('empty)
-
-      Model.reset()
-
-      // after reset
-      mymodel.getIndex should have size (1)
-      record.eStash.model should be(None)
-      record.eChildren should be('empty)
-      record2.eStash.asInstanceOf[Stash].model should be(None)
-      record2.eChildren should be('empty)
-      note.eStash.model should be(None)
-      note.eChildren should be('empty)
-      task.eStash.model should be(None)
-      task.eChildren should be('empty)*/
-    }
     it("should attach and detach element") {
-      //Model.reset()
-
       /*var save: Record[Record.Stash] = null
       val record = Model.record('root) { r =>
         save = r.record('level2) { r =>

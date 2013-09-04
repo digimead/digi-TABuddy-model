@@ -48,17 +48,17 @@ trait ModelIndex {
   def e(unique: UUID, coordinate: Coordinate): Option[Element] =
     e(Reference(eStash.origin, unique, coordinate))
   /** Get element for the reference from the current graph. */
-  def e(reference: Reference): Option[Element] = eBox.node.getGraph.flatMap { graph =>
+  def e(reference: Reference): Option[Element] = eNode.getGraph.flatMap { graph =>
     if (reference.origin != graph.origin)
       throw new IllegalArgumentException(s"""Unable to process reference from graph "${reference.origin}" within "${graph.origin}" one.""")
     e(reference.unique).flatMap { _.getProjection(reference.coordinate).map(_.get) }
   }
   /** Get node for the context from the current graph. */
-  def e(context: Context): Option[Node] = eBox.node.getGraph.flatMap { graph =>
+  def e(context: Context): Option[Node] = eNode.getGraph.flatMap { graph =>
     if (context.origin != graph.origin)
       throw new IllegalArgumentException(s"""Unable to process context from graph "${context.origin}" within "${graph.origin}" one.""")
     e(context.unique)
   }
   /** Get node for the unique id from the current graph. */
-  def e(unique: UUID): Option[Node] = eBox.node.getGraph.flatMap(_.nodes.get(unique))
+  def e(unique: UUID): Option[Node] = eNode.getGraph.flatMap(_.nodes.get(unique))
 }

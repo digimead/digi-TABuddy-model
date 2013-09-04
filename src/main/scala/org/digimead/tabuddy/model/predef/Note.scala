@@ -32,7 +32,7 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Note element.
  */
-class Note(stashArg: Note.Stash)(@transient implicit val eBox: ElementBox[Note])
+class Note(stashArg: Note.Stash)(@transient val eBox: () => ElementBox[Note])
   extends Note.Like with Loggable {
   type ElementType = Note
   type StashType = Note.Stash
@@ -73,7 +73,7 @@ object Note extends Loggable {
       def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eBox.node.threadSafe { parentNode ⇒
+        element.eNode.threadSafe { parentNode ⇒
           parentNode.children.find { _.id == id } match {
             case Some(childNode) ⇒
               childNode.threadSafe { node ⇒
@@ -97,14 +97,17 @@ object Note extends Loggable {
     }
     trait RichSpecific[A <: Note.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
-      /** Create mutable note element. */
-      def mutable(): Note.Mutable[A] = new Note.Mutable(element)
     }
   }
   /** Base trait for all records. */
   trait Like extends Record.Like {
     this: Loggable ⇒
     type ElementType <: Like
+
+    /** Get mutable representation. */
+    override def eMutable(): Note.Mutable[ElementType] = new Note.Mutable(this.asInstanceOf[ElementType])
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[Note.Like]
   }
   /** Mutable representation of Note.Like. */
   class Mutable[A <: Like](e: A) extends Record.Mutable[A](e)

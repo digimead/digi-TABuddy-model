@@ -37,35 +37,34 @@ object CompareByTimestampAndThenContent extends Compare {
     }
   /** Compare current elements without children */
   protected def isEqual(e1: Element, e2: Element): Boolean = {
-    val e1Data = e1.eStash.property
-    val e2Data = e2.eStash.property
-    // 1. can equal
-    e1.canEqual(e2) &&
-      // 2. immutable variables are identical
-      e1.hashCode == e2.hashCode && {
-        // 3. stash equals
-        e1.eStash == e2.eStash || { // OR
-          // 3. can equal
-          e1.eStash.canEqual(e2.eStash) &&
-            // 4. immutable variables are identical
-            e1.eStash.scope == e2.eStash.scope &&
-            // 5. property variables values are identical
-            e1Data.keys.forall { valuesType ⇒
-              if (e1Data(valuesType).isEmpty) {
-                // drop empty valuesType
-                !e2Data.contains(valuesType) || e2Data(valuesType).isEmpty
-              } else if (!e2Data.contains(valuesType)) {
-                false
-              } else {
-                val e1Values = e1Data(valuesType)
-                val e2Values = e2Data(valuesType)
-                e1Values == e2Values && {
-                  // 6. compare values
-                  e1Values.keys.forall(propertySymbol ⇒ e1Values(propertySymbol) == e2Values(propertySymbol))
-                }
+    e1.canEqual(e2) && {
+      // 1. immutable element are identical
+      e1.## == e2.## || { // OR
+        val e1Data = e1.eStash.property
+        val e2Data = e2.eStash.property
+        val e1DataSize = e1Data.keys.foldLeft(0)((acc, valueId) => acc + e1Data(valueId).size)
+        val e2DataSize = e2Data.keys.foldLeft(0)((acc, valueId) => acc + e2Data(valueId).size)
+        // 2. can equal
+        e1.eStash.canEqual(e2.eStash) &&
+          // 3. immutable variables are identical and creation time is the same
+          e1.eStash.scope == e2.eStash.scope && e1.eStash.created == e2.eStash.created &&
+          // 4. property values are identical
+          e1DataSize == e2DataSize && e1Data.keys.forall { valuesId ⇒
+            if (e1Data(valuesId).isEmpty) {
+              // drop empty valuesType
+              !e2Data.contains(valuesId) || e2Data(valuesId).isEmpty
+            } else if (!e2Data.contains(valuesId)) {
+              false
+            } else {
+              val e1Values = e1Data(valuesId)
+              val e2Values = e2Data(valuesId)
+              e1Values == e2Values && {
+                // 6. compare values
+                e1Values.keys.forall(typeSymbolId ⇒ e1Values(typeSymbolId) == e2Values(typeSymbolId))
               }
             }
-        }
+          }
       }
+    }
   }
 }

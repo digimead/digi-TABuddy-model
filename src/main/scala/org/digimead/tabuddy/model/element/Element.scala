@@ -56,15 +56,13 @@ trait Element extends Equals {
   /**
    * Element are always to know about it's box.
    * Box are always to know about it's element.
+   * Box accessor may contain array of boxes.
+   * Specific box may point to snapshot, for example.
+   * The simplest accessor is just returns the primary box of the current graph.
    *
    * When (box <-> element) will be unreachable then they will be GC'ed.
    */
-  @transient implicit val eBox: ElementBox[ElementType]
-  /**
-   * Element reference as implicit parameter
-   * NOTE: Circular reference processed by GC
-   */
-  @transient implicit lazy val element: Element = this
+  @transient val eBox: () ⇒ ElementBox[ElementType]
 
   /** Commit complex properties (if needed) while saving. */
   def commitProperties(): Unit =
@@ -97,12 +95,12 @@ trait Element extends Equals {
   def eAs[A <: Element]()(implicit m: Manifest[A]): Option[A] =
     if (m.runtimeClass.isAssignableFrom(getClass)) Some(this.asInstanceOf[A]) else None
   /** Get element context. */
-  def eContext(): Context = eBox.context
+  def eContext(): Context = eBox().context
   /** Get element coordinate */
   def eCoordinate() = eStash.coordinate
   /** Copy constructor */
-  def eCopy(elementBox: ElementBox[ElementType], stash: ElementType#StashType): ElementType =
-    Element[ElementType](elementBox, stash)(Manifest.classType(getClass))
+  def eCopy(boxAccessor: () => ElementBox[ElementType], stash: ElementType#StashType): ElementType =
+    Element[ElementType](boxAccessor, stash)(Manifest.classType(getClass))
   /** Copy constructor that attach copy to the target node. */
   def eCopy(target: Node, rawCoordinate: Axis.Generic*): ElementType =
     eCopy(target, Coordinate(rawCoordinate: _*))
@@ -111,7 +109,7 @@ trait Element extends Equals {
    * copy must preserve creation time
    * copy must preserve modification time if scope && properties content are the same
    */
-  def eCopy(target: Node, coordinate: Coordinate = eStash.coordinate, serialization: Serialization[_] = eBox.serialization): ElementType = {
+  def eCopy(target: Node, coordinate: Coordinate = eStash.coordinate, serialization: Serialization[_] = eBox().serialization): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
     target.threadSafe { target ⇒
@@ -166,14 +164,16 @@ trait Element extends Equals {
   def eGetOrElseRoot(id: Symbol, typeSymbol: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]]
   /** Get element id */
   def eId() = eStash.id
+  /** Get mutable representation. */
+  def eMutable(): Element.Mutable[ElementType] = new Element.Mutable(this.asInstanceOf[ElementType]) {}
   /** Get Model for this element. */
   def eModel(): Model.Like = eNode.getGraph.map(_.model).getOrElse { throw new IllegalStateException("Model is unreachable.") }
   /** Get modified timestamp. */
   def eModified() = eStash.modified
   /** Get element node. */
-  def eNode(): Node = eBox.node
+  def eNode(): Node = eBox().node
   /** Get a container. */
-  def eParent(): Option[Node] = eBox.node.getParent
+  def eParent(): Option[Node] = eBox().node.getParent
   /** Get reference of this element */
   def eReference() = Reference(eStash.origin, eStash.unique, eStash.coordinate)
   /** Remove the specific property's value */
@@ -189,10 +189,10 @@ trait Element extends Equals {
   /** Remove all property's values */
   def eRemoveAll(id: Symbol): ElementType = {
     Element.log.trace(s"Remove all $id from $eId.")
-    eCopy(eBox.node, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
+    eCopy(eBox().node, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox().serialization)
   }
   /** Get the root element from the current origin if any. */
-  def eRoot(): Option[Element] = eBox.node.getProjection(Coordinate.root).map(_.get)
+  def eRoot(): Option[Element] = eBox().node.getProjection(Coordinate.root).map(_.get)
   /** Get the scope of the element */
   def eScope() = eStash.scope
   /** Set a new property, return an old property */
@@ -219,7 +219,7 @@ trait Element extends Equals {
           eStash.property.get(id) match {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
-              val newValue = value.copy(context = eBox.context.copy(unique = eUnique))
+              val newValue = value.copy(context = eBox().context.copy(unique = eUnique))
               previousValue match {
                 case Some(previous) ⇒
                   val undoF = () ⇒ {}
@@ -228,17 +228,17 @@ trait Element extends Equals {
                   val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               }
-              eCopy(eBox.node, eStash.copy(modified = Element.timestamp(),
+              eCopy(eBox().node, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
-                asInstanceOf[ElementType#StashType], eBox.serialization)
+                asInstanceOf[ElementType#StashType], eBox().serialization)
             case None ⇒
-              val newValue = value.copy(context = eBox.context.copy(unique = eUnique))
+              val newValue = value.copy(context = eBox().context.copy(unique = eUnique))
               val undoF = () ⇒ {}
               //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               None
-              eCopy(eBox.node, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
+              eCopy(eBox().node, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
-                asInstanceOf[ElementType#StashType], eBox.serialization)
+                asInstanceOf[ElementType#StashType], eBox().serialization)
           }
         case _ ⇒
           // Set default value or None
@@ -249,8 +249,8 @@ trait Element extends Equals {
                 val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueRemove(this, previous, eModified)(undoF))
               }
-              eCopy(eBox.node, eStash.copy(modified = Element.timestamp(),
-                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType], eBox.serialization)
+              eCopy(eBox().node, eStash.copy(modified = Element.timestamp(),
+                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType], eBox().serialization)
             case None ⇒
               Element.this.asInstanceOf[ElementType]
           }
@@ -273,15 +273,15 @@ trait Element extends Equals {
     Seq()
   }
 
-  override def canEqual(that: Any): Boolean = that match {
-    case _: this.type ⇒ true
-    case _ ⇒ false
-  }
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[Element]
   override def equals(that: Any): Boolean = that match {
-    case e: this.type ⇒ (e eq this) || ((e canEqual this) && this.## == that.##)
+    case that: Element ⇒ // vs immutable
+      (that eq this) || ((that canEqual this) && this.## == that.##)
+    case that: Element.Mutable[_] ⇒ // vs mutable
+      (that.immutable eq this) || ((that.immutable canEqual this) && this.## == that.immutable.##)
     case _ ⇒ false
   }
-  override def hashCode = Array[AnyRef](this.eStash).##
+  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.eStash))
 
   override def toString() = "%s[%s@%s]".format(eStash.scope, eStash.id.name, eStash.coordinate.toString)
 }
@@ -317,46 +317,46 @@ object Element extends Loggable {
   }, 1, TimeUnit.MINUTES)
 
   /** Create a new element. */
-  def apply[A <: Element](box: ElementBox[A], stash: A#StashType)(implicit a: Manifest[A]): A = {
-    val elementGraph = box.node.getGraph.getOrElse {
-      throw new IllegalStateException(s"Unable to create ${a.runtimeClass.getSimpleName()} with id ${box.node.id}. Element graph is disposed.")
+  def apply[A <: Element](boxAccessor: () ⇒ ElementBox[A], stash: A#StashType)(implicit a: Manifest[A]): A = {
+    val elementGraph = boxAccessor().node.getGraph.getOrElse {
+      throw new IllegalStateException(s"Unable to create ${a.runtimeClass.getSimpleName()} with id ${boxAccessor().node.id}. Element graph is disposed.")
     }
     val elementCtor = a.runtimeClass.getConstructors.find(_.getParameterTypes() match {
       case Array(stashArg, boxArg) ⇒
-        stashArg.isAssignableFrom(stash.getClass()) && boxArg.isAssignableFrom(box.getClass())
+        stashArg.isAssignableFrom(stash.getClass()) && boxArg == classOf[Function0[ElementBox[A]]]
       case _ ⇒ false
     }) getOrElse {
       throw new NoSuchMethodException(s"Unable to find proper constructor for element ${a.runtimeClass}.")
     }
-    if (box.coordinate != stash.coordinate)
-      throw new IllegalArgumentException(s"Stash is inconsistent. Coordinate: ${box.coordinate} vs ${stash.coordinate}.")
-    if (box.node.unique != stash.unique)
-      throw new IllegalArgumentException(s"Stash is inconsistent. Unique: ${box.node.unique} vs ${stash.unique}.")
-    if (box.node.id != stash.id)
-      throw new IllegalArgumentException(s"Stash is inconsistent. Id: ${box.node.id} vs ${stash.id}.")
+    if (boxAccessor().coordinate != stash.coordinate)
+      throw new IllegalArgumentException(s"Stash is inconsistent. Coordinate: ${boxAccessor().coordinate} vs ${stash.coordinate}.")
+    if (boxAccessor().node.unique != stash.unique)
+      throw new IllegalArgumentException(s"Stash is inconsistent. Unique: ${boxAccessor().node.unique} vs ${stash.unique}.")
+    if (boxAccessor().node.id != stash.id)
+      throw new IllegalArgumentException(s"Stash is inconsistent. Id: ${boxAccessor().node.id} vs ${stash.id}.")
     if (elementGraph.origin != stash.origin)
       throw new IllegalArgumentException(s"Stash is inconsistent. Origin: ${elementGraph.origin} vs ${stash.origin}")
-    elementCtor.newInstance(stash, box).asInstanceOf[A]
+    elementCtor.newInstance(stash, boxAccessor).asInstanceOf[A]
   }
   /** Create a new element. */
-  def apply[A <: Element](box: ElementBox[A], created: Element.Timestamp, modified: Element.Timestamp,
+  def apply[A <: Element](boxAccessor: () => ElementBox[A], created: Element.Timestamp, modified: Element.Timestamp,
     property: Stash.Data, scope: A#StashType#ScopeType)(implicit a: Manifest[A], stashClass: Class[_ <: A#StashType]): A = {
-    val elementGraph = box.node.getGraph.getOrElse {
-      throw new IllegalStateException(s"Unable to create ${a.runtimeClass.getSimpleName()} with id ${box.node.id}. Element graph is disposed.")
+    val elementGraph = boxAccessor().node.getGraph.getOrElse {
+      throw new IllegalStateException(s"Unable to create ${a.runtimeClass.getSimpleName()} with id ${boxAccessor().node.id}. Element graph is disposed.")
     }
     val stashCtor = stashClass.getConstructors.find(_.getParameterTypes() match {
       case Array(coordinateArg, createdArg, idArg, modifiedArg, originArg, dataArg, scopeArg, uuidArg) ⇒
-        scopeArg.isAssignableFrom(scope.getClass) && coordinateArg.isAssignableFrom(box.coordinate.getClass()) &&
-          createdArg.isAssignableFrom(created.getClass()) && idArg.isAssignableFrom(box.node.id.getClass()) &&
+        scopeArg.isAssignableFrom(scope.getClass) && coordinateArg.isAssignableFrom(boxAccessor().coordinate.getClass()) &&
+          createdArg.isAssignableFrom(created.getClass()) && idArg.isAssignableFrom(boxAccessor().node.id.getClass()) &&
           modifiedArg.isAssignableFrom(modified.getClass()) && originArg.isAssignableFrom(elementGraph.origin.getClass()) &&
-          dataArg.isAssignableFrom(property.getClass()) && uuidArg.isAssignableFrom(box.node.unique.getClass)
+          dataArg.isAssignableFrom(property.getClass()) && uuidArg.isAssignableFrom(boxAccessor().node.unique.getClass)
       case _ ⇒ false
     }) getOrElse {
       throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${stashClass}.")
     }
-    val stash = stashCtor.newInstance(box.coordinate, created, box.node.id, modified, elementGraph.origin,
-      property, scope, box.node.unique).asInstanceOf[A#StashType]
-    apply[A](box, stash)
+    val stash = stashCtor.newInstance(boxAccessor().coordinate, created, boxAccessor().node.id, modified, elementGraph.origin,
+      property, scope, boxAccessor().node.unique).asInstanceOf[A#StashType]
+    apply[A](boxAccessor, stash)
   }
 
   /**
@@ -502,15 +502,25 @@ object Element extends Loggable {
     //  }
   }*/
   /** Emulate mutable behavior for immutable element. */
-  abstract class Mutable[A <: Element](@volatile protected var element: A) {
+  abstract class Mutable[A <: Element](@volatile protected var element: A) extends Equals {
     def immutable() = element
 
     /** Copy constructor */
     def copy(stash: A#StashType): A = {
       val e = element
-      element = e.eCopy(e.eBox.asInstanceOf[ElementBox[e.ElementType]], stash.asInstanceOf[e.ElementType#StashType]).asInstanceOf[A]
+      element = e.eCopy(e.eBox.asInstanceOf[() => ElementBox[e.ElementType]], stash.asInstanceOf[e.ElementType#StashType]).asInstanceOf[A]
       element
     }
+
+    override def canEqual(that: Any) = that match {
+      case thatMutable: Mutable[_] ⇒ element.canEqual(thatMutable.element)
+      case _ ⇒ element.canEqual(that)
+    }
+    override def equals(that: Any): Boolean = that match {
+      case thatMutable: Mutable[_] ⇒ element.equals(thatMutable.element)
+      case _ ⇒ element.equals(that)
+    }
+    override def hashCode = element.##
   }
   object Mutable {
     implicit def mutable2immutable[A <: Element](m: Mutable[A]): A = m.element
@@ -524,7 +534,7 @@ object Element extends Loggable {
       case that: Element.Scope ⇒ that.canEqual(this) && modificator == that.modificator
       case _ ⇒ false
     }
-    override def hashCode() = Array(getClass, modificator).##
+    override def hashCode() = modificator.##
   }
   /** Timestamp class */
   case class Timestamp(val milliseconds: Long, nanoShift: Long) extends Ordered[Timestamp] {

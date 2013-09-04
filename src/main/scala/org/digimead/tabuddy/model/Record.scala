@@ -35,7 +35,7 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Record element.
  */
-class Record(stashArg: Record.Stash)(@transient implicit val eBox: ElementBox[Record])
+class Record(stashArg: Record.Stash)(@transient val eBox: () => ElementBox[Record])
   extends Record.Like with Loggable {
   type ElementType = Record
   type StashType = Record.Stash
@@ -76,7 +76,7 @@ object Record extends Loggable {
       def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eBox.node.threadSafe { parentNode ⇒
+        element.eNode.threadSafe { parentNode ⇒
           parentNode.children.find { _.id == id } match {
             case Some(childNode) ⇒
               childNode.threadSafe { node ⇒
@@ -100,8 +100,6 @@ object Record extends Loggable {
     }
     trait RichSpecific[A <: Record.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
-      /** Create mutable record element. */
-      def mutable(): Record.Mutable[A] = new Record.Mutable(element)
     }
   }
   /** Base trait for all records. */
@@ -141,6 +139,10 @@ object Record extends Loggable {
           // try to find value at root node
           eRoot.flatMap(_.eGet(id, typeSignature))
       }
+    /** Get mutable representation. */
+    override def eMutable(): Record.Mutable[ElementType] = new Record.Mutable(this.asInstanceOf[ElementType])
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[Record.Like]
   }
   /** Mutable representation of Record.Like. */
   class Mutable[A <: Like](e: A) extends Element.Mutable[A](e) {

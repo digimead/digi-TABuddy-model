@@ -42,7 +42,7 @@ import scala.language.implicitConversions
  * Common model.
  * Any concrete model may be represent as this trait.
  */
-class Model(stashArg: Model.Stash)(@transient implicit val eBox: ElementBox[Model])
+class Model(stashArg: Model.Stash)(@transient val eBox: () => ElementBox[Model])
   extends Model.Like with ModelIndex with Loggable {
   type StashType = Model.Stash
   type ElementType = Model
@@ -81,8 +81,6 @@ object Model extends Loggable {
     }
     trait RichSpecific[A <: Model.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
-      /** Create mutable model element. */
-      def mutable(): Model.Mutable[A] = new Model.Mutable(element)
     }
   }
   /** Base trait for all models. */
@@ -183,8 +181,12 @@ object Model extends Loggable {
     }
     /** Get Model for this element. */
     override def eModel = this
+    /** Get mutable representation. */
+    override def eMutable(): Model.Mutable[ElementType] = new Model.Mutable(this.asInstanceOf[ElementType])
     /** Get a container */
     override def eParent(): Option[Node] = None
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Like]
 
     override def toString() = "%s://%s[%s@GLOBAL]".format(eStash.origin.name, eStash.scope, eStash.id.name)
   }
@@ -234,6 +236,8 @@ object Model extends Loggable {
        * line 300 .. end - file A
        */
       @transient val documentMap = new DynamicVariable[Seq[Context]](Seq())
+
+      override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Stash.Like]
     }
   }
   /**
