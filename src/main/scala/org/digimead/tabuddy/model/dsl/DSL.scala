@@ -65,13 +65,15 @@ object DSL {
             }
           }
         case None ⇒
-          element.eNode.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())) { node ⇒
+          element.eNode.threadSafe(_.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())).threadSafe { node ⇒
             ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
-          }
+          })
       })
-    /** Retrieve child of the current element if any. */
-    def &[A <: Element](l: LocationGeneric[A]): Option[A] =
-      element.eFind[A](e ⇒ e.eId == l.id && e.eStash.coordinate == l.coordinate && l.unique.map(_ == e.eUnique).getOrElse(true))(l.elementType)
+    /** Retrieve child of the current element. */
+    def &[A <: Element](l: LocationGeneric[A]): A =
+      element.eFind[A](e ⇒ e.eId == l.id && e.eStash.coordinate == l.coordinate &&
+        l.unique.map(_ == e.eUnique).getOrElse(true))(l.elementType).
+        getOrElse { throw new IllegalArgumentException(s"Unable to find ${l}.") }
   }
   /** Base trait for element specific DSL builder. */
   trait RichSpecific[A <: Element] {

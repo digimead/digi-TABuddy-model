@@ -23,54 +23,53 @@ import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
-//import org.digimead.tabuddy.model.TestDSL.element2rich
-//import org.digimead.tabuddy.model.TestDSL.model2rich
+import org.digimead.tabuddy.model.element.Value.string2someValue
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.Graph.graph2interface
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.serialization.Stub
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
 import com.escalatesoft.subcut.inject.NewBindingModule
 
 class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
-  val custom = new NewBindingModule(module => {
-    //module.bind[Model.Interface[Model.Stash]] toProvider { new MyModel(new Model.Stash('Model, UUID.randomUUID())) }
-  })
-
+  lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
-    DependencyInjection(custom ~ org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
+    DependencyInjection(diConfig, false)
     adjustLoggingBefore
   }
 
   describe("A Model") {
     it("should attach and detach element") {
-      /*var save: Record[Record.Stash] = null
-      val record = Model.record('root) { r =>
-        save = r.record('level2) { r =>
-          r.record('level3) { r =>
+      import TestDSL._
+      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+      val rA1 = model1.takeRecord('rA) { r ⇒
+        r.takeRecord('rB) { r ⇒
+          r.takeRecord('rLeaf) { r ⇒
+            r.name = "123"
           }
         }
-      }
-      val modelCopy = Model.eCopy()
-      modelCopy.eStash.model should equal(Some(modelCopy))
-      Model.eModel.eq(Model.inner) should be(true)
-      modelCopy.eModel.eq(modelCopy) should be(true)
-      val recordCopy = modelCopy.eChildren.head
-      recordCopy.eModel.eq(modelCopy) should be(true)
-      recordCopy.eId.name should be("root")
-      record.eModel.eq(Model.inner) should be(true)
-      record.eChildren should have size (1)
-      Model.eFilter(_ => true) should have size (3)
-      Model.eDetach(save)*/
-      /*Model.eFilter(_ => true) should have size (1)
-        save.eFilter(_ => true) should have size (1)
-        record.eChildren should be('empty)*/
+      }.eMutable
+      val rB1 = (rA1 & RecordLocation('rB)).eMutable
+      val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eMutable
+
+      val graphCopy = graph.copy('john2)
+      graphCopy.model should equal(graphCopy.model.eModel)
+      graphCopy.model.eq(graphCopy.model.eModel) should be(true)
+      val recordCopy = graphCopy.model.eNode.threadSafe(_.head).getRootElementBox.get
+      recordCopy.eModel.eq(graphCopy.model.eModel) should be(true)
+      recordCopy.eId.name should be("rA")
+      recordCopy.eNode.threadSafe(_.size) should be(1)
+      model1.eNode.threadSafe(_.iteratorRecursive().toSeq) should have size (3)
+      model1.eNode.threadSafe(_.iterator.toSeq) should have size (1)
+      rB1.eNode.threadSafe(_.iterator.toSeq) should have size (1)
+      rLeaf1.eNode.threadSafe(_.children) should be('empty)
+      (graphCopy.model & RecordLocation('rA) & RecordLocation('rB) & RecordLocation('rLeaf)).eNode.threadSafe(_.children) should be('empty)
     }
   }
 
   override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
-
-//  class MyModel(s: Model.Stash, v: Int) extends Model(s) {
-//    def this(s: Model.Stash) = this(s, 1)
-//    val getIndex = index
-//  }
 }

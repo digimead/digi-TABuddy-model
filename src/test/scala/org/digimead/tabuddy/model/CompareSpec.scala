@@ -37,9 +37,7 @@ import org.scalatest.matchers.ShouldMatchers
 import com.escalatesoft.subcut.inject.NewBindingModule
 
 class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
-  lazy val diConfig = new NewBindingModule(module ⇒ {
-    module.bind[Symbol ⇒ Node] toSingle { (symbol: Symbol) ⇒ null }
-  }) ~ org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
+  lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
     DependencyInjection(diConfig, false)
@@ -102,7 +100,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eStash.property) should be(myModel2.eStash.property)
 
           val myModel1Mutable = myModel1.eMutable
-          val model1BranchNodes = myModel1Mutable.eNode.threadSafe(_.iteratorRecursive.toIndexedSeq)
+          val model1BranchNodes = myModel1Mutable.eNode.threadSafe(_.iteratorRecursive().toIndexedSeq)
           model1BranchNodes should be(Seq(record.eNode, save.eNode))
 
           myModel1.compare(myModel2) should be(0) // myModel1 == myModel2
@@ -153,15 +151,15 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
             }
           }
         }.eMutable
-        val rB1 = (rA1 & RecordLocation('rB)).get.eMutable
-        val rLeaf1 = (rB1 & RecordLocation('rLeaf)).get.eMutable
+        val rB1 = (rA1 & RecordLocation('rB)).eMutable
+        val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eMutable
 
         val graph2 = graph1.copy('john2)
         graph1.model.eStash.created should be(graph2.model.eStash.created)
         val model2 = graph2.model.eMutable
-        val rA2 = (model2 & RecordLocation('rA)).get.eMutable
-        val rB2 = (rA2 & RecordLocation('rB)).get.eMutable
-        val rLeaf2 = (rB2 & RecordLocation('rLeaf)).get.eMutable
+        val rA2 = (model2 & RecordLocation('rA)).eMutable
+        val rB2 = (rA2 & RecordLocation('rB)).eMutable
+        val rLeaf2 = (rB2 & RecordLocation('rLeaf)).eMutable
 
         CompareByTimestampAndThenContent.doWith {
           Element.comparator.value should be(CompareByTimestampAndThenContent)

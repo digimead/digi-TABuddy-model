@@ -23,6 +23,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 import scala.ref.WeakReference
+import scala.collection.immutable
 import scala.collection.mutable
 
 import org.digimead.digi.lib.api.DependencyInjection
@@ -47,20 +48,21 @@ class Graph[A <: Model.Like](val node: Node, val origin: Symbol)(implicit val mo
   @volatile var location: Option[URI] = None
 
   /** Copy graph. */
-  def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freeze { sourceModelNode =>
+  def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freeze { sourceModelNode ⇒
     val timestamp = Element.timestamp()
     /*
      * Create graph and model node
      */
     val targetModelNode = Node.model(id, unique)
     val graph = Graph[A](targetModelNode, origin)
-    targetModelNode.threadSafe { targetNode =>
+    targetModelNode.threadSafe { targetNode ⇒
       targetModelNode.initializeModelNode(graph)
-      targetNode.rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
-      sourceModelNode.projectionElementBoxes.foreach {
-        case (coordinate, box) =>
-          targetNode.projectionElementBoxes(coordinate) = box.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
-      }
+      val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
+      val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = sourceModelNode.projectionElementBoxes.map {
+        case (coordinate, box) ⇒
+          coordinate -> box.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
+      }.toSeq
+      targetNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
       if (graph.modelType != graph.node.getRootElementBox.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.getRootElementBox.elementType}")
       /*
@@ -89,7 +91,7 @@ object Graph {
       val timestamp = Element.timestamp()
       val modelNode = Node.model(id, unique)
       val modelGraph = Graph[A](modelNode, origin)
-      modelNode.threadSafe { node =>
+      modelNode.threadSafe { node ⇒
         modelNode.initializeModelNode(modelGraph)
         val modelBox = ElementBox[A](Context(origin, modelNode.unique), Coordinate.root, timestamp, node, timestamp, scope, serialization)
         if (modelGraph.modelType != modelGraph.node.getRootElementBox.elementType)

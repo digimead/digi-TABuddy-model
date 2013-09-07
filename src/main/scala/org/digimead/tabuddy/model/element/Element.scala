@@ -56,13 +56,10 @@ trait Element extends Equals {
   /**
    * Element are always to know about it's box.
    * Box are always to know about it's element.
-   * Box accessor may contain array of boxes.
-   * Specific box may point to snapshot, for example.
-   * The simplest accessor is just returns the primary box of the current graph.
    *
    * When (box <-> element) will be unreachable then they will be GC'ed.
    */
-  @transient val eBox: () ⇒ ElementBox[ElementType]
+  @transient val eBox: ElementBox[ElementType]
 
   /** Commit complex properties (if needed) while saving. */
   def commitProperties(): Unit =
@@ -95,12 +92,12 @@ trait Element extends Equals {
   def eAs[A <: Element]()(implicit m: Manifest[A]): Option[A] =
     if (m.runtimeClass.isAssignableFrom(getClass)) Some(this.asInstanceOf[A]) else None
   /** Get element context. */
-  def eContext(): Context = eBox().context
+  def eContext(): Context = eBox.context
   /** Get element coordinate */
   def eCoordinate() = eStash.coordinate
   /** Copy constructor */
-  def eCopy(boxAccessor: () => ElementBox[ElementType], stash: ElementType#StashType): ElementType =
-    Element[ElementType](boxAccessor, stash)(Manifest.classType(getClass))
+  def eCopy(elementBox: ElementBox[ElementType], stash: ElementType#StashType): ElementType =
+    Element[ElementType](elementBox, stash)(Manifest.classType(getClass))
   /** Copy constructor that attach copy to the target node. */
   def eCopy(target: Node, rawCoordinate: Axis.Generic*): ElementType =
     eCopy(target, Coordinate(rawCoordinate: _*))
@@ -109,14 +106,14 @@ trait Element extends Equals {
    * copy must preserve creation time
    * copy must preserve modification time if scope && properties content are the same
    */
-  def eCopy(target: Node, coordinate: Coordinate = eStash.coordinate, serialization: Serialization[_] = eBox().serialization): ElementType = {
+  def eCopy(target: Node, coordinate: Coordinate = eStash.coordinate, serialization: Serialization[_] = eBox.serialization): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
     target.threadSafe { target ⇒
       val stash = eStash.copy(
         coordinate = coordinate,
         id = target.id,
-        origin = target.graph.getOrElse({ throw new IllegalStateException("Graph is unreachable.") }).origin,
+        origin = target.graph.origin,
         unique = target.unique).asInstanceOf[ElementType#StashType]
       eCopy(target, stash, serialization)
     }
@@ -130,16 +127,13 @@ trait Element extends Equals {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
     target.threadSafe { target ⇒
-      ElementBox(Context(stash.origin, target.parentNode.
+      ElementBox(Context(stash.origin, target.parentNodeReference.get.
         getOrElse({ throw new IllegalArgumentException(s"Unable to copy ${this} to node ${target} without parent node.") }).unique),
         target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass)).get
     }
   }
   /** Dump the element content */
   def eDump(brief: Boolean, padding: Int = 2): String
-  /** Get filtered child elements from subtree. */
-  def eFilter(filter: Element ⇒ Boolean): Seq[Element] =
-    this.eFilter(Seq(this), filter, Seq())
   /** Find child element. */
   def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.threadSafe {
     _.view.map(_.getElementBoxes).flatten.find { box ⇒ box.elementType == a && p(box.get.asInstanceOf[A]) } match {
@@ -167,13 +161,13 @@ trait Element extends Equals {
   /** Get mutable representation. */
   def eMutable(): Element.Mutable[ElementType] = new Element.Mutable(this.asInstanceOf[ElementType]) {}
   /** Get Model for this element. */
-  def eModel(): Model.Like = eNode.getGraph.map(_.model).getOrElse { throw new IllegalStateException("Model is unreachable.") }
+  def eModel(): Model.Like = eNode.graph.model
   /** Get modified timestamp. */
   def eModified() = eStash.modified
   /** Get element node. */
-  def eNode(): Node = eBox().node
+  def eNode(): Node = eBox.node
   /** Get a container. */
-  def eParent(): Option[Node] = eBox().node.getParent
+  def eParent(): Option[Node] = eBox.node.getParent
   /** Get reference of this element */
   def eReference() = Reference(eStash.origin, eStash.unique, eStash.coordinate)
   /** Remove the specific property's value */
@@ -189,10 +183,10 @@ trait Element extends Equals {
   /** Remove all property's values */
   def eRemoveAll(id: Symbol): ElementType = {
     Element.log.trace(s"Remove all $id from $eId.")
-    eCopy(eBox().node, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox().serialization)
+    eCopy(eBox.node, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
   }
   /** Get the root element from the current origin if any. */
-  def eRoot(): Option[Element] = eBox().node.getProjection(Coordinate.root).map(_.get)
+  def eRoot(): Option[Element] = eBox.node.getProjection(Coordinate.root).map(_.get)
   /** Get the scope of the element */
   def eScope() = eStash.scope
   /** Set a new property, return an old property */
@@ -219,7 +213,7 @@ trait Element extends Equals {
           eStash.property.get(id) match {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
-              val newValue = value.copy(context = eBox().context.copy(unique = eUnique))
+              val newValue = value.copy(context = eBox.context.copy(unique = eUnique))
               previousValue match {
                 case Some(previous) ⇒
                   val undoF = () ⇒ {}
@@ -228,17 +222,17 @@ trait Element extends Equals {
                   val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               }
-              eCopy(eBox().node, eStash.copy(modified = Element.timestamp(),
+              eCopy(eBox.node, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
-                asInstanceOf[ElementType#StashType], eBox().serialization)
+                asInstanceOf[ElementType#StashType], eBox.serialization)
             case None ⇒
-              val newValue = value.copy(context = eBox().context.copy(unique = eUnique))
+              val newValue = value.copy(context = eBox.context.copy(unique = eUnique))
               val undoF = () ⇒ {}
               //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               None
-              eCopy(eBox().node, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
+              eCopy(eBox.node, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
-                asInstanceOf[ElementType#StashType], eBox().serialization)
+                asInstanceOf[ElementType#StashType], eBox.serialization)
           }
         case _ ⇒
           // Set default value or None
@@ -249,8 +243,8 @@ trait Element extends Equals {
                 val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueRemove(this, previous, eModified)(undoF))
               }
-              eCopy(eBox().node, eStash.copy(modified = Element.timestamp(),
-                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType], eBox().serialization)
+              eCopy(eBox.node, eStash.copy(modified = Element.timestamp(),
+                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType], eBox.serialization)
             case None ⇒
               Element.this.asInstanceOf[ElementType]
           }
@@ -262,16 +256,6 @@ trait Element extends Equals {
   def eStash: StashType
   /** Get element unique id */
   def eUnique(): UUID = eStash.unique
-
-  /** Collect all sub elements that conform a user filter */
-  //@tailrec
-  final protected def eFilter(e: Seq[Element], filter: (Element) ⇒ Boolean,
-    acc: Seq[Element]): Seq[Element] = {
-    //val children = e.map(_.eChildren).flatten.filter(filter)
-    //if (children.isEmpty) return acc
-    //this.eFilter(children, filter, acc ++ children)
-    Seq()
-  }
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Element]
   override def equals(that: Any): Boolean = that match {
@@ -317,46 +301,42 @@ object Element extends Loggable {
   }, 1, TimeUnit.MINUTES)
 
   /** Create a new element. */
-  def apply[A <: Element](boxAccessor: () ⇒ ElementBox[A], stash: A#StashType)(implicit a: Manifest[A]): A = {
-    val elementGraph = boxAccessor().node.getGraph.getOrElse {
-      throw new IllegalStateException(s"Unable to create ${a.runtimeClass.getSimpleName()} with id ${boxAccessor().node.id}. Element graph is disposed.")
-    }
+  def apply[A <: Element](box: ElementBox[A], stash: A#StashType)(implicit a: Manifest[A]): A = {
+    val elementGraph = box.node.graph
     val elementCtor = a.runtimeClass.getConstructors.find(_.getParameterTypes() match {
       case Array(stashArg, boxArg) ⇒
-        stashArg.isAssignableFrom(stash.getClass()) && boxArg == classOf[Function0[ElementBox[A]]]
+        stashArg.isAssignableFrom(stash.getClass()) && boxArg.isAssignableFrom(box.getClass())
       case _ ⇒ false
     }) getOrElse {
       throw new NoSuchMethodException(s"Unable to find proper constructor for element ${a.runtimeClass}.")
     }
-    if (boxAccessor().coordinate != stash.coordinate)
-      throw new IllegalArgumentException(s"Stash is inconsistent. Coordinate: ${boxAccessor().coordinate} vs ${stash.coordinate}.")
-    if (boxAccessor().node.unique != stash.unique)
-      throw new IllegalArgumentException(s"Stash is inconsistent. Unique: ${boxAccessor().node.unique} vs ${stash.unique}.")
-    if (boxAccessor().node.id != stash.id)
-      throw new IllegalArgumentException(s"Stash is inconsistent. Id: ${boxAccessor().node.id} vs ${stash.id}.")
+    if (box.coordinate != stash.coordinate)
+      throw new IllegalArgumentException(s"Stash is inconsistent. Coordinate: ${box.coordinate} vs ${stash.coordinate}.")
+    if (box.node.unique != stash.unique)
+      throw new IllegalArgumentException(s"Stash is inconsistent. Unique: ${box.node.unique} vs ${stash.unique}.")
+    if (box.node.id != stash.id)
+      throw new IllegalArgumentException(s"Stash is inconsistent. Id: ${box.node.id} vs ${stash.id}.")
     if (elementGraph.origin != stash.origin)
       throw new IllegalArgumentException(s"Stash is inconsistent. Origin: ${elementGraph.origin} vs ${stash.origin}")
-    elementCtor.newInstance(stash, boxAccessor).asInstanceOf[A]
+    elementCtor.newInstance(stash, box).asInstanceOf[A]
   }
   /** Create a new element. */
-  def apply[A <: Element](boxAccessor: () => ElementBox[A], created: Element.Timestamp, modified: Element.Timestamp,
+  def apply[A <: Element](box: ElementBox[A], created: Element.Timestamp, modified: Element.Timestamp,
     property: Stash.Data, scope: A#StashType#ScopeType)(implicit a: Manifest[A], stashClass: Class[_ <: A#StashType]): A = {
-    val elementGraph = boxAccessor().node.getGraph.getOrElse {
-      throw new IllegalStateException(s"Unable to create ${a.runtimeClass.getSimpleName()} with id ${boxAccessor().node.id}. Element graph is disposed.")
-    }
+    val elementGraph = box.node.graph
     val stashCtor = stashClass.getConstructors.find(_.getParameterTypes() match {
       case Array(coordinateArg, createdArg, idArg, modifiedArg, originArg, dataArg, scopeArg, uuidArg) ⇒
-        scopeArg.isAssignableFrom(scope.getClass) && coordinateArg.isAssignableFrom(boxAccessor().coordinate.getClass()) &&
-          createdArg.isAssignableFrom(created.getClass()) && idArg.isAssignableFrom(boxAccessor().node.id.getClass()) &&
+        scopeArg.isAssignableFrom(scope.getClass) && coordinateArg.isAssignableFrom(box.coordinate.getClass()) &&
+          createdArg.isAssignableFrom(created.getClass()) && idArg.isAssignableFrom(box.node.id.getClass()) &&
           modifiedArg.isAssignableFrom(modified.getClass()) && originArg.isAssignableFrom(elementGraph.origin.getClass()) &&
-          dataArg.isAssignableFrom(property.getClass()) && uuidArg.isAssignableFrom(boxAccessor().node.unique.getClass)
+          dataArg.isAssignableFrom(property.getClass()) && uuidArg.isAssignableFrom(box.node.unique.getClass)
       case _ ⇒ false
     }) getOrElse {
       throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${stashClass}.")
     }
-    val stash = stashCtor.newInstance(boxAccessor().coordinate, created, boxAccessor().node.id, modified, elementGraph.origin,
-      property, scope, boxAccessor().node.unique).asInstanceOf[A#StashType]
-    apply[A](boxAccessor, stash)
+    val stash = stashCtor.newInstance(box.coordinate, created, box.node.id, modified, elementGraph.origin,
+      property, scope, box.node.unique).asInstanceOf[A#StashType]
+    apply[A](box, stash)
   }
 
   /**
@@ -508,7 +488,7 @@ object Element extends Loggable {
     /** Copy constructor */
     def copy(stash: A#StashType): A = {
       val e = element
-      element = e.eCopy(e.eBox.asInstanceOf[() => ElementBox[e.ElementType]], stash.asInstanceOf[e.ElementType#StashType]).asInstanceOf[A]
+      element = e.eCopy(e.eBox.asInstanceOf[ElementBox[e.ElementType]], stash.asInstanceOf[e.ElementType#StashType]).asInstanceOf[A]
       element
     }
 

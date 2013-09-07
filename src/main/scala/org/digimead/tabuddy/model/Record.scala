@@ -35,7 +35,7 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Record element.
  */
-class Record(stashArg: Record.Stash)(@transient val eBox: () => ElementBox[Record])
+class Record(stashArg: Record.Stash)(@transient val eBox: ElementBox[Record])
   extends Record.Like with Loggable {
   type ElementType = Record
   type StashType = Record.Stash
@@ -77,7 +77,7 @@ object Record extends Loggable {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
         element.eNode.threadSafe { parentNode ⇒
-          parentNode.children.find { _.id == id } match {
+          parentNode.find { _.id == id } match {
             case Some(childNode) ⇒
               childNode.threadSafe { node ⇒
                 log.debug(s"Get or create record element for exists ${node}.")
@@ -86,7 +86,7 @@ object Record extends Loggable {
                 fTransform(new Mutable(record))
               }
             case None ⇒
-              parentNode.createChild(id, UUID.randomUUID()) { node ⇒
+              parentNode.createChild(id, UUID.randomUUID()).threadSafe { node ⇒
                 log.debug(s"Get or create record element for new ${node}.")
                 implicit val shashClass = classOf[Record.Stash]
                 val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)

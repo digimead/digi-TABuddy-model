@@ -60,9 +60,7 @@ abstract class ElementBox[A <: Element](val context: Context, val coordinate: Co
   def this(context: Context, coordinate: Coordinate, initial: AtomicReference[A])(implicit elementType: Manifest[A],
     node: Node, serialization: Serialization[_]) = this(context, coordinate, Option(initial.get))(elementType, node, serialization)
   /** Get reference of this element. */
-  def eReference(): Option[Reference] = for {
-    graph ← node.getGraph
-  } yield Reference(graph.origin, node.unique, coordinate)
+  def eReference(): Reference = Reference(node.graph.origin, node.unique, coordinate)
   /** Copy current element box. */
   def copy(context: Context = this.context,
     coordinate: Coordinate = this.coordinate,
@@ -71,8 +69,8 @@ abstract class ElementBox[A <: Element](val context: Context, val coordinate: Co
     val element = get()
     val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
     val elementBox = ElementBox[A](context, coordinate, elementElementForwardReference)(elementType = implicitly, node = node, serialization = serialization)
-    val elementCopy = element.eCopy(() ⇒ elementBox.asInstanceOf[ElementBox[element.ElementType]], element.eStash.copy(coordinate = coordinate, id = node.id,
-      origin = node.getGraph.get.origin, unique = node.unique).asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
+    val elementCopy = element.eCopy(elementBox.asInstanceOf[ElementBox[element.ElementType]], element.eStash.copy(coordinate = coordinate, id = node.id,
+      origin = context.origin, unique = node.unique).asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
     elementElementForwardReference.set(elementCopy)
     elementBox.get
     elementBox
@@ -92,6 +90,9 @@ abstract class ElementBox[A <: Element](val context: Context, val coordinate: Co
 object ElementBox {
   implicit def box2interface(g: ElementBox.type): Interface = DI.implementation
 
+  /**
+   *  Element box companion interface
+   */
   trait Interface {
     /** Create element box with specific parameters. */
     def apply[A <: Element](context: Context, coordinate: Coordinate, initial: AtomicReference[A])(implicit elementType: Manifest[A],
@@ -113,14 +114,13 @@ object ElementBox {
       /*
        * Validate
        */
-      Option(elementNode.rootElementBox).foreach { targetRootElement ⇒
-        // addition subtype(A) to supertype(that) is legal
-        if (!m.runtimeClass.isAssignableFrom(targetRootElement.elementType.runtimeClass))
-          throw new IllegalArgumentException(s"Unable to mix ${m} with ${targetRootElement.elementType}.")
-      }
+      // addition subtype(A) to supertype(that) is legal
+      if (elementNode.rootElementBox != null)
+        if (!m.runtimeClass.isAssignableFrom(elementNode.rootElementBox.elementType.runtimeClass))
+          throw new IllegalArgumentException(s"Unable to mix ${m} with ${elementNode.rootElementBox.elementType}.")
       for {
-        graphOrigin ← elementNode.graph.map(_.origin)
-        parentUnique ← elementNode.parentNode.map(_.unique)
+        parentUnique ← elementNode.parentNodeReference.get.map(_.unique)
+        graphOrigin = elementNode.graph.origin
       } {
         if (context.origin != graphOrigin)
           throw new IllegalArgumentException(s"Unable to create element box. Context origin: ${context.origin}. Node origin ${graphOrigin}")
@@ -136,12 +136,9 @@ object ElementBox {
       // create root or projection element
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
       val elementBox = apply[A](context, coordinate, elementElementForwardReference)(m, elementNode, serialization)
-      if (coordinate == Coordinate.root)
-        elementNode.rootElementBox = elementBox
-      else
-        elementNode.projectionElementBoxes(coordinate) = elementBox
+      elementNode.updateElementBox(coordinate, elementBox)
       // 3rd. Create element.
-      val element = Element.apply[A](() => elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
+      val element = Element.apply[A](elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
       elementElementForwardReference.set(element)
       elementBox.get
       if (elementBox.get == null)
@@ -158,12 +155,9 @@ object ElementBox {
         if (!m.runtimeClass.isAssignableFrom(targetRootElement.elementType.runtimeClass))
           throw new IllegalArgumentException(s"Unable to mix ${m} with ${targetRootElement.elementType}.")
       }
-      for {
-        graphOrigin ← elementNode.graph.map(_.origin)
-        parentUnique ← elementNode.parentNode.map(_.unique)
-      } {
-        if (context.origin != graphOrigin)
-          throw new IllegalArgumentException(s"Unable to create element box. Context origin: ${context.origin}. Node origin ${graphOrigin}.")
+      for (parentUnique ← elementNode.parentNodeReference.get.map(_.unique)) {
+        if (context.origin != elementNode.graph.origin)
+          throw new IllegalArgumentException(s"Unable to create element box. Context origin: ${context.origin}. Node origin ${elementNode.graph.origin}.")
         if (context.unique != parentUnique)
           throw new IllegalArgumentException(s"Unable to create element box. Context unique: ${context.unique}. Parent node unique ${parentUnique}.")
       }
@@ -184,12 +178,9 @@ object ElementBox {
       // create root or projection element
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
       val elementBox = apply[A](context, stash.coordinate, elementElementForwardReference)(m, elementNode, serialization)
-      if (stash.coordinate == Coordinate.root)
-        elementNode.rootElementBox = elementBox
-      else
-        elementNode.projectionElementBoxes(stash.coordinate) = elementBox
+      elementNode.updateElementBox(stash.coordinate, elementBox)
       // 3rd. Create element.
-      val element = Element.apply[A](() => elementBox, stash)
+      val element = Element.apply[A](elementBox, stash)
       elementElementForwardReference.set(element)
       elementBox.get
       if (elementBox.get == null)
@@ -208,10 +199,17 @@ object ElementBox {
         getOrElse {
           val timestamp = Element.timestamp()
           val elementBox = for {
-            parent ← node.parentNode
-            graph ← node.graph
-          } yield ElementBox[A](Context(graph.origin, parent.unique), coordinate, timestamp, node, timestamp, scope, serialization)
-          elementBox.getOrElse { throw new IllegalStateException("Unable to create element box.") }.get
+            parent ← node.parentNodeReference.get
+          } yield {
+            ElementBox[A](Context(node.graph.origin, parent.unique), coordinate, timestamp, node, timestamp, scope, serialization)
+          }
+          elementBox match {
+            case Some(box) ⇒
+              node.updateElementBox(coordinate, box, timestamp)
+              box.get
+            case None ⇒
+              throw new IllegalStateException("Unable to create element box.")
+          }
         }
     }
   }

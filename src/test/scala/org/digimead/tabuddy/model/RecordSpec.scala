@@ -18,12 +18,21 @@
 
 package org.digimead.tabuddy.model
 
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
+
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
-//import org.digimead.tabuddy.model.TestDSL.element2rich
-//import org.digimead.tabuddy.model.TestDSL.model2rich
 import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Stash
+import org.digimead.tabuddy.model.graph.Context
+import org.digimead.tabuddy.model.graph.ElementBox
+import org.digimead.tabuddy.model.graph.ElementBox.box2interface
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.Graph.graph2interface
+import org.digimead.tabuddy.model.serialization.Stub
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -35,50 +44,88 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
   }
 
   describe("A Record") {
-    it("should create new instance with apply()") {
-      /*val record1 = Record.apply(classOf[Record[Record.Stash]], classOf[Record.Stash], Some(Model.inner), 'test1, Record.scope, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-      val record2 = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-      val record2a = Record.apply(Model, 'test2, Coordinate.root.coordinate, (n: Record[Record.Stash]) => { "" })
-      assert(record2a eq record2)
+    it("should create new instance") {
+      import TestDSL._
+      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+
+      val record1Timestamp = Element.timestamp()
+      // 1. create node
+      val record1 = graph.node.threadSafe(_.createChild('test1, UUID.randomUUID()).threadSafe { test1Node ⇒
+        // 2. create element box
+        val elementElementForwardReference = new AtomicReference[Record](null)
+        val elementBox = ElementBox[Record](Context(graph.origin, test1Node.unique), Coordinate.root,
+          elementElementForwardReference)(elementType = implicitly[Manifest[Record]], node = test1Node, serialization = graph.model.eBox.serialization)
+        test1Node.updateState(rootElementBox = elementBox)
+        // 3. create element
+        elementElementForwardReference.set(Element[Record](elementBox, record1Timestamp, record1Timestamp, new Stash.Data(), Record.scope))
+        // 4. initialize box and get element
+        elementBox.get
+      })
+
+      val record2Timestamp = Element.timestamp()
+      // 1. create node
+      val record2 = graph.node.threadSafe(_.createChild('test2, UUID.randomUUID()).threadSafe { test2Node ⇒
+        // 2. create element box
+        val elementElementForwardReference = new AtomicReference[Record](null)
+        val elementBox = ElementBox[Record](Context(graph.origin, test2Node.unique), Coordinate.root,
+          elementElementForwardReference)(elementType = implicitly[Manifest[Record]], node = test2Node, serialization = graph.model.eBox.serialization)
+        test2Node.updateState(rootElementBox = elementBox)
+        // 3. create element
+        elementElementForwardReference.set(Element[Record](elementBox, record2Timestamp, record2Timestamp, new Stash.Data(), Record.scope))
+        // 4. initialize box and get element
+        elementBox.get
+      })
+
+      record1 should not be (record2)
+      record1.eId.name should be("test1")
+      record2.eId.name should be("test2")
+      graph.model.eNode.threadSafe(_.iteratorRecursive().toSeq.size) should be(2)
     }
     it("should support nested elements") {
-      var record_1a: Record[Record.Stash] = null
-      var record_2a: Record[Record.Stash] = null
-      var record_1b: Record[Record.Stash] = null
-      var record_2b: Record[Record.Stash] = null
+      import TestDSL._
       // define record
-      val record_0 = Model.record('baseLevel) { r =>
-        record_1a = r.record('level1a) { r =>
-          record_2a = r.record('level2a) { r =>
+      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+      val record_0 = model.takeRecord('baseLevel) { r ⇒
+        r.takeRecord('level1a) { r ⇒
+          r.takeRecord('level2a) { r ⇒
             r.name = "record_2a"
           }
           r.name = "record_1a"
         }
-        record_1b = r.record('level1b) { r =>
-          record_2b = r.record('level2b) { r =>
+        r.takeRecord('level1b) { r ⇒
+          r.takeRecord('level2b) { r ⇒
             r.name = "record_2b"
           }
           r.name = "record_1b"
         }
         r.name = "record_0"
-      }
+      }.eMutable
       // check description
       record_0.name should be("record_0")
-      record_1a.name should be("record_1a")
-      record_2a.name should be("record_2a")
-      record_1b.name should be("record_1b")
-      record_2b.name should be("record_2b")
+      (record_0 & RecordLocation('level1a)).name should be("record_1a")
+      (record_0 & RecordLocation('level1a) & RecordLocation('level2a)).name should be("record_2a")
+      (record_0 & RecordLocation('level1b)).name should be("record_1b")
+      (record_0 & RecordLocation('level1b) & RecordLocation('level2b)).name should be("record_2b")
       // check child elements
-      record_0.eChildren should equal(Set(record_1a, record_1b))
-      record_1a.eChildren should equal(Set(record_2a))
-      record_1b.eChildren should equal(Set(record_2b))
-      // check elements with same id
-      val treeA = Model.record('test) { r =>
-        r.record('test) { r =>
-          r.record('test) { _.name = "ok" }
+      val record_1a = record_0 & RecordLocation('level1a)
+      val record_1b = record_0 & RecordLocation('level1b)
+      record_0.eNode.threadSafe(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_1a, record_1b))
+      val record_2a = record_0 & RecordLocation('level1a) & RecordLocation('level2a)
+      record_1a.eNode.threadSafe(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2a))
+      val record_2b = record_0 & RecordLocation('level1b) & RecordLocation('level2b)
+      record_1b.eNode.threadSafe(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2b))
+
+      val treeA = model.takeRecord('baseLevel) { r ⇒
+        r.takeRecord('level1a) { r ⇒
+          r.takeRecord('level2a) { r ⇒
+            r.name should be("record_2a")
+            r.name = "ok"
+          }
         }
       }
-      //find[Note[Note.Stash]](treeA, 'test, 'test, 'test).map(_.name) should be(Some("ok"))*/
+      model.eNode.threadSafe { _.iteratorRecursive().find(_.id == 'level2a) }.
+        flatMap(_.getRootElementBox.get.eAs[Record].map(_.name)) should be(Some("ok"))
     }
   }
 

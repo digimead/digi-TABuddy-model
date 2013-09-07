@@ -32,7 +32,7 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Note element.
  */
-class Note(stashArg: Note.Stash)(@transient val eBox: () => ElementBox[Note])
+class Note(stashArg: Note.Stash)(@transient val eBox: ElementBox[Note])
   extends Note.Like with Loggable {
   type ElementType = Note
   type StashType = Note.Stash
@@ -74,7 +74,7 @@ object Note extends Loggable {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
         element.eNode.threadSafe { parentNode ⇒
-          parentNode.children.find { _.id == id } match {
+          parentNode.find { _.id == id } match {
             case Some(childNode) ⇒
               childNode.threadSafe { node ⇒
                 log.debug(s"Get or create note element for exists ${node}.")
@@ -83,7 +83,7 @@ object Note extends Loggable {
                 fTransform(new Mutable(note))
               }
             case None ⇒
-              parentNode.createChild(id, UUID.randomUUID()) { node ⇒
+              parentNode.createChild(id, UUID.randomUUID()).threadSafe { node ⇒
                 log.debug(s"Get or create note element for new ${node}.")
                 implicit val shashClass = classOf[Note.Stash]
                 val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)

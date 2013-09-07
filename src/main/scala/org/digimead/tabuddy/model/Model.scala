@@ -42,7 +42,7 @@ import scala.language.implicitConversions
  * Common model.
  * Any concrete model may be represent as this trait.
  */
-class Model(stashArg: Model.Stash)(@transient val eBox: () => ElementBox[Model])
+class Model(stashArg: Model.Stash)(@transient val eBox: ElementBox[Model])
   extends Model.Like with ModelIndex with Loggable {
   type StashType = Model.Stash
   type ElementType = Model

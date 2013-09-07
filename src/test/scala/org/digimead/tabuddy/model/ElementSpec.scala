@@ -46,9 +46,7 @@ import com.escalatesoft.subcut.inject.NewBindingModule
 import language.implicitConversions
 
 class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
-  lazy val diConfig = new NewBindingModule(module ⇒ {
-    module.bind[Symbol ⇒ Node] toSingle { (symbol: Symbol) ⇒ null }
-  }) ~ org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
+  lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
     DependencyInjection(diConfig, false)
@@ -87,31 +85,31 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           }
         }
       }.eMutable
-      val rAB1 = (rA1 & RecordLocation('rAB)).get.eMutable
-      val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).get.eMutable
+      val rAB1 = (rA1 & RecordLocation('rAB)).eMutable
+      val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).eMutable
       // graph 2
       val graph2 = graph1.copy('john2)
       val model2 = graph2.model.eMutable
-      val rA2 = (model2 & RecordLocation('rA)).get.eMutable
-      val rAB2 = (rA2 & RecordLocation('rAB)).get.eMutable
-      val rLeaf2 = (rAB2 & RecordLocation('rLeaf)).get.eMutable
+      val rA2 = (model2 & RecordLocation('rA)).eMutable
+      val rAB2 = (rA2 & RecordLocation('rAB)).eMutable
+      val rLeaf2 = (rAB2 & RecordLocation('rLeaf)).eMutable
 
       model1.immutable.canEqual(model2.immutable) should be(true)
       model1.eStash.canEqual(model2.eStash) should be(true)
 
-      rA1.eStash should be (rA1.eStash)
+      rA1.eStash should be(rA1.eStash)
       val curtom_rA1 = new Record(rA1.eStash)(rAB2.eBox) // different eBox
-      curtom_rA1.canEqual(rA1.immutable) should be (true)
-      curtom_rA1.eStash should be (rA1.eStash)
+      curtom_rA1.canEqual(rA1.immutable) should be(true)
+      curtom_rA1.eStash should be(rA1.eStash)
       curtom_rA1 should be(rA1.immutable)
 
       val rLeaf2_orig = rLeaf2.immutable
-      rLeaf2.name should be ("123")
+      rLeaf2.name should be("123")
       rLeaf2.name = "321"
       rLeaf2_orig should not be (rLeaf2.immutable)
 
-      model1 should be (model1.immutable)
-      model1.immutable should be (model1)
+      model1 should be(model1.immutable)
+      model1.immutable should be(model1)
     }
     it("should have proper copy") {
       import TestDSL._
@@ -121,10 +119,10 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       myModel should not be null
       // 100000 iterations x 10 threads x 3 elements = 3000000 elements
       // 3000000 is about 4.5GB mem
-      // 300000/10Th processed within 7458ms = ~40500 eCopy(write) operations per second on notebook
+      // 300000/10Th processed within 5646ms - 7458ms = ~40000-50000 eCopy(write) operations per second on notebook/home pc
       // ~?/1Th eCopy(write) ops in single thread
       // ~?/10Th eCopy(write) ops in multi thread
-      multithread(1000, 10) { i ⇒
+      multithread(10000, 10) { i ⇒
         val record1 = myModel.withRecord('root) { r ⇒ r }
         record1 should not be null
         val record2 = record1.eCopy(record1.eNode, ('x, i))
@@ -178,20 +176,20 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         r4.eNode.threadSafe { node ⇒
           implicit val shashClass = classOf[Record.Stash]
           val timestamp = Element.timestamp()
-          ElementBox[Record](Context(node.graph.get.origin, UUID.randomUUID()), Coordinate.root, timestamp, node, timestamp, Record.scope, node.rootElementBox.serialization)
+          ElementBox[Record](Context(node.graph.origin, UUID.randomUUID()), Coordinate.root, timestamp, node, timestamp, Record.scope, node.rootElementBox.serialization)
         }
       } should produce[IllegalArgumentException]
       // successful create new element
       r4.eNode.threadSafe { node ⇒
         val timestamp = Element.timestamp()
-        val stash = new Record.Stash(Coordinate(('cxv, 6)), timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
-        ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+        val stash = new Record.Stash(Coordinate(('cxv, 6)), timestamp, node.id, timestamp, node.graph.origin, new Stash.Data, Record.scope, node.unique)
+        ElementBox[Record](Context(node.graph.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
       }
       // create element with inconsistent context origin
       evaluating {
         r4.eNode.threadSafe { node ⇒
           val timestamp = Element.timestamp()
-          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.origin, new Stash.Data, Record.scope, node.unique)
           ElementBox[Record](Context('q, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
         }
       } should produce[IllegalArgumentException]
@@ -199,24 +197,24 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       evaluating {
         r4.eNode.threadSafe { node ⇒
           val timestamp = Element.timestamp()
-          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
-          ElementBox[Record](Context(node.graph.get.origin, UUID.randomUUID()), node, node.rootElementBox.serialization, stash)
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.origin, new Stash.Data, Record.scope, node.unique)
+          ElementBox[Record](Context(node.graph.origin, UUID.randomUUID()), node, node.rootElementBox.serialization, stash)
         }
       } should produce[IllegalArgumentException]
       // create element with inconsistent stash id
       evaluating {
         r4.eNode.threadSafe { node ⇒
           val timestamp = Element.timestamp()
-          val stash = new Record.Stash(Coordinate.root, timestamp, 'hjgfjfghf, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, node.unique)
-          ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+          val stash = new Record.Stash(Coordinate.root, timestamp, 'hjgfjfghf, timestamp, node.graph.origin, new Stash.Data, Record.scope, node.unique)
+          ElementBox[Record](Context(node.graph.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
         }
       } should produce[IllegalArgumentException]
       // create element with inconsistent stash unique
       evaluating {
         r4.eNode.threadSafe { node ⇒
           val timestamp = Element.timestamp()
-          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.get.origin, new Stash.Data, Record.scope, UUID.randomUUID())
-          ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+          val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, node.graph.origin, new Stash.Data, Record.scope, UUID.randomUUID())
+          ElementBox[Record](Context(node.graph.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
         }
       } should produce[IllegalArgumentException]
       // create element with inconsistent stash origin
@@ -224,7 +222,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         r4.eNode.threadSafe { node ⇒
           val timestamp = Element.timestamp()
           val stash = new Record.Stash(Coordinate.root, timestamp, node.id, timestamp, 'asdf, new Stash.Data, Record.scope, UUID.randomUUID())
-          ElementBox[Record](Context(node.graph.get.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
+          ElementBox[Record](Context(node.graph.origin, r3.eNode.unique), node, node.rootElementBox.serialization, stash)
         }
       } should produce[IllegalArgumentException]
     }
@@ -233,13 +231,13 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
       val myModel = graph.model
       val r1 = myModel.withRecord('a) { r ⇒ r }
-      r1.eBox().context.origin should not be (null)
-      r1.eBox().context.unique should not be (null)
-      myModel.e(r1.eBox().context) should be(Some(myModel.eNode))
+      r1.eBox.context.origin should not be (null)
+      r1.eBox.context.unique should not be (null)
+      myModel.e(r1.eBox.context) should be(Some(myModel.eNode))
       myModel.e(r1.eReference) should be(Some(r1: Element))
       myModel.e(myModel.eReference) should be(Some(myModel))
-      r1.eBox().context.origin.name should be(r1.eReference.origin.name)
-      r1.eBox().context.unique should be(myModel.eReference.unique)
+      r1.eBox.context.origin.name should be(r1.eReference.origin.name)
+      r1.eBox.context.unique should be(myModel.eReference.unique)
     }
     it("should have proper copy constructor") {
       import TestDSL._
@@ -283,17 +281,16 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       recordValue.get should be(copyValue.get)
       recordValue.context.unique should be(record.eReference.unique)
       myModel.e(save.eReference) should be('nonEmpty)
-      record.eNode.threadSafe(_.children -= save.eNode)
+      record.eNode.threadSafe(_ -= save.eNode)
       myModel.e(save.eReference) should be(None)
-      evaluating { save.eModel } should produce[IllegalStateException]
-      record.eNode.threadSafe(_.children += save.eNode)
+      record.eNode.threadSafe(_ += save.eNode)
       myModel.e(save.eReference) should be('nonEmpty)
       save.eModel should be(myModel)
       var newChild: Node = null
       val newRecord2 = save.eNode.getParent.map(_.threadSafe { parent ⇒
-        parent.createChild('new, UUID.randomUUID()) { child ⇒
+        parent.createChild('new, UUID.randomUUID()).threadSafe { child ⇒
           newChild = child
-          save.eCopy(child, save.eStash.copy(id = 'new, unique = child.unique), save.eBox().serialization)
+          save.eCopy(child, save.eStash.copy(id = 'new, unique = child.unique), save.eBox.serialization)
         }
       })
       newRecord2 should be('nonEmpty)
@@ -302,7 +299,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       save.eModel should be(newRecord2.get.eModel)
       myModel.e(newRecord2.get.eReference) should be(newRecord2)
       myModel.e(newRecord2.get.eReference) should not be ('empty)
-      record.eNode.threadSafe(_.children -= newChild)
+      record.eNode.threadSafe(_ -= newChild)
       myModel.e(newRecord2.get.eReference) should be(None)
     }
     it("should determinate ancestors") {
@@ -357,12 +354,12 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         }
       }
       myModel.eNode.threadSafe { modelNode ⇒
-        val modelIterator = modelNode.children.iteratorRecursive()
+        val modelIterator = modelNode.iteratorRecursive()
         assert(modelIterator.length === 3) // Model + 3 children
-        val modelChildren = modelNode.children.iteratorRecursive().foldLeft(Seq[Node]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
+        val modelChildren = modelNode.iteratorRecursive().foldLeft(Seq[Node]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
         Seq(e1.eNode, e2.eNode, e3.eNode).sortBy(_.unique).sameElements(modelChildren)
-        assert(e2.eNode.threadSafe { _.children.iteratorRecursive().length === 1 })
-        assert(e3.eNode.threadSafe { _.children.iteratorRecursive().length === 0 })
+        assert(e2.eNode.threadSafe { _.iteratorRecursive().length === 1 })
+        assert(e3.eNode.threadSafe { _.iteratorRecursive().length === 0 })
       }
     }
     it("should throw an exception if type is unknown") {

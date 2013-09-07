@@ -22,9 +22,6 @@ import java.util.UUID
 
 import scala.Array.canBuildFrom
 import scala.Option.option2Iterable
-import scala.annotation.elidable
-import scala.annotation.elidable.ASSERTION
-import scala.annotation.migration
 import scala.collection.immutable
 import scala.collection.mutable
 import scala.ref.WeakReference
@@ -39,110 +36,88 @@ import scala.language.implicitConversions
 /**
  * Node is a brick of graph.
  */
-trait Node {
-  /** Children nodes. */
-  protected val children: NodeChildren
+trait Node extends Equals {
   /** Element verbose id. */
   val id: Symbol
-  /** Graph to which the node belongs. */
-  protected var graphReference: Option[Graph[_ <: Model.Like]] = None
-  /** Global modification time, based on node elements and children state. */
-  @volatile var modified: Element.Timestamp = Element.timestamp()
-  /** Parent node. */
-  // If we have the only strong reference to this node and
-  // graph may contains a model node with weak references
-  // then all other nodes will be GC'ed and we may work only with our part of tree.
-  protected var parentNodeReference = WeakReference[Node](null)
-  /** Elements with non-root coordinates(List of axes(tags)). */
-  protected val projectionElementBoxes: mutable.HashMap[Coordinate, ElementBox[_ <: Element]]
-  /** Element with root coordinate. */
-  // Option is meaningless here. Root element must be defined every time.
-  protected var rootElementBox: ElementBox[_ <: Element]
-
+  /** Node state information. */
+  protected var state: NodeState
   /** Element system id. */
   val unique: UUID
 
   /** Copy this node and attach it to target. */
   def copy(target: Node.ThreadUnsafe, recursive: Boolean): Node = threadSafe { currentNode ⇒
-    val targetGraph = target.graph.getOrElse { throw new IllegalArgumentException(s"${target} graph is unreachable.") }
-    val copyNode = target.createChild(id, unique) { copyNode ⇒
-      copyNode.rootElementBox = rootElementBox.copy(node = copyNode,
-        context = Context(targetGraph.origin, target.unique))
-      projectionElementBoxes.foreach {
-        case (coordinate, box) ⇒
-          copyNode.projectionElementBoxes(coordinate) = box.copy(node = copyNode,
-            context = Context(targetGraph.origin, target.unique))
-      }
+    val copyNode = target.createChild(id, unique).threadSafe { copyNode ⇒
+      val rootElementBox = state.rootElementBox.copy(node = copyNode,
+        context = Context(target.graph.origin, target.unique))
+      val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = state.projectionElementBoxes.map {
+        case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode, context = Context(target.graph.origin, target.unique))
+      }.toSeq
+      copyNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
       copyNode
     }
     if (recursive)
       currentNode.iterator.foreach { _.copy(copyNode, recursive) }
     copyNode
   }
-  /** Create new children node. */
-  def createChild[A](id: Symbol, unique: UUID)(f: Node.ThreadUnsafe ⇒ A): A = synchronized {
-    if (children.exists(child ⇒ child.id == id || child.unique == unique))
-      throw new IllegalArgumentException("Node with the same identifier is already exists.")
-    val newNode = Node(id, unique)
-    val result = newNode.threadSafe { node ⇒
-      children += newNode
-      f(node)
-    }
-    result
-  }
   /**
    * Lock this node and all child nodes.
    * Synchronization lock spread from the leaves and finish at the current node.
    */
   def freeze[A](f: Node.ThreadUnsafe ⇒ A): A =
-    synchronized { children.foldLeft(f)((nestedFn, child) ⇒ child.freeze { child ⇒ (node) ⇒ nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe]) }
-  /** Get children nodes recursively. */
-  def getChildrenRecursive(): Iterator[Node] = synchronized { children.iteratorRecursive() }
-  /** Get children recursive */
+    synchronized { state.children.foldLeft(f)((nestedFn, child) ⇒ child.freeze { child ⇒ (node) ⇒ nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe]) }
   /** Get node element boxes. */
-  def getElementBoxes(): Seq[ElementBox[_ <: Element]] = synchronized { Option(rootElementBox).toSeq ++ projectionElementBoxes.values }
+  def getElementBoxes(): Seq[ElementBox[_ <: Element]] = synchronized { Seq(state.rootElementBox) ++ state.projectionElementBoxes.values }
   /** Get graph. */
-  def getGraph(): Option[Graph[_ <: Model.Like]] = synchronized { graphReference }
+  def graph(): Graph[_ <: Model.Like] = synchronized { state.graph }
   /** Get modified timestamp. */
-  def getModified(): Element.Timestamp = modified
+  def getModified(): Element.Timestamp = synchronized { state.modified }
   /** Get parent node. */
-  def getParent(): Option[Node] = synchronized { parentNodeReference.get }
+  def getParent(): Option[Node] = synchronized { state.parentNodeReference.get }
   /** Get element box at the specific coordinate. */
   def getProjection(key: Coordinate): Option[ElementBox[_ <: Element]] = synchronized {
-    if (key == Coordinate.root)
-      Option(rootElementBox)
-    else
-      projectionElementBoxes.get(key)
+    if (key == Coordinate.root) Option(state.rootElementBox) else state.projectionElementBoxes.get(key)
   }
   /** Get projection's element boxes. */
   def getProjections(): immutable.Map[Coordinate, ElementBox[_ <: Element]] =
-    synchronized { immutable.Map(projectionElementBoxes.updated(Coordinate.root, rootElementBox).toSeq: _*) }
+    synchronized { immutable.Map((state.projectionElementBoxes.toSeq :+ (Coordinate.root, state.rootElementBox)): _*) }
   /** Get root element box. */
-  def getRootElementBox() = synchronized { rootElementBox }
-  /** Touch modification time of the current node. */
-  def modify(ts: Element.Timestamp = Element.timestamp()): Unit = synchronized {
-    if (modified < ts) {
-      modified = ts
-      parentNodeReference.get.foreach(_.modify(ts))
-    }
-  }
+  def getRootElementBox() = synchronized { state.rootElementBox }
   /**
    * Explicitly convert this trait to ThreadUnsafe.
    * Conversion prevents the consumer to access unguarded content.
    */
   def threadSafe[A](f: Node.ThreadUnsafe ⇒ A): A = synchronized { f(this.asInstanceOf[Node.ThreadUnsafe]) }
 
-  override def toString = s"graph.Node[${unique}(${id})]#${modified}"
+  override def toString = s"graph.Node[${unique}(${id})]#${state.modified}"
 }
 
 object Node {
   implicit def node2interface(g: Node.type): Interface = DI.implementation
 
+  /** Simple implementation of the mutable part of a node. */
+  class State(val children: immutable.ListSet[Node], val graph: Graph[_ <: Model.Like], val modified: Element.Timestamp = Element.timestamp(),
+    val parentNodeReference: WeakReference[Node], val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]],
+    val rootElementBox: ElementBox[_ <: Element]) extends NodeState {
+    /** Copy constructor. */
+    def copy(
+      children: immutable.ListSet[Node] = this.children,
+      graph: Graph[_ <: Model.Like] = this.graph,
+      modified: Element.Timestamp = this.modified,
+      parentNodeReference: WeakReference[Node] = this.parentNodeReference,
+      projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]] = this.projectionElementBoxes,
+      rootElementBox: ElementBox[_ <: Element] = this.rootElementBox): this.type =
+      new State(children, graph, modified, parentNodeReference, projectionElementBoxes, rootElementBox).asInstanceOf[this.type]
+  }
+  /**
+   * Node companion object realization
+   */
   trait Interface {
     /** Create common element node. */
-    def apply[A <: Element](id: Symbol, unique: UUID): Node = new ThreadUnsafe(id, unique)
+    def apply[A <: Element](id: Symbol, unique: UUID, state: NodeState): Node = new ThreadUnsafe(id, unique, state)
     /** Create model node. */
-    def model[A <: Element](id: Symbol, unique: UUID): Node with ModelNodeInitializer = new ThreadUnsafe(id, unique) with ModelNodeInitializer
+    def model[A <: Element](id: Symbol, unique: UUID): Node with ModelNodeInitializer = {
+      new ThreadUnsafe(id, unique, null) with ModelNodeInitializer
+    }
     /** Dump the node structure. */
     def dump(node: Node, brief: Boolean, padding: Int = 2): String = node.threadSafe { node ⇒
       val pad = " " * padding
@@ -167,73 +142,129 @@ object Node {
       (if (childrenDump.isEmpty) self else self + "\n" + childrenDump).trim
     }
   }
-
+  /** Allow to initialize model node. */
+  trait ModelNodeInitializer {
+    this: Node ⇒
+    /** Initialize model node. */
+    def initializeModelNode[A <: Model.Like](graph: Graph[A]) = synchronized {
+      assert(state == null)
+      state = new State(children = immutable.ListSet(),
+        graph = graph,
+        modified = Element.timestamp(),
+        parentNodeReference = WeakReference(this),
+        projectionElementBoxes = immutable.HashMap(),
+        rootElementBox = null)
+      graph.nodes += this.unique -> this
+    }
+  }
   /**
    * Thread unsafe node representation.
    */
-  class ThreadUnsafe(val id: Symbol, val unique: UUID)
+  class ThreadUnsafe(val id: Symbol, val unique: UUID, protected var state: NodeState)
     extends Node with mutable.Set[Node] with mutable.SetLike[Node, ThreadUnsafe] {
-    /** Children nodes. */
-    val children = new NodeChildren(new WeakReference(this))
-    /** Elements with non-root coordinates. */
-    val projectionElementBoxes = mutable.HashMap[Coordinate, ElementBox[_ <: Element]]()
-    /** Element with root coordinate. */
-    var rootElementBox: ElementBox[_ <: Element] = null
 
     /** Adds a single element to the set. */
     def +=(elem: Node): this.type = { add(elem); this }
     /** Removes a single element to the set. */
     def -=(elem: Node): this.type = { remove(elem); this }
     /** Adds a single element to the set. */
-    override def add(elem: Node): Boolean = children.add(elem)
+    override def add(elem: Node): Boolean = {
+      if (!state.children.contains(elem)) {
+        /* process children */
+        elem.threadSafe { node ⇒
+          if (node.parentNodeReference.get != Some(ThreadUnsafe.this)) {
+            // Update parent reference
+            node.updateState(parentNodeReference = WeakReference(ThreadUnsafe.this))
+            if (node.graph != graph) {
+              // Update graph
+              node.iteratorRecursive().foreach(_.threadSafe { child ⇒
+                val rootElementBox = child.rootElementBox
+                val projectionElementBoxes = child.projectionElementBoxes
+                child.updateState(graph = graph,
+                  parentNodeReference = WeakReference(ThreadUnsafe.this),
+                  projectionElementBoxes = immutable.HashMap(projectionElementBoxes.map {
+                    case (coordinate, box) ⇒ coordinate -> box.copy(node = child, context = Context(child.graph.origin, box.context.unique))
+                  }.toSeq: _*),
+                  rootElementBox = rootElementBox.copy(Context(child.graph.origin,
+                    rootElementBox.context.unique), Coordinate.root, child, rootElementBox.serialization))
+              })
+            }
+          }
+          /* add node */
+          updateState(children = state.children + elem)
+          graph.nodes += elem.unique -> elem
+          node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
+        }
+        /* notify */
+        //val undoF = () => { super.remove(node); {} }
+        //Element.Event.publish(Element.Event.ChildInclude(parentNode.get, node.get, parentNode.get.eModified)(undoF))
+        true
+      } else
+        false
+    }
     /** Clears the Node's contents. After this operation, there are no children. */
-    override def clear() = children.clear()
+    override def clear() = {
+      iteratorRecursive().foreach { node ⇒ graph.nodes -= node.unique }
+      updateState(children = state.children.empty)
+      /* notify */
+      //val undoF = () ⇒ { state.children.foreach(super.add) }
+      //Element.Event.publish(Element.Event.ChildrenReset(parentNode.get, parentNode.get.eModified)(undoF))
+    }
+    /** Create new children node. */
+    def createChild[A](id: Symbol, unique: UUID): Node = {
+      if (state.children.exists(child ⇒ child.id == id || child.unique == unique))
+        throw new IllegalArgumentException("Node with the same identifier is already exists.")
+      val newNode = Node(id, unique, new State(children = immutable.ListSet(),
+        graph = graph,
+        modified = Element.timestamp(),
+        parentNodeReference = WeakReference(this),
+        projectionElementBoxes = immutable.HashMap(),
+        rootElementBox = null))
+      add(newNode)
+      newNode
+    }
     /** Tests whether this set contains a given node as a children. */
-    def contains(elem: Node): Boolean = children.contains(elem)
+    def contains(elem: Node): Boolean = state.children.contains(elem)
     /**
      * The empty set of the same type as this set
      * @return  an empty set of type `Node`.
      */
-    override def empty = new ThreadUnsafe(id, unique)
+    override def empty = new ThreadUnsafe(id, unique, state.copy(children = immutable.ListSet(), modified = Element.timestamp()))
     /** Applies a function `f` to all children of this Node. */
-    override def foreach[U](f: Node ⇒ U) = children.foreach(f)
+    override def foreach[U](f: Node ⇒ U) = state.children.foreach(f)
     /** Creates a new iterator over all children contained in this node. */
-    def iterator: Iterator[Node] = children.iterator
-    /** Creates a new iterator over all children contained in this branch. */
-    def iteratorRecursive: Iterator[Node] = children.iteratorRecursive()
-    /** Get graph to which the node belongs. */
-    def graph: Option[Graph[_ <: Model.Like]] = graphReference
-    /** Get parent. */
-    def parentNode: Option[Node] = parentNodeReference.get
-    /** Set parent reference. */
-    def parentNode_=(arg: Option[Node]): Unit = arg match {
-      case Some(parent) ⇒
-        // Remove from previous graph.
-        graphReference.foreach { graph ⇒
-          graph.nodes -= this.unique
-        }
-        parentNodeReference = WeakReference(parent)
-        graphReference = parent.getGraph
-        // Add to new graph.
-        graphReference.foreach { graph ⇒
-          graph.nodes += this.unique -> this
-        }
-        // Update graph links for all child nodes.
-        children.foreach { _.threadSafe { _.parentNode = Some(ThreadUnsafe.this) } }
-      case None ⇒
-        // Remove from previous graph.
-        graphReference.foreach { graph ⇒
-          graph.nodes -= this.unique
-          graphReference = None
-          // Update graph links for all child nodes.
-          children.foreach { _.threadSafe { _.parentNode = Some(ThreadUnsafe.this) } }
-        }
-        parentNodeReference = WeakReference(null)
+    def iterator: Iterator[Node] = state.children.iterator
+    /**
+     * Creates a new iterator over all elements contained in this iterable object and it's children.
+     * @param transformNodeChildren - function that provide sorting/filtering capability
+     * @return the new iterator
+     */
+    def iteratorRecursive(transformNodeChildren: (Node, immutable.ListSet[Node]) ⇒ Iterator[Node] = (parent, children) ⇒ children.toIterator): Iterator[Node] = {
+      new Iterator[Node] {
+        val iterator: Iterator[Node] = buildIterator(transformNodeChildren(ThreadUnsafe.this, ThreadUnsafe.this.state.children))
+        def hasNext: Boolean = iterator.hasNext
+        def next(): Node = iterator.next
+        private def buildIterator(iterator: Iterator[Node]): Iterator[Node] = {
+          for (child ← iterator) yield child.threadSafe { node ⇒ Iterator(child) ++ buildIterator(transformNodeChildren(node, node.state.children)) }
+        }.foldLeft(Iterator[Node]())(_ ++ _)
+      }
     }
     /** Removes a single element to the set. */
-    override def remove(elem: Node): Boolean = children.remove(elem)
+    override def remove(elem: Node): Boolean = if (state.children.contains(elem)) {
+      /* remove node */
+      elem.threadSafe { node ⇒
+        updateState(children = state.children - elem)
+        graph.nodes -= elem.unique
+        node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
+      }
+      /* notify */
+      //val undoF = () => { super.add(node); {} }
+      //Element.Event.publish(Element.Event.ChildRemove(parentNode.get, node.get, parentNode.get.eModified)(undoF))
+      true
+    } else
+      false
     /** The number of children. */
-    override def size: Int = children.size
+    override def size: Int = state.children.size
     /**
      * A version of this collection with all
      * of the operations implemented sequentially (i.e. in a single-threaded manner).
@@ -244,22 +275,34 @@ object Node {
      *
      * @return a sequential view of the collection.
      */
-    override def seq = children.seq
-
-    override def toString = s"graph.Node[${unique}(${id})]#${modified}"
-  }
-  /** Allow to initialize model node. */
-  trait ModelNodeInitializer {
-    this: Node ⇒
-    /** Initialize model node. */
-    def initializeModelNode[A <: Model.Like](graph: Graph[A]) = synchronized {
-      assert(graphReference.isEmpty)
-      graphReference = Some(graph)
-      parentNodeReference = WeakReference(this)
-      graph.nodes += this.unique -> this
-      // Update graph links for all child nodes.
-      children.foreach { _.threadSafe { _.parentNode = Some(ModelNodeInitializer.this) } }
+    override def seq = mutable.Set(state.children.toSeq: _*)
+    /** Update state of the current node. */
+    def updateState(children: immutable.ListSet[Node] = this.state.children,
+      graph: Graph[_ <: Model.Like] = this.state.graph,
+      modified: Element.Timestamp = Element.timestamp(),
+      parentNodeReference: WeakReference[Node] = this.state.parentNodeReference,
+      projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]] = this.state.projectionElementBoxes,
+      rootElementBox: ElementBox[_ <: Element] = this.state.rootElementBox) {
+      state = new State(children, graph, modified, parentNodeReference, projectionElementBoxes, rootElementBox)
     }
+    /** Update element box at the specific coordinates. */
+    def updateElementBox[A <: Element](coordinate: Coordinate, box: ElementBox[A], modified: Element.Timestamp = Element.timestamp()): Unit =
+      if (coordinate == Coordinate.root)
+        state = state.copy(rootElementBox = box, modified = modified)
+      else
+        state = state.copy(projectionElementBoxes = state.projectionElementBoxes + (coordinate -> box), modified = modified)
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[Node]
+    override def equals(other: Any) = other match {
+      case that: Node ⇒ that.canEqual(this) && this.## == that.##
+      case _ ⇒ false
+    }
+    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.id, this.unique))
+
+    override def toString = s"graph.Node[${unique}(${id})]#${state.modified}"
+  }
+  object ThreadUnsafe {
+    implicit def threadUnsafe2data(tu: ThreadUnsafe): NodeState = tu.state
   }
   /**
    * Dependency injection routines.

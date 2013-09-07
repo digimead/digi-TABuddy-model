@@ -31,7 +31,7 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Task element.
  */
-class Task(stashArg: Task.Stash)(@transient val eBox: () => ElementBox[Task]) extends Task.Like with Loggable {
+class Task(stashArg: Task.Stash)(@transient val eBox: ElementBox[Task]) extends Task.Like with Loggable {
   type ElementType = Task
   type StashType = Task.Stash
 
@@ -72,7 +72,7 @@ object Task extends Loggable {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
         element.eNode.threadSafe { parentNode ⇒
-          parentNode.children.find { _.id == id } match {
+          parentNode.find { _.id == id } match {
             case Some(childNode) ⇒
               childNode.threadSafe { node ⇒
                 log.debug(s"Get or create task element for exists ${node}.")
@@ -81,7 +81,7 @@ object Task extends Loggable {
                 fTransform(new Mutable(task))
               }
             case None ⇒
-              parentNode.createChild(id, UUID.randomUUID()) { node ⇒
+              parentNode.createChild(id, UUID.randomUUID()).threadSafe { node ⇒
                 log.debug(s"Get or create task element for new ${node}.")
                 implicit val shashClass = classOf[Task.Stash]
                 val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
