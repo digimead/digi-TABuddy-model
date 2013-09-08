@@ -116,14 +116,10 @@ object Note extends Loggable {
     override def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.predef.Note.Scope]
   }
   /** Note stash. */
-  class Stash(val coordinate: Coordinate,
-    val created: Element.Timestamp,
-    val id: Symbol,
+  class Stash(val created: Element.Timestamp,
     val modified: Element.Timestamp,
-    val origin: Symbol,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
-    val scope: Scope,
-    val unique: UUID)
+    val scope: Scope)
     extends Stash.Like {
     /** Stash type. */
     type StashType = Note.Stash

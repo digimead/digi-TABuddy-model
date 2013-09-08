@@ -18,23 +18,25 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import scala.collection.mutable
-
+import java.util.UUID
+import scala.collection.immutable
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.ModelIndex
-import org.digimead.tabuddy.model.Record
-//import org.digimead.tabuddy.model.TestDSL._
+import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.dsl.DSLType
-//import org.digimead.tabuddy.model.element.Context
+import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
-//import org.digimead.tabuddy.model.predef.Note
+import org.digimead.tabuddy.model.element.Value.string2someValue
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
+import org.digimead.lib.test.StorageHelper
+import java.io.File
 
-class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
   before {
     DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
@@ -43,33 +45,65 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with LoggingH
 
   describe("A SimpleSerialization") {
     it("should provide serialization mechanism for Model") {
-//      Model.reset()
-      /*val record = Model.record('root) { r => }
-      val note = Model.note('note) { n => }
-      val task = Model.task('task) { t => }
-      Model.eChildren should have size (3)
+      withTempFolder { folder ⇒
+        import TestDSL._
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, new BuiltinSerialization, UUID.randomUUID())
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+        val record_0 = model.takeRecord('baseLevel) { r ⇒
+          r.takeRecord('level1a) { r ⇒
+            r.takeRecord('level2a) { r ⇒
+              r.name = "record_2a"
+            }
+            r.name = "record_1a"
+          }
+          r.takeRecord('level1b) { r ⇒
+            r.takeRecord('level2b) { r ⇒
+              r.name = "record_2b"
+            }
+            r.name = "record_1b"
+          }
+          r.name = "record_0"
+        }.eMutable
+        graph.node.threadSafe(_.iteratorRecursive().size) should be(5)
+        model.eNode.threadSafe(_.size) should be(1)
+        model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123", Value.Context(model))))))
+        log.___glance("Model dump:\n" + model.eDump(false))
 
-      Model.eStash.property(DSLType.classSymbolMap(classOf[String])) = mutable.HashMap('a -> new Value.Static("123", Context.virtual(Model.inner.asInstanceOf[Element.Generic])))
-      // serialize
-      val s = new BuiltinSerialization
+        // serialize
+        new File(folder, "john1") should not be ('exists)
+        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
+        Serialization.freezeGraph(graph)
+        new File(folder, "john1") should be('directory)
+        new File(folder, "john1/description") should be('file)
+        new File(folder, "john1/baseLevel/description") should be('file)
+        new File(folder, "john1/baseLevel/level1a/description") should be('file)
+        new File(folder, "john1/baseLevel/level1b/description") should be('file)
+        new File(folder, "john1/baseLevel/level1a/level2a/description") should be('file)
+        new File(folder, "john1/baseLevel/level1b/level2b/description") should be('file)
+      }
+      /*
       var frozen: Seq[Array[Byte]] = Seq()
-      def fFilter[T <: Element.Generic](element: T): Option[T] = {
-        log.___glance("filter element %s with ancestors %s".format(element, element.eAncestorReferences.mkString(",")))
+      def fFilter[A <: Element](element: A): Option[A] = {
+        log.___glance(s"Filter element ${element} with ancestors ${element.eAncestors.mkString(",")}.")
         element match {
-          case model: Model.Generic =>
-            val index = model.getClass.getDeclaredMethod("index")
-            val hash = index.invoke(model).asInstanceOf[ModelIndex#HashMapPerId] // @transient
-            log.___glance("index hash " + hash)
-          case element =>
+          case model: Model.Like ⇒
+            log.___glance("Model element detected: " + model)
+          case element ⇒
         }
         Some(element)
       }
-      def fSave(element: Element.Generic, data: Array[Byte]) {
-        log.___glance("save element %s, serialized data size is %d bytes".format(element, data.size))
+      def fSave(element: Element, data: Array[Byte]) {
+        log.___glance("Save element %s, serialized data size is %d bytes".format(element, data.size))
         assert(data.size > 0, "incorrect data size")
         frozen = frozen :+ data
       }
-      s.freeze(Model, fSave, fFilter)
+      graph.node.freezeRead(_.iteratorRecursive().foreach { node ⇒
+        node.getProjections.foreach {
+          case (coordinate, box) ⇒ box.save()
+        }
+      })*/
+      /*      s.freeze(Model, fSave, fFilter)
       frozen should not be ('empty)
       frozen = scala.util.Random.shuffle(frozen)
       // deserialize
@@ -100,7 +134,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with LoggingH
       deserializedModel.e(deserializedModel.eChildren.head.eReference) should not be ('empty)*/
     }
     it("should provide serialization mechanism for Element") {
-//      Model.reset()
+      //      Model.reset()
       /*var save: Record[Record.Stash] = null
       val record = Model.record('root) { r =>
         save = r.record('level2) { r =>
@@ -170,7 +204,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with LoggingH
       evaluating { Model.eChildren += dl2 } should produce[AssertionError]*/
     }
     it("should filter elements on save/load") {
-//      Model.reset()
+      //      Model.reset()
       /*val record = Model.record('root) { r =>
         r.record('level2) { r =>
           r.name = "123"

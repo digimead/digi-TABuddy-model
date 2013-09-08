@@ -19,16 +19,13 @@
 package org.digimead.tabuddy.model
 
 import java.util.UUID
-import scala.annotation.tailrec
-import scala.collection.mutable
-import scala.ref.WeakReference
+
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Axis
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.graph.Context
 
 trait ModelIndex {
   this: Model with Loggable =>
@@ -43,21 +40,15 @@ trait ModelIndex {
 
   /** Get element for unique id at the specific coordinate. */
   def e(unique: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =
-    e(Reference(eStash.origin, unique, Coordinate(coordinate: _*)))
+    e(Reference(eOrigin, unique, Coordinate(coordinate: _*)))
   /** Get element for unique id at the specific coordinate. */
   def e(unique: UUID, coordinate: Coordinate): Option[Element] =
-    e(Reference(eStash.origin, unique, coordinate))
+    e(Reference(eOrigin, unique, coordinate))
   /** Get element for the reference from the current graph. */
   def e(reference: Reference): Option[Element] = {
     if (reference.origin != eNode.graph.origin)
       throw new IllegalArgumentException(s"""Unable to process reference from graph "${reference.origin}" within "${eNode.graph.origin}" one.""")
     e(reference.unique).flatMap { _.getProjection(reference.coordinate).map(_.get) }
-  }
-  /** Get node for the context from the current graph. */
-  def e(context: Context): Option[Node] = {
-    if (context.origin != eNode.graph.origin)
-      throw new IllegalArgumentException(s"""Unable to process context from graph "${context.origin}" within "${eNode.graph.origin}" one.""")
-    e(context.unique)
   }
   /** Get node for the unique id from the current graph. */
   def e(unique: UUID): Option[Node] = eNode.graph.nodes.get(unique)

@@ -35,6 +35,7 @@ import org.digimead.tabuddy.model.element.Element.Timestamp
 import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.element.Stash
 import org.digimead.tabuddy.model.element.Value
+import org.digimead.tabuddy.model.graph.{ Node ⇒ TANode }
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.Constructor
@@ -47,17 +48,11 @@ import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.representer.Represent
 import org.yaml.snakeyaml.representer.Representer
 import java.net.URI
-import org.digimead.tabuddy.model.graph.Context
 
-class YAMLSerialization extends Serialization[String] {
-  /**
-   * Load elements from Iterable[String] with loadElement().
-   * Filter/adjust loaded element with filter()
-   * Return deserialized element.
-   */
-  def acquire[A <: Element](loadElement: () => Option[String],
-    filter: (Element) => Option[Element] = filterAccept)(implicit ma: Manifest[A]): Option[A] = {
-    if (ma.runtimeClass == classOf[Nothing])
+class YAMLSerialization(implicit val serializationType: Manifest[String]) extends Serialization[String] {
+  /** Load element from an Iterable[String] with fnLoadElement(). */
+  def acquireElement[A <: Element](objectId: UUID, parentNode: TANode)(implicit m: Manifest[A]): Option[A] = {
+    /*   if (ma.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined")
     //    if (mb.runtimeClass == classOf[Nothing])
     //      throw new IllegalArgumentException("Stash type is undefined")
@@ -69,7 +64,7 @@ class YAMLSerialization extends Serialization[String] {
       try {
         Option(yaml.load(data.get).asInstanceOf[Element]) match {
           case Some(element) =>
-            filter(element).foreach(element => hash(element.eUnique) = element)
+            filter(element).foreach(element => hash(element.eNodeId) = element)
           case None =>
             log.error("unable to unpack data:\n " + data.get)
         }
@@ -119,24 +114,22 @@ class YAMLSerialization extends Serialization[String] {
       case None =>
         log.error("there are more than one root elements detected: " + rootElements.mkString(","))
         None
-    }
+    }*/
+    None
   }
   /**
    * Get serialized element.
    * Filter/adjust children with filter()
    * Save adjusted child to [String] with saveElement().
    */
-  def freeze(element: Element,
-    saveElement: (Element, String) => Unit,
-    filter: (Element) => Option[Element] = filterAccept) = {
+  def freezeElement(element: Element) = {
     val options = new DumperOptions()
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
-    val yaml = new Yaml(new YAMLSerialization.ElementRepresenter, new DumperOptions())
-    freezeWorker(yaml, saveElement, filter, element)
+    //    val yaml = new Yaml(new YAMLSerialization.ElementRepresenter, new DumperOptions())
+    //    freezeWorker(yaml, saveElement, element)
   }
   //@tailrec
-  private def freezeWorker(yaml: Yaml, saveElement: (Element, String) => Unit,
-    filter: (Element) => Option[Element],
+  private def freezeWorker(yaml: Yaml, saveElement: (Element, String) ⇒ Unit,
     elements: Element*) {
     if (elements.isEmpty)
       return
@@ -158,19 +151,20 @@ class YAMLSerialization extends Serialization[String] {
 object YAMLSerialization extends Loggable {
   /** Convert YAML to the element */
   def from(data: String): Option[Element] = {
-    val yaml = new Yaml(ElementConstructor)
-    Option(yaml.load(data).asInstanceOf[Element])
+    //    val yaml = new Yaml(ElementConstructor)
+    //    Option(yaml.load(data).asInstanceOf[Element])
+    None
   }
   /** Convert the current element without children to YAML */
   def to(element: Element): String = {
     val options = new DumperOptions()
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
-    val yaml = new Yaml(new ElementRepresenter, new DumperOptions())
+    //    val yaml = new Yaml(new ElementRepresenter, new DumperOptions())
     //yaml.dump(element.eCopy(null, List()))
     null
   }
 
-  object ElementConstructor extends Constructor(classOf[Element]) {
+  /*  object ElementConstructor extends Constructor(classOf[Element]) {
     val tagContext = new Tag(classOf[Context])
     val tagCoordinate = new Tag(classOf[Coordinate])
     val tagElement = new Tag(classOf[Element])
@@ -490,21 +484,21 @@ object YAMLSerialization extends Loggable {
         }
         val map = new java.util.HashMap[String, AnyRef]()
         map.put("type", stash.getClass().getName())
-        map.put("coordinate", stash.coordinate)
+        //map.put("coordinate", stash.coordinate)
         map.put("createdHi", Long.box(stash.created.milliseconds))
         map.put("createdLo", Long.box(stash.created.nanoShift))
-        map.put("id", stash.id.name)
+        //map.put("id", stash.id.name)
         map.put("modifiedHi", Long.box(stash.modified.milliseconds))
         map.put("modifiedLo", Long.box(stash.modified.nanoShift))
         map.put("scopeClass", stash.scope.getClass.getName())
         map.put("scopeName", stash.scope.modificator.name)
-        map.put("uniqueHi", Long.box(stash.unique.getMostSignificantBits()))
-        map.put("uniqueLo", Long.box(stash.unique.getLeastSignificantBits()))
+        //map.put("uniqueHi", Long.box(stash.unique.getMostSignificantBits()))
+        //map.put("uniqueLo", Long.box(stash.unique.getLeastSignificantBits()))
         //map.put("property", seqAsJavaList(properties))
         representMapping(Tag.MAP, map, null)
       }
     }
   }
 
-  case class Property(val context: Context, val typeSymbol: String, val data: String, val id: String, val static: Boolean)
+  case class Property(val context: Context, val typeSymbol: String, val data: String, val id: String, val static: Boolean)*/
 }

@@ -18,22 +18,14 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Stash
+import java.util.UUID
 
-class Stub extends Serialization[Unit] {
-  /**
-   * Load elements from Iterable[???] with loadElement().
-   * Filter/adjust loaded element with filter()
-   * Return deserialized element.
-   */
-  def acquire[A <: Element](loadElement: () => Option[Unit],
-    filter: (Element) => Option[Element] = filterAccept)(implicit ma: Manifest[A]): Option[A] = None
-  /**
-   * Get serialized element.
-   * Filter/adjust children with filter()
-   * Save adjusted child to [???] with saveElement().
-   */
-  def freeze(element: Element, saveElement: (Element, Unit) => Unit,
-    filter: (Element) => Option[Element] = filterAccept): Unit = {}
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.graph.Node
+
+class Stub(implicit val serializationType: Manifest[Unit]) extends Serialization[Unit] {
+  /** Load element from an Iterable[Unit] with fnLoadElement(). */
+  def acquireElement[A <: Element](objectId: UUID, parentNode: Node)(implicit m: Manifest[A]): Option[A] = None
+  /** Save element to [Unit] with fnSaveElement(). */
+  def freezeElement(element: Element) {}
 }

@@ -23,14 +23,10 @@ import java.util.UUID
 import scala.collection.immutable
 
 /** Generic element stash. */
-class Stash(val coordinate: Coordinate,
-  val created: Element.Timestamp,
-  val id: Symbol,
+class Stash(val created: Element.Timestamp,
   val modified: Element.Timestamp,
-  val origin: Symbol,
   val property: Stash.Data,
-  val scope: Element.Scope,
-  val unique: UUID) extends Stash.Like {
+  val scope: Element.Scope) extends Stash.Like {
   /** Stash type. */
   type StashType = Stash
   /** Scope type */
@@ -59,45 +55,31 @@ object Stash {
     /** Scope type */
     type ScopeType <: Element.Scope
 
-    /** List of axes(tags). This is copy of ElementBox.coordinate. */
-    val coordinate: Coordinate
     /** Element creation time */
     val created: Element.Timestamp
-    /** Element verbose id. This is copy of Node.id. */
-    val id: Symbol
     /** Element modification time. */
     val modified: Element.Timestamp
-    /** Graph owner identifier. This is copy of Graph.origin. */
-    val origin: Symbol
     /** Element properties(values) map: Erasure -> Symbol -> Value[T]. */
     val property: Stash.Data
     /** User scope. */
     val scope: ScopeType
-    /** Element system id. This is copy of Node.unique. */
-    val unique: UUID
 
     /** Copy constructor */
-    def copy(coordinate: Coordinate = this.coordinate,
-      created: Element.Timestamp = this.created,
-      id: Symbol = this.id,
+    def copy(created: Element.Timestamp = this.created,
       modified: Element.Timestamp = this.modified,
-      origin: Symbol = this.origin,
       property: Stash.Data = this.property,
-      scope: Element.Scope = this.scope,
-      unique: UUID = this.unique): StashType = {
+      scope: Element.Scope = this.scope): StashType = {
       assert(scope == this.scope, "Incorrect scope %s, must be %s".format(scope, this.scope))
       val newStashCtor = this.getClass.getConstructors.find(_.getParameterTypes() match {
-        case Array(coordinateArg, createdArg, idArg, modifiedArg, originArg, dataArg, scopeArg, uuidArg) ⇒
-          scopeArg.isAssignableFrom(scope.getClass) && coordinateArg.isAssignableFrom(coordinate.getClass()) &&
-            createdArg.isAssignableFrom(created.getClass()) && idArg.isAssignableFrom(id.getClass()) &&
-            modifiedArg.isAssignableFrom(modified.getClass()) && originArg.isAssignableFrom(origin.getClass()) &&
-            dataArg.isAssignableFrom(property.getClass()) && uuidArg.isAssignableFrom(unique.getClass)
+        case Array(createdArg, modifiedArg, dataArg, scopeArg) ⇒
+          scopeArg.isAssignableFrom(scope.getClass) && createdArg.isAssignableFrom(created.getClass()) &&
+          modifiedArg.isAssignableFrom(modified.getClass()) && dataArg.isAssignableFrom(property.getClass())
         case _ ⇒ false
       }) getOrElse {
         throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")
       }
       val data = new Stash.Data
-      newStashCtor.newInstance(coordinate, created, id, modified, origin, property, scope, unique).asInstanceOf[StashType]
+      newStashCtor.newInstance(created, modified, property, scope).asInstanceOf[StashType]
     }
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Stash.Like]
@@ -105,6 +87,6 @@ object Stash {
       case that: Element ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
       case _ ⇒ false
     }
-    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](coordinate, created, id, modified, origin, property, scope, unique))
+    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modified, property, scope))
   }
 }

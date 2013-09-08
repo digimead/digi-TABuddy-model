@@ -41,26 +41,25 @@ import language.implicitConversions
  * @param node root element of the graph
  * @param origin graph owner identifier
  */
-class Graph[A <: Model.Like](val node: Node, val origin: Symbol)(implicit val modelType: Manifest[A]) {
+class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node, val origin: Symbol)(implicit val modelType: Manifest[A]) {
   /** Index of all graph nodes. */
   val nodes = new mutable.HashMap[UUID, Node] with mutable.SynchronizedMap[UUID, Node]
-  /** Path to graph storage. */
-  @volatile var location: Option[URI] = None
+  /** Path to graph storages. */
+  @volatile var storages: Seq[URI] = Seq()
 
   /** Copy graph. */
-  def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freeze { sourceModelNode ⇒
+  def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freezeWrite { sourceModelNode ⇒
     val timestamp = Element.timestamp()
     /*
      * Create graph and model node
      */
     val targetModelNode = Node.model(id, unique)
-    val graph = Graph[A](targetModelNode, origin)
+    val graph = new Graph[A](timestamp, targetModelNode, origin)
     targetModelNode.threadSafe { targetNode ⇒
-      targetModelNode.initializeModelNode(graph)
-      val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
+      targetModelNode.initializeModelNode(graph,timestamp)
+      val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode)
       val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = sourceModelNode.projectionElementBoxes.map {
-        case (coordinate, box) ⇒
-          coordinate -> box.copy(node = targetNode, context = Context(graph.origin, targetNode.unique))
+        case (coordinate, box) ⇒ coordinate -> box.copy(node = targetNode)
       }.toSeq
       targetNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
       if (graph.modelType != graph.node.getRootElementBox.elementType)
@@ -74,13 +73,17 @@ class Graph[A <: Model.Like](val node: Node, val origin: Symbol)(implicit val mo
   }
   /** Get graph model. */
   def model(): A = node.getRootElementBox.get.asInstanceOf[A]
+  /** Get modification timestamp. */
+  def modified(): Element.Timestamp = node.getModified
+
+  override def toString() = s"Graph[${origin}]#${modified}"
 }
 
 object Graph {
   implicit def graph2interface(g: Graph.type): Interface = DI.implementation
 
   trait Interface {
-    def apply[A <: Model.Like: Manifest](node: Node, origin: Symbol): Graph[A] = new Graph(node, origin)
+    def apply[A <: Model.Like: Manifest](node: Node, origin: Symbol): Graph[A] = new Graph(Element.timestamp(), node, origin)
     /** Create a new graph. */
     def apply[A <: Model.Like: Manifest](origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization[_],
       unique: UUID)(implicit stashClass: Class[_ <: A#StashType]): Graph[A] =
@@ -90,10 +93,10 @@ object Graph {
       unique: UUID)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val timestamp = Element.timestamp()
       val modelNode = Node.model(id, unique)
-      val modelGraph = Graph[A](modelNode, origin)
+      val modelGraph = new Graph[A](timestamp, modelNode, origin)
       modelNode.threadSafe { node ⇒
-        modelNode.initializeModelNode(modelGraph)
-        val modelBox = ElementBox[A](Context(origin, modelNode.unique), Coordinate.root, timestamp, node, timestamp, scope, serialization)
+        modelNode.initializeModelNode(modelGraph, timestamp)
+        val modelBox = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
         if (modelGraph.modelType != modelGraph.node.getRootElementBox.elementType)
           throw new IllegalArgumentException(s"Unexpected model type ${modelGraph.modelType} vs ${modelGraph.node.getRootElementBox.elementType}")
         modelGraph

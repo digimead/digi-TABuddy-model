@@ -25,128 +25,110 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.ObjectStreamClass
 import java.util.UUID
-
 import scala.annotation.tailrec
 import scala.collection.mutable
-
 import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.graph.Node
 
-/*class BuiltinSerialization extends Serialization[Array[Byte]] {
-  /**
-   * Load elements from Iterable[Array[Byte]] with loadElement().
-   * Filter/adjust loaded element with filter()
-   * Return deserialized element.
-   */
-  def acquire[A <: Element[B], B <: Stash](loadElement: () => Option[Array[Byte]],
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept)(implicit ma: Manifest[A], mb: Manifest[B]): Option[A] = {
-    if (ma.runtimeClass == classOf[Nothing])
+class BuiltinSerialization(implicit val serializationType: Manifest[Array[Byte]]) extends Serialization[Array[Byte]] {
+  /** Load element from an Iterable[A] with fnLoadElement(). */
+  def acquireElement[A <: Element](objectId: UUID, parentNode: Node)(implicit m: Manifest[A]): Option[A] = {
+    if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined")
-    if (mb.runtimeClass == classOf[Nothing])
-      throw new IllegalArgumentException("Stash type is undefined")
-    var hash = mutable.HashMap[UUID, Element.Generic]()
+    /*var hash = mutable.HashMap[UUID, Element]()
     // load elements
     var data = loadElement()
     while (data.nonEmpty) {
       try {
         val bais = new ByteArrayInputStream(data.get)
         val in = new BuiltinSerialization.CustomObjectInputStream(bais)
-        filter(in.readObject().asInstanceOf[Element.Generic]).foreach(element => hash(element.eUnique) = element)
+        filter(in.readObject().asInstanceOf[Element]).foreach(element ⇒ hash(element.eNodeId) = element)
         in.close()
       } catch {
         // catch all throwables, return None if any
-        case e: Throwable =>
+        case e: Throwable ⇒
           log.error("unable to acuire elements: " + e)
       }
       data = loadElement()
     }
     // build structure
-    var rootElements = Seq[Element.Generic]()
+    var rootElements = Seq[Element]()
     hash.foreach {
-      case (unique, element) =>
+      case (unique, element) ⇒
         val parent = element.eStash.context.container.unique
         hash.get(parent) match {
-          case Some(parentElement) if parentElement == element =>
+          case Some(parentElement) if parentElement == element ⇒
             // parent is cyclic reference
-            if (element.isInstanceOf[Model.Interface[_]]) {
+            if (element.isInstanceOf[Model.Like]) {
               // drop all other expectants
               rootElements = Seq(element)
             } else
               log.fatal("detected a cyclic reference inside an unexpected element " + element)
-          case Some(parentElement) =>
+          case Some(parentElement) ⇒
             // parent found
             parentElement.eChildren += element
-          case None =>
+          case None ⇒
             // parent not found
-            element.eAs[A, B].foreach(element => rootElements = rootElements :+ element)
+            element.eAs[A, B].foreach(element ⇒ rootElements = rootElements :+ element)
         }
     }
     // return result
-    hash.clear
-    rootElements.find(_.isInstanceOf[Model.Interface[_]]) match {
-      case Some(model) =>
+    hash.clear*/
+    /*rootElements.find(_.isInstanceOf[Model.Like]) match {
+      case Some(model) ⇒
         // return model as expected type
         //model.eStash.model = Some(model.asInstanceOf[Model.Generic])
-        model.asInstanceOf[Model.Generic].eIndexRebuid()
+        model.asInstanceOf[Model.Like].eIndexRebuid()
         model.eAs[A, B]
-      case None if rootElements.size == 1 =>
+      case None if rootElements.size == 1 ⇒
         // return other element as expected type
         rootElements.head.eAs[A, B]
-      case None if rootElements.isEmpty =>
+      case None if rootElements.isEmpty ⇒
         log.error("there is no root elements detected")
         None
-      case None =>
+      case None ⇒
         log.error("there are more than one root elements detected: " + rootElements.mkString(","))
         None
-    }
+    }*/
+    None
   }
-  /**
-   * Get serialized element.
-   * Filter/adjust children with filter()
-   * Save adjusted child to [Array[Byte]] with saveElement().
-   */
-  def freeze(element: Element.Generic,
-    saveElement: (Element.Generic, Array[Byte]) => Unit,
-    filter: (Element.Generic) => Option[Element.Generic] = filterAccept) =
-    freezeWorker(saveElement, filter, element)
-  @tailrec
-  private def freezeWorker(saveElement: (Element.Generic, Array[Byte]) => Unit,
-    filter: (Element.Generic) => Option[Element.Generic],
-    elements: Element.Generic*) {
-    if (elements.isEmpty)
-      return
-    val saved = elements.map { element =>
-      val serialized = element.eCopy(List())
+  /** Save element. */
+  def freezeElement(element: Element) {
+    log.___gaze("!!!" + element)
+    /*val saved = elements.map { element ⇒
+      val serialized = element
       filter(serialized) match {
-        case Some(serialized) =>
+        case Some(serialized) ⇒
           val baos = new ByteArrayOutputStream()
           val out = new ObjectOutputStream(baos)
           out.writeObject(serialized)
           saveElement(element, baos.toByteArray())
           baos.close()
           element.eChildren.toSeq.sortBy(_.eId.name) // simplify the debugging with sortBy
-        case None =>
+        case None ⇒
           log.debug("skip freeze element " + element)
           Seq()
       }
     }
-    freezeWorker(saveElement, filter, saved.flatten: _*)
+    freezeWorker(saveElement, filter, saved.flatten: _*)*/
   }
 }
 
 object BuiltinSerialization {
   /** Convert binary data to the element */
-  def from(data: Array[Byte]): Option[Element.Generic] = {
+  def from(data: Array[Byte]): Option[Element] = {
     val bais = new ByteArrayInputStream(data)
     val in = new CustomObjectInputStream(bais)
-    val element = in.readObject().asInstanceOf[Element.Generic]
+    val element = in.readObject().asInstanceOf[Element]
     in.close()
     Option(element)
   }
   /** Convert the current element without children to binary data */
-  def to(element: Element.Generic): Array[Byte] = {
+  def to(element: Element): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)
-    out.writeObject(element.eCopy(List()))
+    out.writeObject(element)
     val data = baos.toByteArray()
     baos.close()
     data
@@ -159,9 +141,8 @@ object BuiltinSerialization {
       val currentTccl = Thread.currentThread.getContextClassLoader()
       return currentTccl.loadClass(desc.getName())
     } catch {
-      case e: Exception =>
+      case e: Exception ⇒
         super.resolveClass(desc)
     }
   }
 }
-*/

@@ -18,7 +18,6 @@
 
 package org.digimead.tabuddy.model
 
-import java.io.File
 import java.net.URI
 import java.util.UUID
 
@@ -32,7 +31,7 @@ import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.LocationGeneric
-import org.digimead.tabuddy.model.graph.Context
+import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Node
 
@@ -90,38 +89,44 @@ object Model extends Loggable {
     type ElementType <: Like
 
     /**
-     * Add context information to context map
+     * Add context information to context map.
      */
     @log
-    def contextAdd(context: Context): Unit = {
-      log.info("add new context [%s]".format(context))
-      eStash.contextMap.get(context.file) match {
-        case Some(fileMap) ⇒
-          eStash.contextMap(context.file) = (eStash.contextMap(context.file) :+ context).sortBy(_.line)
+    def contextAdd(box: URI, valueContext: Value.Context): Unit = {
+      log.info(s"Add new context ${valueContext} to ${box}.")
+      eStash.contextMap.get(box) match {
+        case Some(valueMap) ⇒
+          eStash.contextMap(box) = (valueMap :+ valueContext).sortBy(_.line)
         case None ⇒
-          eStash.contextMap(context.file) = Seq(context)
+          eStash.contextMap(box) = Seq(valueContext)
       }
     }
     /**
-     * Delete context information from context map if any
+     * Delete context information from context map if any.
      */
     @log
-    def contextDel(context: Context) = {
-      log.info("delete context [%s]".format(context))
+    def contextDel(box: URI, valueContext: Value.Context) = {
+      log.info(s"Delete context ${valueContext} from ${box}.")
+      eStash.contextMap.get(box) match {
+        case Some(valueMap) ⇒
+          eStash.contextMap(box) = (valueMap :+ valueContext).sortBy(_.line)
+        case None ⇒
+          eStash.contextMap(box) = Seq(valueContext)
+      }
     }
     /**
      * Get context information by file/line
      */
     @log
-    def contextGet(file: Option[File], line: Int): Option[Context] = {
+    def contextGet(file: URI, line: Int): Option[Value.Context] = {
       None
     }
     /**
      * Create context information from document map for element
      */
     @log
-    def contextBuildFromDocument(element: Element, line: Int): Option[Context] = {
-      val map = eStash.documentMap.value
+    def contextBuildFromDocument(element: Element, line: Int): Option[Value.Context] = {
+      /*val map = eStash.documentMap.value
       if (line < 1) return None
       if (map.isEmpty) return None
       for (i ← 0 until map.size) yield {
@@ -135,25 +140,28 @@ object Model extends Loggable {
           case _ ⇒
         }
       }
-      Some(Context(element.eReference, map.last.file, Some(line - (map.head.line.getOrElse(0) - 1)), map.last.digest))
+      Some(Context(element.eReference, map.last.file, Some(line - (map.head.line.getOrElse(0) - 1)), map.last.digest))*/
+      None
     }
     /**
      * Create context information from the specific container
      */
-    def contextForChild(container: Element, t: Option[StackTraceElement]): Context = t match {
+    def contextForChild(container: Element, t: Option[StackTraceElement]): Value.Context = t match {
       case Some(stack) if stack.getFileName() == "(inline)" && eStash.documentMap.value.nonEmpty ⇒
         // loaded as runtime Scala code && documentMap defined
-        Context(container.eReference, None, Some(stack.getLineNumber()), None)
+        //Context(container.eReference, None, Some(stack.getLineNumber()), None)
+        null
       case _ ⇒
         // everything other - virtual context
-        Context(container)
+        //Context(container)
+        null
     }
     /**
      * Set current thread local context information
      * for document parser, for example
      */
     @log
-    def contextSet(documentMap: Seq[Context]) {
+    def contextSet(documentMap: Seq[Value.Context]) {
       if (documentMap.nonEmpty)
         log.debugWhere("set local document context [%s]".format(documentMap.mkString(", ")))
       else
@@ -174,7 +182,7 @@ object Model extends Loggable {
       }
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
-      val self = "%s: %s".format(eStash.scope, eStash.id) + properties
+      val self = "%s: %s".format(eStash.scope, eId) + properties
       val childrenDump = eNode.threadSafe(_.iterator.map(_.getElementBoxes).flatten.
         map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
@@ -188,7 +196,7 @@ object Model extends Loggable {
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Like]
 
-    override def toString() = "%s://%s[%s@GLOBAL]".format(eStash.origin.name, eStash.scope, eStash.id.name)
+    override def toString() = "%s://%s[%s@GLOBAL]".format(eOrigin.name, eStash.scope, eId.name)
   }
   /** Mutable representation of Model.Like. */
   class Mutable[A <: Like](e: A) extends Record.Mutable[A](e)
@@ -200,14 +208,10 @@ object Model extends Loggable {
    * Model common stash trait.
    * Any concrete model's stash may be represent as this trait.
    */
-  class Stash(val coordinate: Coordinate,
-    val created: Element.Timestamp,
-    val id: Symbol,
+  class Stash(val created: Element.Timestamp,
     val modified: Element.Timestamp,
-    val origin: Symbol,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
-    val scope: Model.Scope,
-    val unique: UUID) extends Stash.Like {
+    val scope: Model.Scope) extends Stash.Like {
     /** Stash type. */
     type StashType = Model.Stash
     /** Scope type. */
@@ -220,7 +224,7 @@ object Model extends Loggable {
       /** Scope type. */
       type ScopeType <: Model.Scope
       /** Map of all sorted contexts by line number per file */
-      val contextMap = new mutable.HashMap[Option[URI], Seq[Context]] with mutable.SynchronizedMap[Option[URI], Seq[Context]]
+      val contextMap = new mutable.HashMap[URI, Seq[Value.Context]] with mutable.SynchronizedMap[URI, Seq[Value.Context]]
       /**
        * Thread local context, empty - REPL, non empty - document
        * for example, after include preprocessor:
@@ -235,7 +239,7 @@ object Model extends Loggable {
        * line 150 .. 299 - file C (include)
        * line 300 .. end - file A
        */
-      @transient val documentMap = new DynamicVariable[Seq[Context]](Seq())
+      @transient val documentMap = new DynamicVariable[Seq[Value.Context]](Seq())
 
       override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Stash.Like]
     }

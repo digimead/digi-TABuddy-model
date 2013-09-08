@@ -57,6 +57,13 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eMutable
 
       val graphCopy = graph.copy('john2)
+      graphCopy.nodes.size should be(graph.nodes.size)
+      graphCopy.nodes.values.toSeq.sortBy(_.unique) should be(graph.nodes.values.toSeq.sortBy(_.unique))
+      graphCopy.nodes.values.toSeq.sortBy(_.unique).corresponds(graph.nodes.values.toSeq.sortBy(_.unique))(_.unique == _.unique) should be(true)
+      graphCopy.nodes.values.toSeq.sortBy(_.unique).corresponds(graph.nodes.values.toSeq.sortBy(_.unique))(_ ne _) should be(true)
+      graphCopy.node.threadSafe(_.iteratorRecursive()).size should be(graphCopy.nodes.values.size - 1)
+      (graphCopy.node.threadSafe(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique) should be(graphCopy.nodes.values.toSeq.sortBy(_.unique))
+      (graphCopy.node.threadSafe(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique).corresponds(graphCopy.nodes.values.toSeq.sortBy(_.unique))(_ eq _) should be(true)
       graphCopy.model should equal(graphCopy.model.eModel)
       graphCopy.model.eq(graphCopy.model.eModel) should be(true)
       val recordCopy = graphCopy.model.eNode.threadSafe(_.head).getRootElementBox.get

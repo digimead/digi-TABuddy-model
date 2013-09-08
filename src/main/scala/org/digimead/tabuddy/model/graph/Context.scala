@@ -24,37 +24,7 @@ import java.util.UUID
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
 
-/**
- * Element/entity context information
- */
-class Context(
-  /** Container graph origin. */
-  val origin: Symbol,
-  /** Container node unique. */
-  val unique: UUID,
-  /** Context file. */
-  val file: Option[URI],
-  /** Context file line. */
-  val line: Option[Int],
-  /** Context file digest. */
-  val digest: Option[String]) extends Equals {
-
-  /** Copy constructor. */
-  def copy(origin: Symbol = this.origin,
-    unique: UUID = this.unique,
-    file: Option[URI] = this.file,
-    line: Option[Int] = this.line,
-    digest: Option[String] = this.digest) = new Context(origin, unique, file, line, digest)
-
-  override def canEqual(that: Any) = that.isInstanceOf[Context]
-  override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-    case that: Context if this.origin == that.origin && this.unique == that.unique &&
-      this.file == that.file && this.line == that.line && this.digest == that.digest => that canEqual this
-    case _ => false
-  })
-  override def hashCode() = Array(origin, unique, file, line, digest).##
-  override def toString() = "Context[%s:%s file(%s):%s, line:%s]".format(origin, unique, digest.getOrElse("-"), file.getOrElse("-"), line.getOrElse("-"))
-}
+/*
 
 /**
  * Companion object for a context information
@@ -65,7 +35,7 @@ object Context {
   def apply(container: Element): Context = apply(container, None, None, None)
   /** Create context information. */
   def apply(container: Element, file: Option[URI], line: Option[Int], digest: Option[String]): Context =
-    new Context(container.eStash.origin, container.eUnique, file, line, digest)
+    new Context(container.eOrigin, container.eNodeId, file, line, digest)
   /** Create context information. */
   def apply(reference: Reference): Context = apply(reference, None, None, None)
   /** Create context information. */
@@ -79,3 +49,4 @@ object Context {
   /** Create context information */
   def apply(): Context = new Context(Symbol(""), emptyUUID, None, None, None)
 }
+*/

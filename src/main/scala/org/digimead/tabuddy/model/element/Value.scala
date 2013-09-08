@@ -19,24 +19,26 @@
 package org.digimead.tabuddy.model.element
 
 import java.io.Serializable
+import java.util.UUID
+
 import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
-import language.implicitConversions
-import org.digimead.tabuddy.model.graph.Context
+import org.digimead.tabuddy.model.graph.ElementBox
+
+import scala.language.implicitConversions
 
 /**
  * Trait that provide general interface for Value implementation
  */
 sealed trait Value[T] extends AnyRef with java.io.Serializable {
   /** Value context information */
-  val context: Context
+  val context: Value.Context
 
   /** Commit complex property (if needed) while saving. */
   def commit(element: Element)
   /** Copy constructor */
-  def copy(context: Context = this.context): this.type
+  def copy(context: Value.Context = this.context): this.type
   /** Get value. */
   def get(): T
   /** Class equality with context but without values. */
@@ -44,8 +46,8 @@ sealed trait Value[T] extends AnyRef with java.io.Serializable {
   /** get() equality. */
   override def equals(that: Any): Boolean =
     (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Value[_] => this.get == that.get
-      case _ => false
+      case that: Value[_] ⇒ this.get == that.get
+      case _ ⇒ false
     })
   override def hashCode() = context.hashCode
   /** Needed for correct definition of equals for general classes. */
@@ -86,41 +88,67 @@ object Value extends Loggable {
    */
   def static[T <: AnyRef with java.io.Serializable](x: T)(implicit container: Element = null, m: Manifest[T]): Static[T] =
     if (container == null)
-      new Static(x, Context())
+      new Static(x, new Value.Context(None, None))
     else {
       val stack = new Throwable().getStackTrace()
       if (stack.size < 1)
-        new Static(x, Context(container))
+        new Static(x, new Value.Context(Some(container.eObjectId), None))
       else
         new Static(x, container.eModel.contextForChild(container, Some(stack(1))))
     }
   /**
    * Convert () => [T] to Value.Dinamic
    */
-  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](container: Element, x: () => T): Dynamic[T] = {
+  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](container: Element, x: () ⇒ T): Dynamic[T] = {
     implicit val e = container
     dinamic(x)
   }
   /**
    * Convert () => [T] to Value.Dinamic
    */
-  def dinamic[T <: AnyRef with java.io.Serializable](x: () => T)(implicit container: Element = null, m: Manifest[T]): Dynamic[T] =
+  def dinamic[T <: AnyRef with java.io.Serializable](x: () ⇒ T)(implicit container: Element = null, m: Manifest[T]): Dynamic[T] =
     if (container == null)
-      new Dynamic(x, Context())
+      new Dynamic(x, new Value.Context(None, None))
     else {
       val stack = new Throwable().getStackTrace()
       if (stack.size < 1)
-        new Dynamic(x, Context(container))
+        new Dynamic(x, new Value.Context(Some(container.eObjectId), None))
       else
         new Dynamic(x, container.eModel.contextForChild(container, Some(stack(1))))
     }
 
+  /** Value context information. */
+  class Context(
+    /** Context object. */
+    val objectId: Option[UUID],
+    /** Context file line. */
+    val line: Option[Int]) extends Equals {
+
+    /** Copy constructor. */
+    def copy(objectId: Option[UUID] = this.objectId, line: Option[Int] = this.line) = new Context(objectId, line)
+
+    override def canEqual(that: Any) = that.isInstanceOf[Context]
+    override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
+      case that: Context if this.## == that.## ⇒ that canEqual this
+      case _ ⇒ false
+    })
+    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](objectId, line))
+    override def toString() = "Context[%s:%s]".format(objectId.getOrElse("-"), line.getOrElse("-"))
+  }
+  object Context {
+    /** Create empty context for unbound value. */
+    def apply() = new Value.Context(None, None)
+    /** Create context for element. */
+    def apply(element: Element) = new Value.Context(Some(element.eObjectId), None)
+    /** Create context for element box. */
+    def apply(box: ElementBox[_ <: Element]) = new Value.Context(Some(box.elementUniqueId), None)
+  }
   /**
    * Dynamic value implementation
    */
   class Dynamic[T <: AnyRef with java.io.Serializable](
     /** Actual value. */
-    protected val data: () => T,
+    protected val data: () ⇒ T,
     /** Value context information. */
     val context: Context)(implicit m: Manifest[T]) extends Value[T] {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
@@ -133,8 +161,8 @@ object Value extends Loggable {
     def get() = data()
     /** Class equality with context but without values. */
     def ===(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Dynamic[_] if this.data.getClass == that.data.getClass && this.context == that.context => (that canEqual this)
-      case _ => false
+      case that: Dynamic[_] if this.data.getClass == that.data.getClass && this.context == that.context ⇒ (that canEqual this)
+      case _ ⇒ false
     })
     override def hashCode() = {
       /*
@@ -169,8 +197,8 @@ object Value extends Loggable {
     def get() = data
     /** Class equality with context but without values. */
     def ===(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Static[_] if this.data.getClass == that.data.getClass && this.context == that.context => (that canEqual this)
-      case _ => false
+      case that: Static[_] if this.data.getClass == that.data.getClass && this.context == that.context ⇒ (that canEqual this)
+      case _ ⇒ false
     })
     override def hashCode() = {
       /*

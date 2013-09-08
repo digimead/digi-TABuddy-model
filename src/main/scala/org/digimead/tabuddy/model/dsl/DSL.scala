@@ -71,8 +71,8 @@ object DSL {
       })
     /** Retrieve child of the current element. */
     def &[A <: Element](l: LocationGeneric[A]): A =
-      element.eFind[A](e ⇒ e.eId == l.id && e.eStash.coordinate == l.coordinate &&
-        l.unique.map(_ == e.eUnique).getOrElse(true))(l.elementType).
+      element.eFind[A](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
+        l.unique.map(_ == e.eNodeId).getOrElse(true))(l.elementType).
         getOrElse { throw new IllegalArgumentException(s"Unable to find ${l}.") }
   }
   /** Base trait for element specific DSL builder. */

@@ -65,7 +65,7 @@ import org.digimead.tabuddy.model.element.Value
         protoElements.getElementList().map { proto =>
           ProtobufSerialization.unpackElement(proto) match {
             case Some(element) =>
-              filter(element).foreach(element => hash(element.eUnique) = element)
+              filter(element).foreach(element => hash(element.eNodeId) = element)
             case None =>
               log.error("unable to unpack data " + proto)
           }

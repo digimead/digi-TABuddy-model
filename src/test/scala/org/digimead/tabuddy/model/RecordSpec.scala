@@ -27,7 +27,6 @@ import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Stash
-import org.digimead.tabuddy.model.graph.Context
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 import org.digimead.tabuddy.model.graph.Graph
@@ -53,8 +52,8 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       val record1 = graph.node.threadSafe(_.createChild('test1, UUID.randomUUID()).threadSafe { test1Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
-        val elementBox = ElementBox[Record](Context(graph.origin, test1Node.unique), Coordinate.root,
-          elementElementForwardReference)(elementType = implicitly[Manifest[Record]], node = test1Node, serialization = graph.model.eBox.serialization)
+        val elementBox = ElementBox[Record](Coordinate.root, elementElementForwardReference)(elementType = implicitly[Manifest[Record]],
+          node = test1Node, serialization = graph.model.eBox.serialization)
         test1Node.updateState(rootElementBox = elementBox)
         // 3. create element
         elementElementForwardReference.set(Element[Record](elementBox, record1Timestamp, record1Timestamp, new Stash.Data(), Record.scope))
@@ -67,8 +66,8 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       val record2 = graph.node.threadSafe(_.createChild('test2, UUID.randomUUID()).threadSafe { test2Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
-        val elementBox = ElementBox[Record](Context(graph.origin, test2Node.unique), Coordinate.root,
-          elementElementForwardReference)(elementType = implicitly[Manifest[Record]], node = test2Node, serialization = graph.model.eBox.serialization)
+        val elementBox = ElementBox[Record](Coordinate.root, elementElementForwardReference)(elementType = implicitly[Manifest[Record]],
+          node = test2Node, serialization = graph.model.eBox.serialization)
         test2Node.updateState(rootElementBox = elementBox)
         // 3. create element
         elementElementForwardReference.set(Element[Record](elementBox, record2Timestamp, record2Timestamp, new Stash.Data(), Record.scope))

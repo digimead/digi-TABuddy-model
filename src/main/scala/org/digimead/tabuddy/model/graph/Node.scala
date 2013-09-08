@@ -19,14 +19,17 @@
 package org.digimead.tabuddy.model.graph
 
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantReadWriteLock
 
 import scala.Array.canBuildFrom
 import scala.Option.option2Iterable
+import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.collection.mutable
 import scala.ref.WeakReference
 
 import org.digimead.digi.lib.api.DependencyInjection
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
@@ -39,6 +42,8 @@ import scala.language.implicitConversions
 trait Node extends Equals {
   /** Element verbose id. */
   val id: Symbol
+  /** Node read/write lock. */
+  protected val rwl = new ReentrantReadWriteLock()
   /** Node state information. */
   protected var state: NodeState
   /** Element system id. */
@@ -47,10 +52,9 @@ trait Node extends Equals {
   /** Copy this node and attach it to target. */
   def copy(target: Node.ThreadUnsafe, recursive: Boolean): Node = threadSafe { currentNode ⇒
     val copyNode = target.createChild(id, unique).threadSafe { copyNode ⇒
-      val rootElementBox = state.rootElementBox.copy(node = copyNode,
-        context = Context(target.graph.origin, target.unique))
+      val rootElementBox = state.rootElementBox.copy(node = copyNode)
       val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = state.projectionElementBoxes.map {
-        case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode, context = Context(target.graph.origin, target.unique))
+        case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
       }.toSeq
       copyNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
       copyNode
@@ -63,35 +67,76 @@ trait Node extends Equals {
    * Lock this node and all child nodes.
    * Synchronization lock spread from the leaves and finish at the current node.
    */
-  def freeze[A](f: Node.ThreadUnsafe ⇒ A): A =
-    synchronized { state.children.foldLeft(f)((nestedFn, child) ⇒ child.freeze { child ⇒ (node) ⇒ nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe]) }
+  def freezeRead[A](f: Node.ThreadUnsafe ⇒ A): A = {
+    rwl.readLock().lock()
+    try { state.children.foldLeft(f)((nestedFn, child) ⇒ child.freezeRead { child ⇒ (node) ⇒ nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe]) }
+    finally { rwl.readLock().unlock() }
+  }
+  /**
+   * Lock this node and all child nodes.
+   * Synchronization lock spread from the leaves and finish at the current node.
+   */
+  def freezeWrite[A](f: Node.ThreadUnsafe ⇒ A): A = {
+    rwl.writeLock().lock()
+    try { state.children.foldLeft(f)((nestedFn, child) ⇒ child.freezeRead { child ⇒ (node) ⇒ nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe]) }
+    finally { rwl.writeLock().unlock() }
+  }
   /** Get node element boxes. */
-  def getElementBoxes(): Seq[ElementBox[_ <: Element]] = synchronized { Seq(state.rootElementBox) ++ state.projectionElementBoxes.values }
+  def getElementBoxes(): Seq[ElementBox[_ <: Element]] = {
+    rwl.readLock().lock()
+    try { Seq(state.rootElementBox) ++ state.projectionElementBoxes.values }
+    finally { rwl.readLock().unlock() }
+  }
   /** Get graph. */
-  def graph(): Graph[_ <: Model.Like] = synchronized { state.graph }
+  def graph(): Graph[_ <: Model.Like] = {
+    rwl.readLock().lock()
+    try { state.graph }
+    finally { rwl.readLock().unlock() }
+  }
   /** Get modified timestamp. */
-  def getModified(): Element.Timestamp = synchronized { state.modified }
+  def getModified(): Element.Timestamp = {
+    rwl.readLock().lock()
+    try { state.modified }
+    finally { rwl.readLock().unlock() }
+  }
   /** Get parent node. */
-  def getParent(): Option[Node] = synchronized { state.parentNodeReference.get }
+  def getParent(): Option[Node] = {
+    rwl.readLock().lock()
+    try { state.parentNodeReference.get }
+    finally { rwl.readLock().unlock() }
+  }
   /** Get element box at the specific coordinate. */
-  def getProjection(key: Coordinate): Option[ElementBox[_ <: Element]] = synchronized {
-    if (key == Coordinate.root) Option(state.rootElementBox) else state.projectionElementBoxes.get(key)
+  def getProjection(key: Coordinate): Option[ElementBox[_ <: Element]] = {
+    rwl.readLock().lock()
+    try { if (key == Coordinate.root) Option(state.rootElementBox) else state.projectionElementBoxes.get(key) }
+    finally { rwl.readLock().unlock() }
   }
   /** Get projection's element boxes. */
-  def getProjections(): immutable.Map[Coordinate, ElementBox[_ <: Element]] =
-    synchronized { immutable.Map((state.projectionElementBoxes.toSeq :+ (Coordinate.root, state.rootElementBox)): _*) }
+  def getProjections(): immutable.Map[Coordinate, ElementBox[_ <: Element]] = {
+    rwl.readLock().lock()
+    try { immutable.Map((state.projectionElementBoxes.toSeq :+ (Coordinate.root, state.rootElementBox)): _*) }
+    finally { rwl.readLock().unlock() }
+  }
   /** Get root element box. */
-  def getRootElementBox() = synchronized { state.rootElementBox }
+  def getRootElementBox() = {
+    rwl.readLock().lock()
+    try { state.rootElementBox }
+    finally { rwl.readLock().unlock() }
+  }
   /**
    * Explicitly convert this trait to ThreadUnsafe.
    * Conversion prevents the consumer to access unguarded content.
    */
-  def threadSafe[A](f: Node.ThreadUnsafe ⇒ A): A = synchronized { f(this.asInstanceOf[Node.ThreadUnsafe]) }
+  def threadSafe[A](f: Node.ThreadUnsafe ⇒ A): A = {
+    rwl.writeLock().lock()
+    try { f(this.asInstanceOf[Node.ThreadUnsafe]) }
+    finally { rwl.writeLock().unlock() }
+  }
 
   override def toString = s"graph.Node[${unique}(${id})]#${state.modified}"
 }
 
-object Node {
+object Node extends Loggable {
   implicit def node2interface(g: Node.type): Interface = DI.implementation
 
   /** Simple implementation of the mutable part of a node. */
@@ -146,15 +191,18 @@ object Node {
   trait ModelNodeInitializer {
     this: Node ⇒
     /** Initialize model node. */
-    def initializeModelNode[A <: Model.Like](graph: Graph[A]) = synchronized {
-      assert(state == null)
-      state = new State(children = immutable.ListSet(),
-        graph = graph,
-        modified = Element.timestamp(),
-        parentNodeReference = WeakReference(this),
-        projectionElementBoxes = immutable.HashMap(),
-        rootElementBox = null)
-      graph.nodes += this.unique -> this
+    def initializeModelNode[A <: Model.Like](graph: Graph[A], modification: Element.Timestamp) = {
+      rwl.writeLock().lock()
+      try {
+        assert(state == null)
+        state = new State(children = immutable.ListSet(),
+          graph = graph,
+          modified = modification,
+          parentNodeReference = WeakReference(this),
+          projectionElementBoxes = immutable.HashMap(),
+          rootElementBox = null)
+        graph.nodes += this.unique -> this
+      } finally { rwl.writeLock().unlock() }
     }
   }
   /**
@@ -182,11 +230,9 @@ object Node {
                 val projectionElementBoxes = child.projectionElementBoxes
                 child.updateState(graph = graph,
                   parentNodeReference = WeakReference(ThreadUnsafe.this),
-                  projectionElementBoxes = immutable.HashMap(projectionElementBoxes.map {
-                    case (coordinate, box) ⇒ coordinate -> box.copy(node = child, context = Context(child.graph.origin, box.context.unique))
-                  }.toSeq: _*),
-                  rootElementBox = rootElementBox.copy(Context(child.graph.origin,
-                    rootElementBox.context.unique), Coordinate.root, child, rootElementBox.serialization))
+                  projectionElementBoxes = immutable.HashMap(projectionElementBoxes.
+                    map { case (coordinate, box) ⇒ coordinate -> box.copy(node = child) }.toSeq: _*),
+                  rootElementBox = rootElementBox.copy(Coordinate.root, child, rootElementBox.serialization))
               })
             }
           }
@@ -201,6 +247,21 @@ object Node {
         true
       } else
         false
+    }
+    /** Build an ancestors sequence. */
+    def ancestors(): Seq[Node] = {
+      @tailrec
+      def ancestors(current: Node, acc: Seq[Node]): Seq[Node] = {
+        if (acc.size > Element.MAXIMUM_DEEPNESS) {
+          log.fatal("Node level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
+          return acc
+        }
+        current.getParent match {
+          case n @ Some(parent) if acc.lastOption != n && parent != current ⇒ ancestors(parent, acc :+ parent)
+          case _ ⇒ acc
+        }
+      }
+      ancestors(this, Seq())
     }
     /** Clears the Node's contents. After this operation, there are no children. */
     override def clear() = {

@@ -123,16 +123,16 @@ object Record extends Loggable {
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
       val self = if (name.isEmpty)
-        "%s: %s".format(eStash.scope, eStash.id) + properties
+        "%s: %s".format(eStash.scope, eId) + properties
       else
-        "%s: %s \"%s\"".format(eStash.scope, eStash.id, name) + properties
+        "%s: %s \"%s\"".format(eStash.scope, eId, name) + properties
       val childrenDump = eNode.threadSafe(_.iterator.map(_.getElementBoxes).flatten.
         map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     def eGetOrElseRoot(id: Symbol, typeSignature: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =
       eGet(id, typeSignature) orElse {
-        if (eStash.coordinate.isRoot)
+        if (eCoordinate.isRoot)
           // we are already at root but value is absent
           None
         else
@@ -154,14 +154,10 @@ object Record extends Loggable {
     def canEqual(other: Any): Boolean = other.isInstanceOf[Record.Scope]
   }
   /** Record stash. */
-  class Stash(val coordinate: Coordinate,
-    val created: Element.Timestamp,
-    val id: Symbol,
+  class Stash(val created: Element.Timestamp,
     val modified: Element.Timestamp,
-    val origin: Symbol,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
-    val scope: Scope,
-    val unique: UUID)
+    val scope: Scope)
     extends Stash.Like {
     /** Stash type. */
     type StashType = Record.Stash
