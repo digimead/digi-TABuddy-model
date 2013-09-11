@@ -49,9 +49,12 @@ import org.yaml.snakeyaml.representer.Represent
 import org.yaml.snakeyaml.representer.Representer
 import java.net.URI
 
-class YAMLSerialization(implicit val serializationType: Manifest[String]) extends Serialization[String] {
+class YAMLSerialization extends Serialization {
+  /** Identifier of the serialization mechanism. */
+  val identifier = YAMLSerialization.Identifier
+
   /** Load element from an Iterable[String] with fnLoadElement(). */
-  def acquireElement[A <: Element](objectId: UUID, parentNode: TANode)(implicit m: Manifest[A]): Option[A] = {
+  def acquireElement[A <: Element](objectId: UUID, parentNode: TANode, from: Array[Byte])(implicit m: Manifest[A]): Option[A] = {
     /*   if (ma.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined")
     //    if (mb.runtimeClass == classOf[Nothing])
@@ -122,11 +125,12 @@ class YAMLSerialization(implicit val serializationType: Manifest[String]) extend
    * Filter/adjust children with filter()
    * Save adjusted child to [String] with saveElement().
    */
-  def freezeElement(element: Element) = {
-    val options = new DumperOptions()
-    options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
+  def freezeElement(element: Element): Array[Byte] = {
+    //    val options = new DumperOptions()
+    //    options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
     //    val yaml = new Yaml(new YAMLSerialization.ElementRepresenter, new DumperOptions())
     //    freezeWorker(yaml, saveElement, element)
+    null
   }
   //@tailrec
   private def freezeWorker(yaml: Yaml, saveElement: (Element, String) ⇒ Unit,
@@ -501,4 +505,6 @@ object YAMLSerialization extends Loggable {
   }
 
   case class Property(val context: Context, val typeSymbol: String, val data: String, val id: String, val static: Boolean)*/
+  /** YAMLSerialization identifier. */
+  object Identifier extends Serialization.Identifier{ val extension = "yaml"}
 }

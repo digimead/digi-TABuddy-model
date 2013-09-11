@@ -48,7 +48,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
       withTempFolder { folder ⇒
         import TestDSL._
         // graph
-        val graph = Graph[Model]('john1, Model.scope, new BuiltinSerialization, UUID.randomUUID())
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID())
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
         val record_0 = model.takeRecord('baseLevel) { r ⇒
           r.takeRecord('level1a) { r ⇒
@@ -65,8 +65,8 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
           }
           r.name = "record_0"
         }.eMutable
-        graph.node.threadSafe(_.iteratorRecursive().size) should be(5)
-        model.eNode.threadSafe(_.size) should be(1)
+        graph.node.safeRead(_.iteratorRecursive().size) should be(5)
+        model.eNode.safeRead(_.size) should be(1)
         model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123", Value.Context(model))))))
         log.___glance("Model dump:\n" + model.eDump(false))
 
@@ -75,34 +75,37 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
         Serialization.freezeGraph(graph)
         new File(folder, "john1") should be('directory)
+        new File(folder, "john1").length() should be > (0L)
         new File(folder, "john1/description") should be('file)
-        new File(folder, "john1/baseLevel/description") should be('file)
-        new File(folder, "john1/baseLevel/level1a/description") should be('file)
-        new File(folder, "john1/baseLevel/level1b/description") should be('file)
-        new File(folder, "john1/baseLevel/level1a/level2a/description") should be('file)
-        new File(folder, "john1/baseLevel/level1b/level2b/description") should be('file)
+        new File(folder, "john1/description").length() should be > (0L)
+        new File(folder, "john1/model/john1/description") should be('file)
+        new File(folder, "john1/model/john1/description").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/description") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/description").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1a/description") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1a/description").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1b/description") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1b/description").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/description") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/description").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/description") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/description").length() should be > (0L)
+        //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
+        //val str = testTxtSource.getLines.mkString("\n")
+        //testTxtSource.close()
+
+        // deserialize
+        val graph2 = Serialization.acquireGraph(graph.origin, folder)
+        graph2 should not be (null)
+        graph2.origin.name should be (graph.origin.name)
+        graph2.modelType should be (graph.modelType)
+        graph2.modified should be (graph.modified)
+        /*graph.node.freezeRead(_.iteratorRecursive().foreach { node ⇒
+          node.getProjections.foreach {
+            case (coordinate, box) ⇒ box.save()
+          }
+        })*/
       }
-      /*
-      var frozen: Seq[Array[Byte]] = Seq()
-      def fFilter[A <: Element](element: A): Option[A] = {
-        log.___glance(s"Filter element ${element} with ancestors ${element.eAncestors.mkString(",")}.")
-        element match {
-          case model: Model.Like ⇒
-            log.___glance("Model element detected: " + model)
-          case element ⇒
-        }
-        Some(element)
-      }
-      def fSave(element: Element, data: Array[Byte]) {
-        log.___glance("Save element %s, serialized data size is %d bytes".format(element, data.size))
-        assert(data.size > 0, "incorrect data size")
-        frozen = frozen :+ data
-      }
-      graph.node.freezeRead(_.iteratorRecursive().foreach { node ⇒
-        node.getProjections.foreach {
-          case (coordinate, box) ⇒ box.save()
-        }
-      })*/
       /*      s.freeze(Model, fSave, fFilter)
       frozen should not be ('empty)
       frozen = scala.util.Random.shuffle(frozen)

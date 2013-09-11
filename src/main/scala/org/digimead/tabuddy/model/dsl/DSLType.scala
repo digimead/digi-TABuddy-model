@@ -18,6 +18,8 @@
 
 package org.digimead.tabuddy.model.dsl
 
+import java.net.URI
+
 import scala.Option.option2Iterable
 import scala.collection.immutable
 
@@ -25,8 +27,9 @@ import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
+import org.digimead.tabuddy.model.serialization.Serialization
 
-import language.implicitConversions
+import scala.language.implicitConversions
 
 trait DSLType {
   /** The map of class -> symbol */
@@ -38,7 +41,8 @@ trait DSLType {
   /**
    * Commit complex type (if needed) while saving
    */
-  def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable, element: Element) {}
+  def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
+    element: Element, transport: Serialization.Transport, elementURI: URI)
   /**
    * Convert value from string
    */
@@ -85,13 +89,15 @@ object DSLType extends Loggable {
     /**
      * Commit complex type (if needed) while saving
      */
-    def commit[T](value: Value[T], element: Element)(implicit m: Manifest[T]): Unit =
-      classSymbolMap.get(m.runtimeClass).map(symbolType => commit(symbolType, value, element))
+    def commit[T](value: Value[T], element: Element, transport: Serialization.Transport,
+      elementDirectoryURI: URI)(implicit m: Manifest[T]): Unit =
+      classSymbolMap.get(m.runtimeClass).map(symbolType => commit(symbolType, value, element, transport, elementDirectoryURI))
     /**
      * Commit complex type (if needed) while saving
      */
-    def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable, element: Element): Unit =
-      symbolConverterMap.get(typeSymbol).foreach(converter => converter.commit(typeSymbol, value, element))
+    def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
+      element: Element, transport: Serialization.Transport, elementDirectoryURI: URI): Unit =
+      symbolConverterMap.get(typeSymbol).foreach(converter => converter.commit(typeSymbol, value, element, transport, elementDirectoryURI))
     /**
      * Convert value from string
      */

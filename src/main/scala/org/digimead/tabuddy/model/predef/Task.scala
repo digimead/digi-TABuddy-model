@@ -71,22 +71,21 @@ object Task extends Loggable {
       def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eNode.threadSafe { parentNode ⇒
-          parentNode.find { _.id == id } match {
-            case Some(childNode) ⇒
-              childNode.threadSafe { node ⇒
-                log.debug(s"Get or create task element for exists ${node}.")
-                implicit val shashClass = classOf[Task.Stash]
-                val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
-                fTransform(new Mutable(task))
-              }
-            case None ⇒
-              parentNode.createChild(id, UUID.randomUUID()).threadSafe { node ⇒
-                log.debug(s"Get or create task element for new ${node}.")
-                implicit val shashClass = classOf[Task.Stash]
-                val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
-                fTransform(new Mutable(task))
-              }
+        element.eNode.safeWrite { parentNode =>
+          parentNode.find(_.id == id).map { childNode ⇒
+            childNode.safeWrite { node ⇒
+              log.debug(s"Get or create task element for exists ${node}.")
+              implicit val shashClass = classOf[Task.Stash]
+              val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
+              fTransform(new Mutable(task))
+            }
+          } getOrElse {
+            parentNode.createChild(id, UUID.randomUUID()).safeWrite { node ⇒
+              log.debug(s"Get or create task element for new ${node}.")
+              implicit val shashClass = classOf[Task.Stash]
+              val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
+              fTransform(new Mutable(task))
+            }
           }
         }
       }

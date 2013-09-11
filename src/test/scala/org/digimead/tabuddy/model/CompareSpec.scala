@@ -29,12 +29,9 @@ import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
 import org.digimead.tabuddy.model.element.compare.CompareByTimestampAndThenContent
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.serialization.Stub
+import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
-
-import com.escalatesoft.subcut.inject.NewBindingModule
 
 class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
@@ -67,7 +64,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     it("should provide proper comparison") {
       import TestDSL._
       multithread(1000, 10) { i ⇒
-        val graph1 = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+        val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
         var myModel1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB")
         var save: Record = null
         val record = myModel1.takeRecord('root) { r ⇒
@@ -75,7 +72,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
             r.name = "123"
           }
         }
-        val graph2 = Graph[Model]('john2, Model.scope, new Stub, UUID.randomUUID())
+        val graph2 = Graph[Model]('john2, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
         var myModel2 = graph2.model
         graph2.model.eId.name should be("john2")
         CompareByTimespamp.doWith {
@@ -100,7 +97,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eStash.property) should be(myModel2.eStash.property)
 
           val myModel1Mutable = myModel1.eMutable
-          val model1BranchNodes = myModel1Mutable.eNode.threadSafe(_.iteratorRecursive().toIndexedSeq)
+          val model1BranchNodes = myModel1Mutable.eNode.safeRead(_.iteratorRecursive().toIndexedSeq)
           model1BranchNodes should be(Seq(record.eNode, save.eNode))
 
           myModel1.compare(myModel2) should be(0) // myModel1 == myModel2
@@ -140,7 +137,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     it("should provide proper comparison") {
       import TestDSL._
       multithread(1000, 10) { i ⇒
-        val graph1 = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+        val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
         val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
         val rA1 = model1.takeRecord('rA) { r ⇒
           Thread.sleep(10)

@@ -36,11 +36,12 @@ import language.implicitConversions
  * It is suitable for lazy loading or for SoftReference containers.
  *
  * @param coordinate element coordinate
+ * @param elementUniqueId identifier which is uniquely identify the specific element
  * @param initial initial element value, which is erased after save
- * @param elementId identifier which is uniquely identify the specific element
- * @param elementType manifest with element type
- * @param node reference to container
- * @param serialization element serialization
+ * @param unmodified the modification timestamp of the unmodified element
+ * @param elementType manifest with an element type
+ * @param node container of the element box
+ * @param serialization type of the serialization mechanism
  */
 /*
  * please, note => on 'initial' field
@@ -57,10 +58,11 @@ import language.implicitConversions
  * It's looks like: Node (<- ElementBox <-> Element)
  * (<- ElementBox <-> Element) is CG'ed part.
  */
-abstract class ElementBox[A <: Element](val coordinate: Coordinate, initial: ⇒ Option[A],
-  val elementUniqueId: UUID)(implicit val elementType: Manifest[A], val node: Node, val serialization: Serialization[_]) {
-  def this(coordinate: Coordinate, initial: AtomicReference[A], elementUniqueId: UUID)(implicit elementType: Manifest[A],
-    node: Node, serialization: Serialization[_]) = this(coordinate, Option(initial.get), elementUniqueId)(elementType, node, serialization)
+abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementUniqueId: UUID, initial: ⇒ Option[A],
+  val unmodified: Element.Timestamp)(implicit val elementType: Manifest[A], val node: Node, val serialization: Serialization.Identifier) {
+  def this(coordinate: Coordinate, elementUniqueId: UUID, initial: AtomicReference[A],
+    unmodified: Element.Timestamp)(implicit elementType: Manifest[A], node: Node, serialization: Serialization.Identifier) =
+    this(coordinate, elementUniqueId, Option(initial.get), unmodified)(elementType, node, serialization)
   /** Get reference of this element. */
   def eReference(): Reference = Reference(node.graph.origin, node.unique, coordinate)
   /** Current box context */
@@ -68,25 +70,32 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, initial: ⇒
   /** Copy current element box. */
   def copy(coordinate: Coordinate = this.coordinate,
     node: Node = this.node,
-    serialization: Serialization[_] = this.serialization): ElementBox[A] = {
+    serialization: Serialization.Identifier = this.serialization): ElementBox[A] = {
     val element = get()
     val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-    val elementBox = ElementBox[A](coordinate, elementElementForwardReference)(elementType = implicitly, node = node, serialization = serialization)
-    val elementCopy = element.eCopy(elementBox.asInstanceOf[ElementBox[element.ElementType]], element.eStash.asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
+    val elementBox = ElementBox[A](coordinate, UUID.randomUUID(), elementElementForwardReference,
+      element.eModified)(elementType = implicitly, node = node, serialization = serialization)
+    val elementCopy = element.eCopy(elementBox.asInstanceOf[ElementBox[element.ElementType]],
+      element.eStash.asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
     elementElementForwardReference.set(elementCopy)
     elementBox.get
     elementBox
   }
   /** Get element. */
   def get(): A
+  /** Get modified element. Returns only if value was modified. */
+  def getModified(): Option[A]
   /** (Re)Load element. */
   def load(): A
   /** Save element. */
-  def save() = serialization.freezeElement(get)
+  def save(): Array[Byte] = Serialization.perExtension.get(serialization) match {
+    case Some(serialization) => serialization.freezeElement(get)
+    case None => throw new IllegalStateException(s"Serialization for ${serialization} not found.")
+  }
   /** Set element. */
   def set(arg: A)
 
-  override def toString = s"graph.Box[${context}:${coordinate}/${elementType}]"
+  override def toString = s"graph.Box[${context}:${coordinate}/${elementType};${node.id}]"
 }
 
 object ElementBox {
@@ -114,21 +123,38 @@ object ElementBox {
    *  Element box companion interface
    */
   trait Interface {
-    /** Create element box with specific parameters. */
-    def apply[A <: Element](coordinate: Coordinate, initial: AtomicReference[A])(implicit elementType: Manifest[A],
-      node: Node, serialization: Serialization[_]): ElementBox[A] = {
+    /**
+     * Create element box with specific parameters.
+     *
+     * @param coordinate element coordinate
+     * @param elementUniqueId identifier which is uniquely identify the specific element
+     * @param initial initial element value, which is erased after save
+     * @param unmodified the modification timestamp of unmodified element
+     * @param elementType manifest with element type
+     * @param node container of the element box
+     * @param serialization type of the serialization mechanism
+     */
+    def apply[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, initial: AtomicReference[A],
+      unmodified: Element.Timestamp)(implicit elementType: Manifest[A], node: Node, serialization: Serialization.Identifier): ElementBox[A] = {
       val boxClass = DI.elementBoxClass
       val newBoxCtor = boxClass.getConstructor(
         classOf[Coordinate],
+        classOf[UUID],
         classOf[AtomicReference[_]],
+        classOf[Element.Timestamp],
         classOf[Manifest[_]],
         classOf[Node],
-        classOf[Serialization[_]])
-      newBoxCtor.newInstance(coordinate, initial, elementType, node, serialization).asInstanceOf[ElementBox[A]]
+        classOf[Serialization.Identifier])
+      newBoxCtor.newInstance(coordinate, elementUniqueId, initial, unmodified, elementType, node, serialization).asInstanceOf[ElementBox[A]]
+    }
+    /** Create element box except element and assign it to node. */
+    def apply[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, node: Node.ThreadUnsafe,
+      unmodified: Element.Timestamp, serialization: Serialization.Identifier)(implicit m: Manifest[A]): ElementBox[A] = {
+      apply[A](coordinate, elementUniqueId, new AtomicReference[A](), unmodified)(m, node, serialization)
     }
     /** Create element, element box with specific parameters and assign it to node. */
     def apply[A <: Element](coordinate: Coordinate, created: Element.Timestamp, elementNode: Node.ThreadUnsafe,
-      modified: Element.Timestamp, scope: A#StashType#ScopeType, serialization: Serialization[_])(implicit m: Manifest[A],
+      modified: Element.Timestamp, scope: A#StashType#ScopeType, serialization: Serialization.Identifier)(implicit m: Manifest[A],
         stashClass: Class[_ <: A#StashType]): ElementBox[A] = {
       /*
        * Validate
@@ -145,7 +171,7 @@ object ElementBox {
         apply(Coordinate.root, created, elementNode, modified, scope, serialization)
       // create root or projection element
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-      val elementBox = apply[A](coordinate, elementElementForwardReference)(m, elementNode, serialization)
+      val elementBox = apply[A](coordinate, UUID.randomUUID(), elementElementForwardReference, Element.timestamp(0, 0))(m, elementNode, serialization)
       elementNode.updateElementBox(coordinate, elementBox)
       // 3rd. Create element.
       val element = Element.apply[A](elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
@@ -156,7 +182,8 @@ object ElementBox {
       elementBox
     }
     /** Create element, element box with specific stash and assign it to node. */
-    def apply[A <: Element](coordinate: Coordinate, elementNode: Node.ThreadUnsafe, serialization: Serialization[_], stash: A#StashType)(implicit m: Manifest[A]): ElementBox[A] = {
+    def apply[A <: Element](coordinate: Coordinate, elementNode: Node.ThreadUnsafe,
+      serialization: Serialization.Identifier, stash: A#StashType)(implicit m: Manifest[A]): ElementBox[A] = {
       /*
        * Validate
        */
@@ -175,7 +202,7 @@ object ElementBox {
       }
       // create root or projection element
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-      val elementBox = apply[A](coordinate, elementElementForwardReference)(m, elementNode, serialization)
+      val elementBox = apply[A](coordinate, UUID.randomUUID(), elementElementForwardReference, Element.timestamp(0, 0))(m, elementNode, serialization)
       elementNode.updateElementBox(coordinate, elementBox)
       // 3rd. Create element.
       val element = Element.apply[A](elementBox, stash)
@@ -187,7 +214,7 @@ object ElementBox {
     }
     /** Get or create new element box at specific coordinates. */
     def getOrCreate[A <: Element](coordinate: Coordinate, node: Node.ThreadUnsafe, scope: A#StashType#ScopeType,
-      serialization: Serialization[_])(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): A = {
+      serialization: Serialization.Identifier)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): A = {
       val requiredBox = if (coordinate == Coordinate.root)
         Option(node.rootElementBox)
       else
@@ -212,20 +239,32 @@ object ElementBox {
     }
   }
   /**
-   * Hard element reference that always contain element instance.
+   * Hard element reference that always contains element instance.
    */
-  class Hard[A <: Element](coordinate: Coordinate,
-    initial: ⇒ A, elementUniqueId: UUID = UUID.randomUUID)(implicit elementType: Manifest[A], node: Node, serialization: Serialization[_])
-    extends ElementBox[A](coordinate, Option(initial), elementUniqueId) {
-    def this(coordinate: Coordinate, initial: AtomicReference[A])(implicit elementType: Manifest[A],
-      node: Node, serialization: Serialization[_]) = this(coordinate, initial.get)(elementType, node, serialization)
-    def context(): ElementBox.Context = null
+  class Hard[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, initial: ⇒ A,
+    unmodified: Element.Timestamp)(implicit elementType: Manifest[A], node: Node, serialization: Serialization.Identifier)
+    extends ElementBox[A](coordinate, elementUniqueId, Option(initial), unmodified) {
+    def this(coordinate: Coordinate, elementUniqueId: UUID, initial: AtomicReference[A],
+      unmodified: Element.Timestamp)(implicit elementType: Manifest[A], node: Node, serialization: Serialization.Identifier) =
+      this(coordinate, elementUniqueId, initial.get, unmodified)(elementType, node, serialization)
+    def context(): ElementBox.Context = new ElementBox.Context(None, None)
+    /** Get modification timestamp of unmodified element. */
+    /*
+     * Hard element box is always contains the initial data.
+     * The simplest way is just to overwrite it. Returns 0 timestamp.
+     */
     def get(): A = initial
+    def getModified(): Option[A] = Some(initial)
     def load(): A = initial
     def set(arg: A) = throw new UnsupportedOperationException
 
-    override def toString = s"graph.Box$$Hard[${context}://${coordinate}/${elementType}]"
+    override def toString = s"graph.Box$$Hard[${coordinate}/${elementType};${node.id}]"
   }
+  /**
+   * Soft element reference that contains element only while there is enough memory (RAM) available.
+   * And reload it if required.
+   */
+
   /**
    * Dependency injection routines.
    */

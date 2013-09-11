@@ -31,7 +31,7 @@ import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.serialization.Stub
+import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -45,15 +45,16 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
   describe("A Record") {
     it("should create new instance") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
 
       val record1Timestamp = Element.timestamp()
       // 1. create node
-      val record1 = graph.node.threadSafe(_.createChild('test1, UUID.randomUUID()).threadSafe { test1Node ⇒
+      val record1 = graph.node.safeWrite(_.createChild('test1, UUID.randomUUID()).safeWrite { test1Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
-        val elementBox = ElementBox[Record](Coordinate.root, elementElementForwardReference)(elementType = implicitly[Manifest[Record]],
-          node = test1Node, serialization = graph.model.eBox.serialization)
+        val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), elementElementForwardReference,
+          Element.Timestamp(0, 0))(elementType = implicitly[Manifest[Record]],
+            node = test1Node, serialization = graph.model.eBox.serialization)
         test1Node.updateState(rootElementBox = elementBox)
         // 3. create element
         elementElementForwardReference.set(Element[Record](elementBox, record1Timestamp, record1Timestamp, new Stash.Data(), Record.scope))
@@ -63,11 +64,12 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
 
       val record2Timestamp = Element.timestamp()
       // 1. create node
-      val record2 = graph.node.threadSafe(_.createChild('test2, UUID.randomUUID()).threadSafe { test2Node ⇒
+      val record2 = graph.node.safeWrite(_.createChild('test2, UUID.randomUUID()).safeWrite { test2Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
-        val elementBox = ElementBox[Record](Coordinate.root, elementElementForwardReference)(elementType = implicitly[Manifest[Record]],
-          node = test2Node, serialization = graph.model.eBox.serialization)
+        val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), elementElementForwardReference,
+          Element.Timestamp(0, 0))(elementType = implicitly[Manifest[Record]],
+            node = test2Node, serialization = graph.model.eBox.serialization)
         test2Node.updateState(rootElementBox = elementBox)
         // 3. create element
         elementElementForwardReference.set(Element[Record](elementBox, record2Timestamp, record2Timestamp, new Stash.Data(), Record.scope))
@@ -78,12 +80,12 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       record1 should not be (record2)
       record1.eId.name should be("test1")
       record2.eId.name should be("test2")
-      graph.model.eNode.threadSafe(_.iteratorRecursive().toSeq.size) should be(2)
+      graph.model.eNode.safeRead(_.iteratorRecursive().toSeq.size) should be(2)
     }
     it("should support nested elements") {
       import TestDSL._
       // define record
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
       val record_0 = model.takeRecord('baseLevel) { r ⇒
         r.takeRecord('level1a) { r ⇒
@@ -109,11 +111,11 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       // check child elements
       val record_1a = record_0 & RecordLocation('level1a)
       val record_1b = record_0 & RecordLocation('level1b)
-      record_0.eNode.threadSafe(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_1a, record_1b))
+      record_0.eNode.safeRead(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_1a, record_1b))
       val record_2a = record_0 & RecordLocation('level1a) & RecordLocation('level2a)
-      record_1a.eNode.threadSafe(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2a))
+      record_1a.eNode.safeRead(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2a))
       val record_2b = record_0 & RecordLocation('level1b) & RecordLocation('level2b)
-      record_1b.eNode.threadSafe(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2b))
+      record_1b.eNode.safeRead(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2b))
 
       val treeA = model.takeRecord('baseLevel) { r ⇒
         r.takeRecord('level1a) { r ⇒
@@ -123,7 +125,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
           }
         }
       }
-      model.eNode.threadSafe { _.iteratorRecursive().find(_.id == 'level2a) }.
+      model.eNode.safeRead { _.iteratorRecursive().find(_.id == 'level2a) }.
         flatMap(_.getRootElementBox.get.eAs[Record].map(_.name)) should be(Some("ok"))
     }
   }

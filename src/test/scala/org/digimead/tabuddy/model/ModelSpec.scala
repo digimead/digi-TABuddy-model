@@ -27,7 +27,7 @@ import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.serialization.Stub
+import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -44,7 +44,7 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
   describe("A Model") {
     it("should attach and detach element") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
       val rA1 = model1.takeRecord('rA) { r ⇒
         r.takeRecord('rB) { r ⇒
@@ -61,20 +61,20 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       graphCopy.nodes.values.toSeq.sortBy(_.unique) should be(graph.nodes.values.toSeq.sortBy(_.unique))
       graphCopy.nodes.values.toSeq.sortBy(_.unique).corresponds(graph.nodes.values.toSeq.sortBy(_.unique))(_.unique == _.unique) should be(true)
       graphCopy.nodes.values.toSeq.sortBy(_.unique).corresponds(graph.nodes.values.toSeq.sortBy(_.unique))(_ ne _) should be(true)
-      graphCopy.node.threadSafe(_.iteratorRecursive()).size should be(graphCopy.nodes.values.size - 1)
-      (graphCopy.node.threadSafe(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique) should be(graphCopy.nodes.values.toSeq.sortBy(_.unique))
-      (graphCopy.node.threadSafe(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique).corresponds(graphCopy.nodes.values.toSeq.sortBy(_.unique))(_ eq _) should be(true)
+      graphCopy.node.safeRead(_.iteratorRecursive()).size should be(graphCopy.nodes.values.size - 1)
+      (graphCopy.node.safeRead(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique) should be(graphCopy.nodes.values.toSeq.sortBy(_.unique))
+      (graphCopy.node.safeRead(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique).corresponds(graphCopy.nodes.values.toSeq.sortBy(_.unique))(_ eq _) should be(true)
       graphCopy.model should equal(graphCopy.model.eModel)
       graphCopy.model.eq(graphCopy.model.eModel) should be(true)
-      val recordCopy = graphCopy.model.eNode.threadSafe(_.head).getRootElementBox.get
+      val recordCopy = graphCopy.model.eNode.safeRead(_.head).getRootElementBox.get
       recordCopy.eModel.eq(graphCopy.model.eModel) should be(true)
       recordCopy.eId.name should be("rA")
-      recordCopy.eNode.threadSafe(_.size) should be(1)
-      model1.eNode.threadSafe(_.iteratorRecursive().toSeq) should have size (3)
-      model1.eNode.threadSafe(_.iterator.toSeq) should have size (1)
-      rB1.eNode.threadSafe(_.iterator.toSeq) should have size (1)
-      rLeaf1.eNode.threadSafe(_.children) should be('empty)
-      (graphCopy.model & RecordLocation('rA) & RecordLocation('rB) & RecordLocation('rLeaf)).eNode.threadSafe(_.children) should be('empty)
+      recordCopy.eNode.safeRead(_.size) should be(1)
+      model1.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (3)
+      model1.eNode.safeRead(_.iterator.toSeq) should have size (1)
+      rB1.eNode.safeRead(_.iterator.toSeq) should have size (1)
+      rLeaf1.eNode.safeRead(_.children) should be('empty)
+      (graphCopy.model & RecordLocation('rA) & RecordLocation('rB) & RecordLocation('rLeaf)).eNode.safeRead(_.children) should be('empty)
     }
   }
 

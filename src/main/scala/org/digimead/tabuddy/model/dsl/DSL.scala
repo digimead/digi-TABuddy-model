@@ -53,22 +53,24 @@ object DSL {
 
     /** Create or retrieve child of the current element. */
     def |[A <: Element](l: LocationGeneric[A]): A =
-      element.eNode.threadSafe(_.iterator.find(node ⇒ node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
-        case Some(node) ⇒
-          node.threadSafe { node ⇒
-            Option(node.rootElementBox).map(_.elementType).foreach(existsElementType ⇒
-              if (!existsElementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
-                throw new IllegalArgumentException(s"Unable to cast ${l.elementType.runtimeClass} to ${existsElementType}."))
-            node.getProjection(l.coordinate) match {
-              case Some(box) ⇒ box.get.asInstanceOf[A]
-              case None ⇒ ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
+      element.eNode.safeWrite { node =>
+        node.iterator.find(node ⇒ node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
+          case Some(child) ⇒
+            child.safeWrite { child ⇒
+              Option(child.rootElementBox).map(_.elementType).foreach(existsElementType ⇒
+                if (!existsElementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
+                  throw new IllegalArgumentException(s"Unable to cast ${l.elementType.runtimeClass} to ${existsElementType}."))
+              child.getProjection(l.coordinate) match {
+                case Some(box) ⇒ box.get.asInstanceOf[A]
+                case None ⇒ ElementBox.getOrCreate(l.coordinate, child, l.scope, null)(l.elementType, l.stashClass)
+              }
             }
-          }
-        case None ⇒
-          element.eNode.threadSafe(_.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())).threadSafe { node ⇒
-            ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
-          })
-      })
+          case None ⇒
+            node.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())).safeWrite { node ⇒
+              ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
+            }
+        }
+      }
     /** Retrieve child of the current element. */
     def &[A <: Element](l: LocationGeneric[A]): A =
       element.eFind[A](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&

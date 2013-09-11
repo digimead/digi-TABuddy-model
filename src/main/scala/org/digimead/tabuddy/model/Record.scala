@@ -76,22 +76,21 @@ object Record extends Loggable {
       def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eNode.threadSafe { parentNode ⇒
-          parentNode.find { _.id == id } match {
-            case Some(childNode) ⇒
-              childNode.threadSafe { node ⇒
-                log.debug(s"Get or create record element for exists ${node}.")
-                implicit val shashClass = classOf[Record.Stash]
-                val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
-                fTransform(new Mutable(record))
-              }
-            case None ⇒
-              parentNode.createChild(id, UUID.randomUUID()).threadSafe { node ⇒
-                log.debug(s"Get or create record element for new ${node}.")
-                implicit val shashClass = classOf[Record.Stash]
-                val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
-                fTransform(new Mutable(record))
-              }
+        element.eNode.safeWrite { parentNode =>
+          parentNode.find(_.id == id).map { childNode ⇒
+            childNode.safeWrite { node ⇒
+              log.debug(s"Get or create record element for exists ${node}.")
+              implicit val shashClass = classOf[Record.Stash]
+              val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
+              fTransform(new Mutable(record))
+            }
+          } getOrElse {
+            parentNode.createChild(id, UUID.randomUUID()).safeWrite { node ⇒
+              log.debug(s"Get or create record element for new ${node}.")
+              implicit val shashClass = classOf[Record.Stash]
+              val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
+              fTransform(new Mutable(record))
+            }
           }
         }
       }
@@ -126,7 +125,7 @@ object Record extends Loggable {
         "%s: %s".format(eStash.scope, eId) + properties
       else
         "%s: %s \"%s\"".format(eStash.scope, eId, name) + properties
-      val childrenDump = eNode.threadSafe(_.iterator.map(_.getElementBoxes).flatten.
+      val childrenDump = eNode.safeRead(_.iterator.map(_.getElementBoxes).flatten.
         map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }

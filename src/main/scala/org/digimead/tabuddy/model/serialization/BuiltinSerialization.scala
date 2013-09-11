@@ -31,9 +31,12 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Node
 
-class BuiltinSerialization(implicit val serializationType: Manifest[Array[Byte]]) extends Serialization[Array[Byte]] {
-  /** Load element from an Iterable[A] with fnLoadElement(). */
-  def acquireElement[A <: Element](objectId: UUID, parentNode: Node)(implicit m: Manifest[A]): Option[A] = {
+class BuiltinSerialization extends Serialization {
+  /** Identifier of the serialization mechanism. */
+  val identifier = BuiltinSerialization.Identifier
+
+  /** Load element. */
+  def acquireElement[A <: Element](objectId: UUID, parentNode: Node, from: Array[Byte])(implicit m: Manifest[A]): Option[A] = {
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined")
     /*var hash = mutable.HashMap[UUID, Element]()
@@ -94,24 +97,12 @@ class BuiltinSerialization(implicit val serializationType: Manifest[Array[Byte]]
     None
   }
   /** Save element. */
-  def freezeElement(element: Element) {
-    log.___gaze("!!!" + element)
-    /*val saved = elements.map { element ⇒
-      val serialized = element
-      filter(serialized) match {
-        case Some(serialized) ⇒
-          val baos = new ByteArrayOutputStream()
-          val out = new ObjectOutputStream(baos)
-          out.writeObject(serialized)
-          saveElement(element, baos.toByteArray())
-          baos.close()
-          element.eChildren.toSeq.sortBy(_.eId.name) // simplify the debugging with sortBy
-        case None ⇒
-          log.debug("skip freeze element " + element)
-          Seq()
-      }
-    }
-    freezeWorker(saveElement, filter, saved.flatten: _*)*/
+  def freezeElement(element: Element): Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    val out = new ObjectOutputStream(baos)
+    out.writeObject(element)
+    baos.close()
+    baos.toByteArray()
   }
 }
 
@@ -145,4 +136,6 @@ object BuiltinSerialization {
         super.resolveClass(desc)
     }
   }
+  /** BuiltinSerialization identifier. */
+  object Identifier extends Serialization.Identifier { val extension = "bcode" }
 }

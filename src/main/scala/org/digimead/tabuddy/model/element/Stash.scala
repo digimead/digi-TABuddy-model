@@ -49,7 +49,7 @@ object Stash {
    *
    * (origin, unique, coordinate) is element reference that allow unambiguously identify this data piece.
    */
-  trait Like extends Equals {
+  trait Like extends Equals with java.io.Serializable {
     /** Stash type. */
     type StashType <: Like
     /** Scope type */
@@ -73,7 +73,7 @@ object Stash {
       val newStashCtor = this.getClass.getConstructors.find(_.getParameterTypes() match {
         case Array(createdArg, modifiedArg, dataArg, scopeArg) ⇒
           scopeArg.isAssignableFrom(scope.getClass) && createdArg.isAssignableFrom(created.getClass()) &&
-          modifiedArg.isAssignableFrom(modified.getClass()) && dataArg.isAssignableFrom(property.getClass())
+            modifiedArg.isAssignableFrom(modified.getClass()) && dataArg.isAssignableFrom(property.getClass())
         case _ ⇒ false
       }) getOrElse {
         throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")

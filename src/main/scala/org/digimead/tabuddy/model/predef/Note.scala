@@ -73,22 +73,21 @@ object Note extends Loggable {
       def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eNode.threadSafe { parentNode ⇒
-          parentNode.find { _.id == id } match {
-            case Some(childNode) ⇒
-              childNode.threadSafe { node ⇒
-                log.debug(s"Get or create note element for exists ${node}.")
-                implicit val shashClass = classOf[Note.Stash]
-                val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
-                fTransform(new Mutable(note))
-              }
-            case None ⇒
-              parentNode.createChild(id, UUID.randomUUID()).threadSafe { node ⇒
-                log.debug(s"Get or create note element for new ${node}.")
-                implicit val shashClass = classOf[Note.Stash]
-                val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
-                fTransform(new Mutable(note))
-              }
+        element.eNode.safeWrite { parentNode =>
+          parentNode.find(_.id == id).map { childNode ⇒
+            childNode.safeWrite { node ⇒
+              log.debug(s"Get or create note element for exists ${node}.")
+              implicit val shashClass = classOf[Note.Stash]
+              val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
+              fTransform(new Mutable(note))
+            }
+          } getOrElse {
+            parentNode.createChild(id, UUID.randomUUID()).safeWrite { node ⇒
+              log.debug(s"Get or create note element for new ${node}.")
+              implicit val shashClass = classOf[Note.Stash]
+              val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
+              fTransform(new Mutable(note))
+            }
           }
         }
       }

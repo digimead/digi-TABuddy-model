@@ -20,9 +20,7 @@ package org.digimead.tabuddy.model.graph
 
 import java.net.URI
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
 
-import scala.ref.WeakReference
 import scala.collection.immutable
 import scala.collection.mutable
 
@@ -30,10 +28,11 @@ import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Stash
+import org.digimead.tabuddy.model.graph.ElementBox.box2interface
+import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.serialization.Serialization
 
-import language.implicitConversions
+import scala.language.implicitConversions
 
 /**
  * Graph is a container for nodes.
@@ -55,8 +54,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node, val
      */
     val targetModelNode = Node.model(id, unique)
     val graph = new Graph[A](timestamp, targetModelNode, origin)
-    targetModelNode.threadSafe { targetNode ⇒
-      targetModelNode.initializeModelNode(graph,timestamp)
+    targetModelNode.safeWrite { targetNode ⇒
+      targetModelNode.initializeModelNode(graph, timestamp)
       val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode)
       val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = sourceModelNode.projectionElementBoxes.map {
         case (coordinate, box) ⇒ coordinate -> box.copy(node = targetNode)
@@ -85,16 +84,16 @@ object Graph {
   trait Interface {
     def apply[A <: Model.Like: Manifest](node: Node, origin: Symbol): Graph[A] = new Graph(Element.timestamp(), node, origin)
     /** Create a new graph. */
-    def apply[A <: Model.Like: Manifest](origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization[_],
+    def apply[A <: Model.Like: Manifest](origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
       unique: UUID)(implicit stashClass: Class[_ <: A#StashType]): Graph[A] =
       apply[A](origin, origin, scope, serialization, unique)
     /** Create a new graph. */
-    def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization[_],
+    def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
       unique: UUID)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val timestamp = Element.timestamp()
       val modelNode = Node.model(id, unique)
       val modelGraph = new Graph[A](timestamp, modelNode, origin)
-      modelNode.threadSafe { node ⇒
+      modelNode.safeWrite { node ⇒
         modelNode.initializeModelNode(modelGraph, timestamp)
         val modelBox = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
         if (modelGraph.modelType != modelGraph.node.getRootElementBox.elementType)

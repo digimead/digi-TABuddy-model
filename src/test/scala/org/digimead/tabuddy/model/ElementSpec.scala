@@ -36,7 +36,7 @@ import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
-import org.digimead.tabuddy.model.serialization.Stub
+import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -75,7 +75,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     it("should have proper equality") {
       import TestDSL._
       // graph 1
-      val graph1 = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
       val rA1 = model1.takeRecord('rA) { r ⇒
         r.takeRecord('rAB) { r ⇒
@@ -100,7 +100,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val curtom_rA1 = new Record(rA1.eStash)(rAB2.eBox) // different eBox
       curtom_rA1.canEqual(rA1.immutable) should be(true)
       curtom_rA1.eStash should be(rA1.eStash)
-      curtom_rA1 should be(rA1.immutable)
+      curtom_rA1 should not be(rA1.immutable)
 
       val rLeaf2_orig = rLeaf2.immutable
       rLeaf2.name should be("123")
@@ -112,13 +112,13 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should have proper copy") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       graph should not be null
       val myModel = graph.model
       myModel should not be null
       // 100000 iterations x 10 threads x 3 elements = 3000000 elements
       // 3000000 is about 4.5GB mem
-      // 300000/10Th processed within 5646ms - 7458ms = ~40000-50000 eCopy(write) operations per second on notebook/home pc
+      // 300000/10Th processed within 6000ms - 10000ms = ~30000-50000 eCopy(write) operations per second on notebook/home pc
       // ~?/1Th eCopy(write) ops in single thread
       // ~?/10Th eCopy(write) ops in multi thread
       multithread(1000, 10) { i ⇒
@@ -138,7 +138,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should have proper constraints") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       multithread(1000, 10) { i ⇒
         val r1 = graph.model.withRecord('a) { r ⇒ r }
@@ -163,7 +163,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val r4 = r3.withRecord('c, ('sdf, 4)) { r ⇒ r }
       //log.___glance("? \n" + Graph.dump(graph, false))
       // successful create new element
-      r4.eNode.threadSafe { node ⇒
+      r4.eNode.safeWrite { node ⇒
         val timestamp = Element.timestamp()
         val stash = new Record.Stash(timestamp, timestamp, new Stash.Data, Record.scope)
         ElementBox[Record](Coordinate(('cxv, 6)), node, node.rootElementBox.serialization, stash)
@@ -171,7 +171,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should register elements in model") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       val r1 = myModel.withRecord('a) { r ⇒ r }
       //r1.eBox.context.origin should not be (null)
@@ -184,7 +184,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should have proper copy constructor") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       var save: Record = null
       val record: Record = myModel.takeRecord('root) { r1 ⇒
@@ -204,10 +204,10 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         }
       }
       record.name should be("root")
-      val record2 = record.eNode.threadSafe(_.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record])
+      val record2 = record.eNode.safeRead(_.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record])
       record2.name should be("level2a")
       record2 should be(save)
-      val record3 = record2.eNode.threadSafe(_.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record])
+      val record3 = record2.eNode.safeRead(_.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record])
       record3.name should be("level3")
       save = save.eSet[Integer]('test, 123)
       val saveValue = save.eGet[Integer]('test).get
@@ -215,7 +215,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val copy = save.eCopy(save.eNode, ('a, 1))
       copy.eId.name should be("level2")
       copy.name should be("level2a")
-      copy.eNode.threadSafe(_.head.getRootElementBox.get.asInstanceOf[Record].name) should be("level3")
+      copy.eNode.safeRead(_.head.getRootElementBox.get.asInstanceOf[Record].name) should be("level3")
       val copyValue = copy.eGet[Integer]('test).get
       //copyValue.context.unique should be(copy.eReference.unique)
       record.eReference.unique should not be (copy.eReference.unique)
@@ -224,14 +224,14 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       recordValue.get should be(copyValue.get)
       //recordValue.context.unique should be(record.eReference.unique)
       myModel.e(save.eReference) should be('nonEmpty)
-      record.eNode.threadSafe(_ -= save.eNode)
+      record.eNode.safeWrite(_ -= save.eNode)
       myModel.e(save.eReference) should be(None)
-      record.eNode.threadSafe(_ += save.eNode)
+      record.eNode.safeWrite(_ += save.eNode)
       myModel.e(save.eReference) should be('nonEmpty)
       save.eModel should be(myModel)
       var newChild: Node = null
-      val newRecord2 = save.eNode.getParent.map(_.threadSafe { parent ⇒
-        parent.createChild('new, UUID.randomUUID()).threadSafe { child ⇒
+      val newRecord2 = save.eNode.getParent.map(_.safeWrite { parent ⇒
+        parent.createChild('new, UUID.randomUUID()).safeWrite { child ⇒
           newChild = child
           save.eCopy(child, save.eCoordinate, save.eStash, save.eBox.serialization)
         }
@@ -242,12 +242,12 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       save.eModel should be(newRecord2.get.eModel)
       myModel.e(newRecord2.get.eReference) should be(newRecord2)
       myModel.e(newRecord2.get.eReference) should not be ('empty)
-      record.eNode.threadSafe(_ -= newChild)
+      record.eNode.safeWrite(_ -= newChild)
       myModel.e(newRecord2.get.eReference) should be(None)
     }
     it("should determinate ancestors") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       var recordL2: Record = null
       var recordL3: Record = null
@@ -263,7 +263,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should provide the convertation ability") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       val note = myModel.note('root)
       note should not be (null)
@@ -283,7 +283,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should provide recursive iterator") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       var e2: Record = null
       var e3: Record = null
@@ -296,25 +296,25 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           }
         }
       }
-      myModel.eNode.threadSafe { modelNode ⇒
+      myModel.eNode.safeRead { modelNode ⇒
         val modelIterator = modelNode.iteratorRecursive()
         assert(modelIterator.length === 3) // Model + 3 children
         val modelChildren = modelNode.iteratorRecursive().foldLeft(Seq[Node]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
         Seq(e1.eNode, e2.eNode, e3.eNode).sortBy(_.unique).sameElements(modelChildren)
-        assert(e2.eNode.threadSafe { _.iteratorRecursive().length === 1 })
-        assert(e3.eNode.threadSafe { _.iteratorRecursive().length === 0 })
+        assert(e2.eNode.safeRead { _.iteratorRecursive().length === 1 })
+        assert(e3.eNode.safeRead { _.iteratorRecursive().length === 0 })
       }
     }
     it("should throw an exception if type is unknown") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       val record = myModel.record('test)
       val unknownData = ElementSpec.UnknownType(0)
       //val unknownValue = new Value.Static(unknownData, Context())
       //intercept[IllegalArgumentException] {
       //  record.eSet('file, Some(unknownValue))
-     // }
+      // }
     }
   }
 

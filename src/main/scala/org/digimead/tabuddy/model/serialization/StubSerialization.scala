@@ -23,9 +23,17 @@ import java.util.UUID
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Node
 
-class Stub(implicit val serializationType: Manifest[Unit]) extends Serialization[Unit] {
-  /** Load element from an Iterable[Unit] with fnLoadElement(). */
-  def acquireElement[A <: Element](objectId: UUID, parentNode: Node)(implicit m: Manifest[A]): Option[A] = None
-  /** Save element to [Unit] with fnSaveElement(). */
-  def freezeElement(element: Element) {}
+class StubSerialization extends Serialization {
+  /** Identifier of the serialization mechanism. */
+  val identifier = StubSerialization.Identifier
+
+  /** Load element. */
+  def acquireElement[A <: Element](objectId: UUID, parentNode: Node, from: Array[Byte])(implicit m: Manifest[A]): Option[A] = None
+  /** Save element. */
+  def freezeElement(element: Element): Array[Byte] = Array()
+}
+
+object StubSerialization {
+  /** StubSerialization identifier. */
+  object Identifier extends Serialization.Identifier { val extension = "stub" }
 }

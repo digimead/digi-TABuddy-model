@@ -46,7 +46,7 @@ import scala.language.implicitConversions
  * builded with the curiously recurring generic pattern
  * contains stash with actual data.
  */
-trait Element extends Equals {
+trait Element extends Equals with java.io.Serializable {
   this: Loggable ⇒
   /** Element type. */
   type ElementType <: Element
@@ -60,13 +60,10 @@ trait Element extends Equals {
    */
   @transient val eBox: ElementBox[ElementType]
 
-  /** Commit complex properties (if needed) while saving. */
-  def commitProperties(): Unit =
-    eStash.property.foreach { case (typeKey, value) ⇒ value.foreach { case (idKey, value) ⇒ value.commit(this) } }
   /** Compares this object with the specified object for order. */
   def compare(that: Element): Int = Element.comparator.value.compare(this, that)
   /** Build an ancestors sequence. */
-  def eAncestors(): Seq[Node] = eNode.threadSafe(_.ancestors)
+  def eAncestors(): Seq[Node] = eNode.safeRead(_.ancestors)
   /**
    * As an optional instance of for Element
    *
@@ -92,10 +89,10 @@ trait Element extends Equals {
    * copy must preserve creation time
    * copy must preserve modification time if scope && properties content are the same
    */
-  def eCopy(target: Node, coordinate: Coordinate = eBox.coordinate, serialization: Serialization[_] = eBox.serialization): ElementType = {
+  def eCopy(target: Node, coordinate: Coordinate = eBox.coordinate, serialization: Serialization.Identifier = eBox.serialization): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
-    target.threadSafe { target ⇒
+    target.safeWrite { target ⇒
       val stash = eStash.copy().asInstanceOf[ElementType#StashType]
       eCopy(target, coordinate, stash, serialization)
     }
@@ -105,16 +102,16 @@ trait Element extends Equals {
    * copy must preserve creation time
    * copy must preserve modification time if scope && properties content are the same
    */
-  def eCopy(target: Node, coordinate: Coordinate, stash: ElementType#StashType, serialization: Serialization[_]): ElementType = {
+  def eCopy(target: Node, coordinate: Coordinate, stash: ElementType#StashType, serialization: Serialization.Identifier): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
-    target.threadSafe(target ⇒
+    target.safeWrite(target ⇒
       ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass)).get)
   }
   /** Dump the element content. */
   def eDump(brief: Boolean, padding: Int = 2): String
   /** Find child element. */
-  def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.threadSafe {
+  def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.safeRead {
     _.view.map(_.getElementBoxes).flatten.find { box ⇒ box.elementType == a && p(box.get.asInstanceOf[A]) } match {
       case e @ Some(element) if element.get.getClass.isAssignableFrom(a.runtimeClass) ⇒ Some(element.get.asInstanceOf[A])
       case _ ⇒ None
@@ -250,7 +247,7 @@ trait Element extends Equals {
       (that.immutable eq this) || ((that.immutable canEqual this) && this.## == that.immutable.##)
     case _ ⇒ false
   }
-  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.eStash))
+  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.eStash, eBox.elementUniqueId))
 
   override def toString() = "%s[%s@%s]".format(eStash.scope, eId.name, eCoordinate.toString)
 }

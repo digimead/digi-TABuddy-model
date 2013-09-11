@@ -28,7 +28,7 @@ import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.element.Value.value2x
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.serialization.Stub
+import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -42,7 +42,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
   describe("A Value") {
     it("should have a proper equality") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val container = model.record('test).eMutable
       new Value.Static("123", Value.Context(container)) === new Value.Static("123", Value.Context(container)) should be(true)
@@ -56,7 +56,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should should be affected by implicit conversions") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val rootWorkspace = model.record('test).eMutable
       implicit val container = rootWorkspace.immutable
@@ -74,7 +74,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should should may have an empty container") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val rootWorkspace = model.record('test).eMutable
       // x2value: convert T -> Option[Value[T]]
@@ -90,7 +90,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should search a default value at the root node") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val rootWorkspace = model.record('test).eMutable
       rootWorkspace.eCoordinate.isRoot should be(true)
@@ -112,7 +112,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should create values with builder functions") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val record1 = model.record('test)
       val value1 = Value.static("A")
@@ -134,7 +134,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
   describe("A Value.Context") {
     it("should have a proper equality") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, new Stub, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val rootWorkspace = model.record('test)
 //      Value.Context(rootWorkspace.eReference, None, None, None) should be(Context(rootWorkspace.eReference, None, None, None))

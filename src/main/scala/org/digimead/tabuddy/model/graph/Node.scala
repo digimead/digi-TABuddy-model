@@ -50,8 +50,8 @@ trait Node extends Equals {
   val unique: UUID
 
   /** Copy this node and attach it to target. */
-  def copy(target: Node.ThreadUnsafe, recursive: Boolean): Node = threadSafe { currentNode ⇒
-    val copyNode = target.createChild(id, unique).threadSafe { copyNode ⇒
+  def copy(target: Node.ThreadUnsafe, recursive: Boolean): Node = safeWrite { currentNode ⇒
+    val copyNode = target.createChild(id, unique).safeWrite { copyNode ⇒
       val rootElementBox = state.rootElementBox.copy(node = copyNode)
       val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = state.projectionElementBoxes.map {
         case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
@@ -127,13 +127,22 @@ trait Node extends Equals {
    * Explicitly convert this trait to ThreadUnsafe.
    * Conversion prevents the consumer to access unguarded content.
    */
-  def threadSafe[A](f: Node.ThreadUnsafe ⇒ A): A = {
+  def safeRead[A](f: Node.ThreadUnsafe ⇒ A): A = {
+    rwl.readLock().lock()
+    try { f(this.asInstanceOf[Node.ThreadUnsafe]) }
+    finally { rwl.readLock().unlock() }
+  }
+  /**
+   * Explicitly convert this trait to ThreadUnsafe.
+   * Conversion prevents the consumer to access unguarded content.
+   */
+  def safeWrite[A](f: Node.ThreadUnsafe ⇒ A): A = {
     rwl.writeLock().lock()
     try { f(this.asInstanceOf[Node.ThreadUnsafe]) }
     finally { rwl.writeLock().unlock() }
   }
 
-  override def toString = s"graph.Node[${unique}(${id})]#${state.modified}"
+  override def toString = s"graph.Node[${unique}(${id})]"
 }
 
 object Node extends Loggable {
@@ -164,7 +173,7 @@ object Node extends Loggable {
       new ThreadUnsafe(id, unique, null) with ModelNodeInitializer
     }
     /** Dump the node structure. */
-    def dump(node: Node, brief: Boolean, padding: Int = 2): String = node.threadSafe { node ⇒
+    def dump(node: Node, brief: Boolean, padding: Int = 2): String = node.safeRead { node ⇒
       val pad = " " * padding
       def dumpBoxes() = {
         val result = Option(node.rootElementBox).map(box ⇒
@@ -219,13 +228,13 @@ object Node extends Loggable {
     override def add(elem: Node): Boolean = {
       if (!state.children.contains(elem)) {
         /* process children */
-        elem.threadSafe { node ⇒
+        elem.safeWrite { node ⇒
           if (node.parentNodeReference.get != Some(ThreadUnsafe.this)) {
             // Update parent reference
             node.updateState(parentNodeReference = WeakReference(ThreadUnsafe.this))
             if (node.graph != graph) {
               // Update graph
-              node.iteratorRecursive().foreach(_.threadSafe { child ⇒
+              node.iteratorRecursive().foreach(_.safeWrite { child ⇒
                 val rootElementBox = child.rootElementBox
                 val projectionElementBoxes = child.projectionElementBoxes
                 child.updateState(graph = graph,
@@ -273,8 +282,12 @@ object Node extends Loggable {
     }
     /** Create new children node. */
     def createChild[A](id: Symbol, unique: UUID): Node = {
-      if (state.children.exists(child ⇒ child.id == id || child.unique == unique))
-        throw new IllegalArgumentException("Node with the same identifier is already exists.")
+      state.children.foreach { child ⇒
+        if (child.id == id)
+          throw new IllegalArgumentException(s"Node with the same identifier '${id}' is already exists.")
+        if (child.unique == unique)
+          throw new IllegalArgumentException(s"Node with the same identifier '${unique}' is already exists.")
+      }
       val newNode = Node(id, unique, new State(children = immutable.ListSet(),
         graph = graph,
         modified = Element.timestamp(),
@@ -306,14 +319,14 @@ object Node extends Loggable {
         def hasNext: Boolean = iterator.hasNext
         def next(): Node = iterator.next
         private def buildIterator(iterator: Iterator[Node]): Iterator[Node] = {
-          for (child ← iterator) yield child.threadSafe { node ⇒ Iterator(child) ++ buildIterator(transformNodeChildren(node, node.state.children)) }
+          for (child ← iterator) yield child.safeRead { node ⇒ Iterator(child) ++ buildIterator(transformNodeChildren(node, node.state.children)) }
         }.foldLeft(Iterator[Node]())(_ ++ _)
       }
     }
     /** Removes a single element to the set. */
     override def remove(elem: Node): Boolean = if (state.children.contains(elem)) {
       /* remove node */
-      elem.threadSafe { node ⇒
+      elem.safeWrite { node ⇒
         updateState(children = state.children - elem)
         graph.nodes -= elem.unique
         node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
@@ -360,7 +373,7 @@ object Node extends Loggable {
     }
     override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.id, this.unique))
 
-    override def toString = s"graph.Node[${unique}(${id})]#${state.modified}"
+    override def toString = s"graph.Node[${unique};${id}]"
   }
   object ThreadUnsafe {
     implicit def threadUnsafe2data(tu: ThreadUnsafe): NodeState = tu.state

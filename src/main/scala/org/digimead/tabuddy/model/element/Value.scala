@@ -19,12 +19,14 @@
 package org.digimead.tabuddy.model.element
 
 import java.io.Serializable
+import java.net.URI
 import java.util.UUID
 
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
 import org.digimead.tabuddy.model.graph.ElementBox
+import org.digimead.tabuddy.model.serialization.Serialization
 
 import scala.language.implicitConversions
 
@@ -36,7 +38,7 @@ sealed trait Value[T] extends AnyRef with java.io.Serializable {
   val context: Value.Context
 
   /** Commit complex property (if needed) while saving. */
-  def commit(element: Element)
+  def commit(element: Element, transport: Serialization.Transport, elementDirectoryURI: URI)
   /** Copy constructor */
   def copy(context: Value.Context = this.context): this.type
   /** Get value. */
@@ -122,7 +124,7 @@ object Value extends Loggable {
     /** Context object. */
     val objectId: Option[UUID],
     /** Context file line. */
-    val line: Option[Int]) extends Equals {
+    val line: Option[Int]) extends Equals with java.io.Serializable {
 
     /** Copy constructor. */
     def copy(objectId: Option[UUID] = this.objectId, line: Option[Int] = this.line) = new Context(objectId, line)
@@ -154,7 +156,8 @@ object Value extends Loggable {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
     /** Commit complex property (if needed) while saving. */
-    def commit(element: Element) = DSLType.commit[T](this, element)
+    def commit(element: Element, transport: Serialization.Transport, elementDirectoryURI: URI) =
+      DSLType.commit[T](this, element, transport, elementDirectoryURI)
     /** Copy constructor */
     def copy(context: Context = this.context): this.type = (new Dynamic(data, context)).asInstanceOf[this.type]
     /** Get value. */
@@ -190,7 +193,8 @@ object Value extends Loggable {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
     /** Commit complex property (if needed) while saving. */
-    def commit(element: Element) = DSLType.commit[T](this, element)
+    def commit(element: Element, transport: Serialization.Transport, elementDirectoryURI: URI) =
+      DSLType.commit[T](this, element, transport, elementDirectoryURI)
     /** Copy constructor */
     def copy(context: Context = this.context): this.type = (new Static(data, context)).asInstanceOf[this.type]
     /** Get value. */

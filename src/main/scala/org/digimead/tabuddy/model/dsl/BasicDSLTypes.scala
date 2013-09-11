@@ -18,8 +18,13 @@
 
 package org.digimead.tabuddy.model.dsl
 
+import java.net.URI
+
 import scala.collection.immutable
+
 import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.serialization.Serialization
 
 class BasicDSLTypes extends DSLType with Loggable {
   protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](
@@ -32,6 +37,11 @@ class BasicDSLTypes extends DSLType with Loggable {
     classOf[java.lang.Boolean] -> 'Boolean,
     classOf[java.lang.String] -> 'String)
 
+  /**
+   * Commit complex type (if needed) while saving
+   */
+  def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
+    element: Element, transport: Serialization.Transport, elementURI: URI) {}
   /**
    * Convert value from string
    */

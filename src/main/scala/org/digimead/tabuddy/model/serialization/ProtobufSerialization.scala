@@ -44,7 +44,10 @@ import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.element.Value
 
 /*class ProtobufSerialization extends Serialization[Array[Byte]] {
-  /**
+  /** Default extension name for serialized resource. */
+  val extension: String = "pbuf"
+
+    /**
    * Load elements from Iterable[Array[Byte]] with loadElement().
    * Filter/adjust loaded element with filter()
    * Return deserialized element.
