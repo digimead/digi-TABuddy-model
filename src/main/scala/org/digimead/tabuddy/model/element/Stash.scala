@@ -24,7 +24,7 @@ import scala.collection.immutable
 
 /** Generic element stash. */
 class Stash(val created: Element.Timestamp,
-  val modified: Element.Timestamp,
+  val modificationTimestamp: Element.Timestamp,
   val property: Stash.Data,
   val scope: Element.Scope) extends Stash.Like {
   /** Stash type. */
@@ -58,7 +58,7 @@ object Stash {
     /** Element creation time */
     val created: Element.Timestamp
     /** Element modification time. */
-    val modified: Element.Timestamp
+    val modificationTimestamp: Element.Timestamp
     /** Element properties(values) map: Erasure -> Symbol -> Value[T]. */
     val property: Stash.Data
     /** User scope. */
@@ -66,20 +66,20 @@ object Stash {
 
     /** Copy constructor */
     def copy(created: Element.Timestamp = this.created,
-      modified: Element.Timestamp = this.modified,
+      modificationTimestamp: Element.Timestamp = this.modificationTimestamp,
       property: Stash.Data = this.property,
       scope: Element.Scope = this.scope): StashType = {
       assert(scope == this.scope, "Incorrect scope %s, must be %s".format(scope, this.scope))
       val newStashCtor = this.getClass.getConstructors.find(_.getParameterTypes() match {
         case Array(createdArg, modifiedArg, dataArg, scopeArg) ⇒
           scopeArg.isAssignableFrom(scope.getClass) && createdArg.isAssignableFrom(created.getClass()) &&
-            modifiedArg.isAssignableFrom(modified.getClass()) && dataArg.isAssignableFrom(property.getClass())
+            modifiedArg.isAssignableFrom(modificationTimestamp.getClass()) && dataArg.isAssignableFrom(property.getClass())
         case _ ⇒ false
       }) getOrElse {
         throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")
       }
       val data = new Stash.Data
-      newStashCtor.newInstance(created, modified, property, scope).asInstanceOf[StashType]
+      newStashCtor.newInstance(created, modificationTimestamp, property, scope).asInstanceOf[StashType]
     }
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Stash.Like]
@@ -87,6 +87,6 @@ object Stash {
       case that: Element ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
       case _ ⇒ false
     }
-    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modified, property, scope))
+    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modificationTimestamp, property, scope))
   }
 }

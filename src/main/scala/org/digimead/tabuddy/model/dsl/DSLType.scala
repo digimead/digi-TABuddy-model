@@ -27,7 +27,7 @@ import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.serialization.Serialization
+import org.digimead.tabuddy.model.serialization.transport.Transport
 
 import scala.language.implicitConversions
 
@@ -42,7 +42,7 @@ trait DSLType {
    * Commit complex type (if needed) while saving
    */
   def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
-    element: Element, transport: Serialization.Transport, elementURI: URI)
+    element: Element, transport: Transport, elementURI: URI)
   /**
    * Convert value from string
    */
@@ -89,14 +89,14 @@ object DSLType extends Loggable {
     /**
      * Commit complex type (if needed) while saving
      */
-    def commit[T](value: Value[T], element: Element, transport: Serialization.Transport,
+    def commit[T](value: Value[T], element: Element, transport: Transport,
       elementDirectoryURI: URI)(implicit m: Manifest[T]): Unit =
       classSymbolMap.get(m.runtimeClass).map(symbolType => commit(symbolType, value, element, transport, elementDirectoryURI))
     /**
      * Commit complex type (if needed) while saving
      */
     def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
-      element: Element, transport: Serialization.Transport, elementDirectoryURI: URI): Unit =
+      element: Element, transport: Transport, elementDirectoryURI: URI): Unit =
       symbolConverterMap.get(typeSymbol).foreach(converter => converter.commit(typeSymbol, value, element, transport, elementDirectoryURI))
     /**
      * Convert value from string

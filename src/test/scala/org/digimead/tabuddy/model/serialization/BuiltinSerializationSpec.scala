@@ -18,23 +18,25 @@
 
 package org.digimead.tabuddy.model.serialization
 
+import java.io.File
 import java.util.UUID
+
 import scala.collection.immutable
+
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
+import org.digimead.lib.test.StorageHelper
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
+import org.digimead.tabuddy.model.serialization.Serialization.interface2implementation
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
-import org.digimead.lib.test.StorageHelper
-import java.io.File
 
 class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
@@ -76,135 +78,148 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         Serialization.freezeGraph(graph)
         new File(folder, "john1") should be('directory)
         new File(folder, "john1").length() should be > (0L)
-        new File(folder, "john1/description") should be('file)
-        new File(folder, "john1/description").length() should be > (0L)
-        new File(folder, "john1/model/john1/description") should be('file)
-        new File(folder, "john1/model/john1/description").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/description") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/description").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1a/description") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1a/description").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1b/description") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1b/description").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/description") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/description").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/description") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/description").length() should be > (0L)
+        new File(folder, "john1/descriptor.yaml") should be('file)
+        new File(folder, "john1/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/john1/descriptor.yaml") should be('file)
+        new File(folder, "john1/model/john1/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/descriptor.yaml") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1a/descriptor.yaml") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1a/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1b/descriptor.yaml") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1b/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/descriptor.yaml") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/descriptor.yaml") should be('file)
+        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/descriptor.yaml").length() should be > (0L)
         //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
         //val str = testTxtSource.getLines.mkString("\n")
         //testTxtSource.close()
 
         // deserialize
-        val graph2 = Serialization.acquireGraph(graph.origin, folder)
+        val graph2 = Serialization.acquireGraph(graph.origin, folder.toURI)
+        /* compare graph */
         graph2 should not be (null)
-        graph2.origin.name should be (graph.origin.name)
-        graph2.modelType should be (graph.modelType)
-        graph2.modified should be (graph.modified)
-        /*graph.node.freezeRead(_.iteratorRecursive().foreach { node ⇒
-          node.getProjections.foreach {
-            case (coordinate, box) ⇒ box.save()
-          }
-        })*/
-      }
-      /*      s.freeze(Model, fSave, fFilter)
-      frozen should not be ('empty)
-      frozen = scala.util.Random.shuffle(frozen)
-      // deserialize
-      val frozenIterator = frozen.iterator
-      def fLoad() = if (frozenIterator.hasNext) {
-        val data = frozenIterator.next
-        log.___glance("load element with size %d bytes".format(data.size))
-        assert(data.size > 0, "incorrect data size")
-        Some(data)
-      } else None
-      val deserializedModel = s.acquire[Model[Model.Stash], Model.Stash](fLoad, fFilter).get
+        graph2 should be(graph)
+        graph2.origin.name should be(graph.origin.name)
+        graph2.created should be(graph.created)
+        graph2.modelType should be(graph.modelType)
+        graph2.modification should be(graph.modification)
+        graph.node.safeRead { node ⇒
+          graph2.node.safeRead { node2 ⇒
+            /* compare node */
+            node2 should be(node)
+            node2.id.name should be(node.id.name)
+            node2.unique should be(node.unique)
+            node2.children should be(node.children)
+            node2.modification should be(node.modification)
+            node2.projectionElementBoxes should be(node.projectionElementBoxes)
+            node2.rootElementBox should be(node.rootElementBox)
 
-      // check
-      // model
-      deserializedModel.eChildren should have size (3)
-      // container always point to current active model
-      deserializedModel.eStash.context.container should be(Model.eReference)
-      deserializedModel.eStash.id.name should be(Model.eStash.id.name)
-      deserializedModel.eStash.unique should be(Model.eStash.unique)
-      deserializedModel.eStash.modified should be(Model.eStash.modified)
-      deserializedModel.eStash.model should be(Some(deserializedModel))
-      deserializedModel.eStash.property should be(Model.eStash.property)
-      deserializedModel.eStash.property(DSLType.classSymbolMap(classOf[String]))('a).get should be("123")
-      deserializedModel.e(deserializedModel.eReference) should not be ('empty)
-      // record
-      deserializedModel.eChildren.head.eq(Model.eChildren.head) should be(false)
-      deserializedModel.eChildren.head.eStash.model should be(Some(deserializedModel))
-      deserializedModel.e(deserializedModel.eChildren.head.eReference) should not be ('empty)*/
+            node2.graph should be(graph2)
+            node2.parentNodeReference.get should be(Some(node2))
+
+            /* compare root element box */
+            node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
+            node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
+            node2.rootElementBox.unmodified should be(node.rootElementBox.unmodified)
+            node2.rootElementBox.elementType should be(node.rootElementBox.elementType)
+            node2.rootElementBox.node should be(node.rootElementBox.node)
+            node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
+
+            /* compare root element */
+            val element = node.rootElementBox.get
+            val element2 = node2.rootElementBox.get
+
+            element should not be (null)
+            element2 should not be (null)
+            node.rootElementBox.getModified should not be (None)
+            node2.rootElementBox.getModified should be(None)
+            element.ne(element2) should be(true)
+            element2 should be(element)
+
+            node2.iteratorRecursive().toVector should be(node.iteratorRecursive().toVector)
+
+            // check
+            // model
+            graph2.node.safeRead(_.iteratorRecursive().toSeq) should have size (5)
+            // container always point to current active model
+            graph2.model.eId.name should be(graph.model.eId.name)
+            graph2.model.eObjectId should be(graph.model.eObjectId)
+            graph2.model.eNodeId should be(graph.model.eNodeId)
+            graph2.model.modification should be(graph.model.modification)
+            graph2.model.eModel should be(graph2.model)
+            graph2.model.eModel should be(graph.model)
+            graph2.model.eStash.property should be(graph.model.eStash.property)
+            graph2.model.eStash.property('AAAKey)(DSLType.classSymbolMap(classOf[String])).get should be("AAA")
+            graph2.model.e(graph2.model.eReference) should not be ('empty)
+            // record
+            graph2.node.safeRead(_.head).eq(graph.node.safeRead(_.head)) should be(false)
+            graph2.node.safeRead(_.head).safeRead(_.rootElementBox.get()).eModel should be(graph2.model)
+            graph2.model.e(graph2.node.safeRead(_.head).safeRead(_.rootElementBox.get()).eReference) should not be ('empty)
+          }
+        }
+      }
+
     }
     it("should provide serialization mechanism for Element") {
-      //      Model.reset()
-      /*var save: Record[Record.Stash] = null
-      val record = Model.record('root) { r =>
-        save = r.record('level2) { r =>
-          r.name = "123"
-          r.record('level3) { r =>
-            r.name = "456"
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID())
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+        val record_root = model.takeRecord('root) { r ⇒
+          r.takeRecord('level2) { r ⇒
+            r.name = "123"
+            r.takeRecord('level3) { r ⇒
+              r.name = "456"
+            }
           }
         }
-      }
-      Model.e(save.eReference) should be(Some(save))
-      val note = Model.note('note) { n => }
-      val task = Model.task('task) { t => }
-      Model.eFilter(_ => true) should have size (5)
-      // serialize
-      val s = new BuiltinSerialization
-      var frozen: Seq[Array[Byte]] = Seq()
-      def fFilter[T <: Element.Generic](element: T): Option[T] = {
-        log.___glance("filter element %s with ancestors %s".format(element, element.eAncestorReferences.mkString(",")))
-        element match {
-          case model: Model.Generic =>
-            val index = model.getClass.getDeclaredMethod("index")
-            val hash = index.invoke(model).asInstanceOf[ModelIndex#HashMapPerId] // @transient
-            log.___glance("index hash " + hash)
-          case element =>
+        val record_level2 = record_root & RecordLocation('level2)
+        val record_level3 = record_level2 & RecordLocation('level3)
+
+        model.e(record_level3.eReference).get.eq(record_level3) should be(true)
+        val note = model.note('note)
+        val task = model.task('task)
+        model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
+
+        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
+        Serialization.freezeGraph(graph)
+        val graph2 = Serialization.acquireGraph(graph.origin, folder.toURI)
+
+        graph.node.safeRead { node ⇒
+          graph2.node.safeRead { node2 ⇒
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+          }
         }
-        Some(element)
+
+        /*
+        val dl2 = s.acquire[Record[Record.Stash], Record.Stash](fLoad, fFilter).get
+        dl2.eId.name should be("level2")
+        dl2.eChildren should have size (1)
+        dl2.eStash.model should be(None)
+        dl2.eStash.context.container should be(record.eReference)
+        dl2.name should be("123")
+        val dl3 = dl2.eChildren.head.asInstanceOf[Record[Record.Stash]]
+        dl3.eId.name should be("level3")
+        dl3.eChildren should be('empty)
+        dl3.eStash.model should be(None)
+        dl3.eStash.context.container should be(dl2.eReference)
+        dl3.name should be("456")
+        dl2.name = "789"
+        dl3.name = "098"
+        save.name should be("123")
+        save.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("456")
+        dl2.eReference should be(save.eReference)
+        dl2.eReference.unique.hashCode() should be(save.eReference.unique.hashCode())
+        dl2.eReference.origin.hashCode() should be(save.eReference.origin.hashCode())
+        dl2.eReference.coordinate.hashCode() should be(save.eReference.coordinate.hashCode())
+        dl2.eReference.hashCode() should be(save.eReference.hashCode())
+        Model.e(save.eReference) should be(Some(save))
+        Model.e(dl2.eReference) should be(Some(save))
+        evaluating { Model.eChildren += dl2 } should produce[AssertionError]*/
       }
-      def fSave(element: Element.Generic, data: Array[Byte]) {
-        log.___glance("save element %s, serialized data size is %d bytes".format(element, data.size))
-        assert(data.size > 0, "incorrect data size")
-        frozen = frozen :+ data
-      }
-      s.freeze(save, fSave, fFilter)
-      frozen should not be ('empty)
-      frozen = scala.util.Random.shuffle(frozen)
-      // deserialize
-      val frozenIterator = frozen.iterator
-      def fLoad() = if (frozenIterator.hasNext) {
-        val data = frozenIterator.next
-        log.___glance("load element with size %d bytes".format(data.size))
-        assert(data.size > 0, "incorrect data size")
-        Some(data)
-      } else None
-      val dl2 = s.acquire[Record[Record.Stash], Record.Stash](fLoad, fFilter).get
-      dl2.eId.name should be("level2")
-      dl2.eChildren should have size (1)
-      dl2.eStash.model should be(None)
-      dl2.eStash.context.container should be(record.eReference)
-      dl2.name should be("123")
-      val dl3 = dl2.eChildren.head.asInstanceOf[Record[Record.Stash]]
-      dl3.eId.name should be("level3")
-      dl3.eChildren should be('empty)
-      dl3.eStash.model should be(None)
-      dl3.eStash.context.container should be(dl2.eReference)
-      dl3.name should be("456")
-      dl2.name = "789"
-      dl3.name = "098"
-      save.name should be("123")
-      save.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("456")
-      dl2.eReference should be(save.eReference)
-      dl2.eReference.unique.hashCode() should be(save.eReference.unique.hashCode())
-      dl2.eReference.origin.hashCode() should be(save.eReference.origin.hashCode())
-      dl2.eReference.coordinate.hashCode() should be(save.eReference.coordinate.hashCode())
-      dl2.eReference.hashCode() should be(save.eReference.hashCode())
-      Model.e(save.eReference) should be(Some(save))
-      Model.e(dl2.eReference) should be(Some(save))
-      evaluating { Model.eChildren += dl2 } should produce[AssertionError]*/
     }
     it("should filter elements on save/load") {
       //      Model.reset()

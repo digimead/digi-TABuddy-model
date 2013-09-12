@@ -16,11 +16,19 @@
  * limitations under the License.
  */
 
-package org.digimead.tabuddy.model.element.compare
+package org.digimead.tabuddy.model.graph
 
 import org.digimead.tabuddy.model.element.Element
 
-object CompareByTimespamp extends Compare {
-  /** Compares this object with the specified object for order. */
-  def compare(e1: Element, e2: Element): Int = e1.modification compare e2.modification
+/**
+ * Base trait for all modifiable objects.
+ */
+trait Modifiable {
+  @volatile protected var modificationTimestamp: Element.Timestamp = Element.timestamp()
+  /** Get modification timestamp. */
+  def modification: Element.Timestamp
+  /** Set modification timestamp. */
+  def modification_=(arg: Element.Timestamp)
+  /** Update modification timestamp only if argument is greater than current value. */
+  def modificationUpdate(arg: Element.Timestamp)
 }

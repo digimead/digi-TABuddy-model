@@ -16,11 +16,21 @@
  * limitations under the License.
  */
 
-package org.digimead.tabuddy.model.element.compare
+package org.digimead.tabuddy.model.serialization
 
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.graph.ElementBox
 
-object CompareByTimespamp extends Compare {
-  /** Compares this object with the specified object for order. */
-  def compare(e1: Element, e2: Element): Int = e1.modification compare e2.modification
+/**
+ * Interface for serialization of an element content.
+ */
+trait Mechanism extends Loggable {
+  /** Identifier of the serialization mechanism. */
+  val identifier: Serialization.Identifier
+
+  /** Load element. */
+  def load[A <: Element](elementBox: ElementBox[A], from: Array[Byte])(implicit m: Manifest[A]): A
+  /** Save element. */
+  def save(element: Element): Array[Byte]
 }

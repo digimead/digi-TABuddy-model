@@ -23,9 +23,9 @@ import org.digimead.tabuddy.model.element.Element
 object CompareByTimestampAndThenContent extends Compare {
   /** Compares this object with the specified object for order. */
   def compare(e1: Element, e2: Element): Int =
-    e1.eModified.milliseconds compare e2.eModified.milliseconds match {
+    e1.modification.milliseconds compare e2.modification.milliseconds match {
       case 0 ⇒
-        e1.eModified.nanoShift compare e2.eModified.nanoShift match {
+        e1.modification.nanoShift compare e2.modification.nanoShift match {
           case 0 ⇒ 0
           case c ⇒
             // modification time different but

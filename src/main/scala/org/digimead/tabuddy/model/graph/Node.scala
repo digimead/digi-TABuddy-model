@@ -39,13 +39,13 @@ import scala.language.implicitConversions
 /**
  * Node is a brick of graph.
  */
-trait Node extends Equals {
+trait Node extends Modifiable with Equals {
   /** Element verbose id. */
   val id: Symbol
   /** Node read/write lock. */
   protected val rwl = new ReentrantReadWriteLock()
   /** Node state information. */
-  protected var state: NodeState
+  @volatile protected var state: NodeState
   /** Element system id. */
   val unique: UUID
 
@@ -93,12 +93,6 @@ trait Node extends Equals {
     try { state.graph }
     finally { rwl.readLock().unlock() }
   }
-  /** Get modified timestamp. */
-  def getModified(): Element.Timestamp = {
-    rwl.readLock().lock()
-    try { state.modified }
-    finally { rwl.readLock().unlock() }
-  }
   /** Get parent node. */
   def getParent(): Option[Node] = {
     rwl.readLock().lock()
@@ -122,6 +116,18 @@ trait Node extends Equals {
     rwl.readLock().lock()
     try { state.rootElementBox }
     finally { rwl.readLock().unlock() }
+  }
+  /** Get modification timestamp. */
+  def modification: Element.Timestamp = modificationTimestamp
+  /** Set modification timestamp. */
+  def modification_=(arg: Element.Timestamp) = {
+    modificationTimestamp = arg
+    state.parentNodeReference.get.foreach(_.modificationUpdate(arg))
+  }
+  /** Update modification timestamp only if argument is greater than current value. */
+  def modificationUpdate(arg: Element.Timestamp) = if (modificationTimestamp < arg) {
+    modificationTimestamp = arg
+    state.parentNodeReference.get.foreach(_.modificationUpdate(arg))
   }
   /**
    * Explicitly convert this trait to ThreadUnsafe.
@@ -149,18 +155,17 @@ object Node extends Loggable {
   implicit def node2interface(g: Node.type): Interface = DI.implementation
 
   /** Simple implementation of the mutable part of a node. */
-  class State(val children: immutable.ListSet[Node], val graph: Graph[_ <: Model.Like], val modified: Element.Timestamp = Element.timestamp(),
-    val parentNodeReference: WeakReference[Node], val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]],
+  class State(val children: Seq[Node], val graph: Graph[_ <: Model.Like], val parentNodeReference: WeakReference[Node],
+    val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]],
     val rootElementBox: ElementBox[_ <: Element]) extends NodeState {
     /** Copy constructor. */
     def copy(
-      children: immutable.ListSet[Node] = this.children,
+      children: Seq[Node] = this.children,
       graph: Graph[_ <: Model.Like] = this.graph,
-      modified: Element.Timestamp = this.modified,
       parentNodeReference: WeakReference[Node] = this.parentNodeReference,
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]] = this.projectionElementBoxes,
       rootElementBox: ElementBox[_ <: Element] = this.rootElementBox): this.type =
-      new State(children, graph, modified, parentNodeReference, projectionElementBoxes, rootElementBox).asInstanceOf[this.type]
+      new State(children, graph, parentNodeReference, projectionElementBoxes, rootElementBox).asInstanceOf[this.type]
   }
   /**
    * Node companion object realization
@@ -204,9 +209,8 @@ object Node extends Loggable {
       rwl.writeLock().lock()
       try {
         assert(state == null)
-        state = new State(children = immutable.ListSet(),
+        state = new State(children = Seq(),
           graph = graph,
-          modified = modification,
           parentNodeReference = WeakReference(this),
           projectionElementBoxes = immutable.HashMap(),
           rootElementBox = null)
@@ -246,10 +250,11 @@ object Node extends Loggable {
             }
           }
           /* add node */
-          updateState(children = state.children + elem)
+          updateState(children = state.children :+ elem)
           graph.nodes += elem.unique -> elem
           node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
         }
+        modification = Element.timestamp()
         /* notify */
         //val undoF = () => { super.remove(node); {} }
         //Element.Event.publish(Element.Event.ChildInclude(parentNode.get, node.get, parentNode.get.eModified)(undoF))
@@ -275,7 +280,7 @@ object Node extends Loggable {
     /** Clears the Node's contents. After this operation, there are no children. */
     override def clear() = {
       iteratorRecursive().foreach { node ⇒ graph.nodes -= node.unique }
-      updateState(children = state.children.empty)
+      updateState(children = Seq())
       /* notify */
       //val undoF = () ⇒ { state.children.foreach(super.add) }
       //Element.Event.publish(Element.Event.ChildrenReset(parentNode.get, parentNode.get.eModified)(undoF))
@@ -288,9 +293,8 @@ object Node extends Loggable {
         if (child.unique == unique)
           throw new IllegalArgumentException(s"Node with the same identifier '${unique}' is already exists.")
       }
-      val newNode = Node(id, unique, new State(children = immutable.ListSet(),
+      val newNode = Node(id, unique, new State(children = Seq(),
         graph = graph,
-        modified = Element.timestamp(),
         parentNodeReference = WeakReference(this),
         projectionElementBoxes = immutable.HashMap(),
         rootElementBox = null))
@@ -303,7 +307,7 @@ object Node extends Loggable {
      * The empty set of the same type as this set
      * @return  an empty set of type `Node`.
      */
-    override def empty = new ThreadUnsafe(id, unique, state.copy(children = immutable.ListSet(), modified = Element.timestamp()))
+    override def empty = new ThreadUnsafe(id, unique, state.copy(children = Seq()))
     /** Applies a function `f` to all children of this Node. */
     override def foreach[U](f: Node ⇒ U) = state.children.foreach(f)
     /** Creates a new iterator over all children contained in this node. */
@@ -313,7 +317,7 @@ object Node extends Loggable {
      * @param transformNodeChildren - function that provide sorting/filtering capability
      * @return the new iterator
      */
-    def iteratorRecursive(transformNodeChildren: (Node, immutable.ListSet[Node]) ⇒ Iterator[Node] = (parent, children) ⇒ children.toIterator): Iterator[Node] = {
+    def iteratorRecursive(transformNodeChildren: (Node, Seq[Node]) ⇒ Iterator[Node] = (parent, children) ⇒ children.toIterator): Iterator[Node] = {
       new Iterator[Node] {
         val iterator: Iterator[Node] = buildIterator(transformNodeChildren(ThreadUnsafe.this, ThreadUnsafe.this.state.children))
         def hasNext: Boolean = iterator.hasNext
@@ -327,7 +331,7 @@ object Node extends Loggable {
     override def remove(elem: Node): Boolean = if (state.children.contains(elem)) {
       /* remove node */
       elem.safeWrite { node ⇒
-        updateState(children = state.children - elem)
+        updateState(children = state.children.filterNot(_.eq(elem)))
         graph.nodes -= elem.unique
         node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
       }
@@ -339,32 +343,24 @@ object Node extends Loggable {
       false
     /** The number of children. */
     override def size: Int = state.children.size
-    /**
-     * A version of this collection with all
-     * of the operations implemented sequentially (i.e. in a single-threaded manner).
-     *
-     * This method returns a reference to this collection. In parallel collections,
-     * it is redefined to return a sequential implementation of this collection. In
-     * both cases, it has O(1) complexity.
-     *
-     * @return a sequential view of the collection.
-     */
-    override def seq = mutable.Set(state.children.toSeq: _*)
     /** Update state of the current node. */
-    def updateState(children: immutable.ListSet[Node] = this.state.children,
+    def updateState(children: Seq[Node] = this.state.children,
       graph: Graph[_ <: Model.Like] = this.state.graph,
-      modified: Element.Timestamp = Element.timestamp(),
+      modificationTimestamp: Element.Timestamp = Element.timestamp(),
       parentNodeReference: WeakReference[Node] = this.state.parentNodeReference,
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]] = this.state.projectionElementBoxes,
       rootElementBox: ElementBox[_ <: Element] = this.state.rootElementBox) {
-      state = new State(children, graph, modified, parentNodeReference, projectionElementBoxes, rootElementBox)
+      state = new State(children, graph, parentNodeReference, projectionElementBoxes, rootElementBox)
+      modification = modificationTimestamp
     }
     /** Update element box at the specific coordinates. */
-    def updateElementBox[A <: Element](coordinate: Coordinate, box: ElementBox[A], modified: Element.Timestamp = Element.timestamp()): Unit =
+    def updateElementBox[A <: Element](coordinate: Coordinate, box: ElementBox[A], modificationTimestamp: Element.Timestamp = Element.timestamp()): Unit = {
       if (coordinate == Coordinate.root)
-        state = state.copy(rootElementBox = box, modified = modified)
+        state = state.copy(rootElementBox = box)
       else
-        state = state.copy(projectionElementBoxes = state.projectionElementBoxes + (coordinate -> box), modified = modified)
+        state = state.copy(projectionElementBoxes = state.projectionElementBoxes + (coordinate -> box))
+      modification = modificationTimestamp
+    }
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Node]
     override def equals(other: Any) = other match {

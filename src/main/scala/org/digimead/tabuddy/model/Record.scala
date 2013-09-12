@@ -18,6 +18,7 @@
 
 package org.digimead.tabuddy.model
 
+import java.io.ObjectInputStream
 import java.util.UUID
 
 import scala.Array.canBuildFrom
@@ -35,13 +36,16 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Record element.
  */
-class Record(stashArg: Record.Stash)(@transient val eBox: ElementBox[Record])
+class Record(val eStash: Record.Stash)(@transient val eBox: ElementBox[Record])
   extends Record.Like with Loggable {
   type ElementType = Record
   type StashType = Record.Stash
 
-  /** Get current stash. */
-  def eStash = stashArg
+  /** Built in serialization helper. */
+  private def readObject(in: ObjectInputStream) {
+    in.defaultReadObject()
+    readObjectHelper()
+  }
 }
 
 object Record extends Loggable {
@@ -154,7 +158,7 @@ object Record extends Loggable {
   }
   /** Record stash. */
   class Stash(val created: Element.Timestamp,
-    val modified: Element.Timestamp,
+    val modificationTimestamp: Element.Timestamp,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
     val scope: Scope)
     extends Stash.Like {

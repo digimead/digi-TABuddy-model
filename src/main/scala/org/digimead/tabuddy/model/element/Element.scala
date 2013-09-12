@@ -140,8 +140,6 @@ trait Element extends Equals with java.io.Serializable {
   def eMutable(): Element.Mutable[ElementType] = new Element.Mutable(this.asInstanceOf[ElementType]) {}
   /** Get Model for this element. */
   def eModel(): Model.Like = eNode.graph.model
-  /** Get modified timestamp. */
-  def eModified() = eStash.modified
   /** Get element node. */
   def eNode(): Node = eBox.node
   /** Get identifier which uniquely identify this element. */
@@ -204,7 +202,7 @@ trait Element extends Equals with java.io.Serializable {
                   val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               }
-              eCopy(eNode, eCoordinate, eStash.copy(modified = Element.timestamp(),
+              eCopy(eNode, eCoordinate, eStash.copy(modificationTimestamp = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
                 asInstanceOf[ElementType#StashType], eBox.serialization)
             case None ⇒
@@ -212,7 +210,7 @@ trait Element extends Equals with java.io.Serializable {
               val undoF = () ⇒ {}
               //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               None
-              eCopy(eNode, eCoordinate, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
+              eCopy(eNode, eCoordinate, eStash.copy(modificationTimestamp = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
                 asInstanceOf[ElementType#StashType], eBox.serialization)
           }
@@ -225,7 +223,7 @@ trait Element extends Equals with java.io.Serializable {
                 val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueRemove(this, previous, eModified)(undoF))
               }
-              eCopy(eNode, eCoordinate, eStash.copy(modified = Element.timestamp(),
+              eCopy(eNode, eCoordinate, eStash.copy(modificationTimestamp = Element.timestamp(),
                 property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType], eBox.serialization)
             case None ⇒
               Element.this.asInstanceOf[ElementType]
@@ -238,7 +236,18 @@ trait Element extends Equals with java.io.Serializable {
   def eStash: StashType
   /** Get node/element unique id. */
   def eNodeId(): UUID = eBox.node.unique
+  /** Get modification timestamp. */
+  def modification = eStash.modificationTimestamp
 
+  /** Built in serialization helper. */
+  protected def readObjectHelper() = {
+    val eBoxField = getClass.getDeclaredField("eBox")
+    if (!eBoxField.isAccessible())
+      eBoxField.setAccessible(true)
+    eBoxField.set(this, Serialization.stash.get)
+    if (eBox == null)
+      throw new IllegalStateException(s"Unable to adjust ${getClass.getName}")
+  }
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Element]
   override def equals(that: Any): Boolean = that match {
     case that: Element ⇒ // vs immutable
@@ -332,7 +341,8 @@ object Element extends Loggable {
     //}
   }
   /** Create new timestamp object */
-  def timestamp(ms: Long = System.currentTimeMillis(), ns: Long = System.nanoTime()) = synchronized { Timestamp(ms, ns - nanoBase) }
+  def timestamp(ms: Long = System.currentTimeMillis(), ns: java.lang.Long = null) =
+    if (ns == null) Timestamp(ms, System.nanoTime() - nanoBase) else Timestamp(ms, ns)
 
   /*sealed trait Event extends mutable.Undoable {
     this: PropertyChangeEvent =>

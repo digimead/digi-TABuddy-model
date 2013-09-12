@@ -40,7 +40,8 @@ import scala.language.implicitConversions
  * @param node root element of the graph
  * @param origin graph owner identifier
  */
-class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node, val origin: Symbol)(implicit val modelType: Manifest[A]) {
+class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node,
+  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Equals {
   /** Index of all graph nodes. */
   val nodes = new mutable.HashMap[UUID, Node] with mutable.SynchronizedMap[UUID, Node]
   /** Path to graph storages. */
@@ -73,9 +74,15 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node, val
   /** Get graph model. */
   def model(): A = node.getRootElementBox.get.asInstanceOf[A]
   /** Get modification timestamp. */
-  def modified(): Element.Timestamp = node.getModified
+  def modification: Element.Timestamp = node.modification
 
-  override def toString() = s"Graph[${origin}]#${modified}"
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[Graph[_]]
+  override def equals(other: Any) = other match {
+    case that: Graph[_] ⇒ that.canEqual(this) && this.## == that.##
+    case _ ⇒ false
+  }
+  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.created, this.node, this.origin, this.modelType))
+  override def toString() = s"Graph[${origin}]#${modification}"
 }
 
 object Graph {

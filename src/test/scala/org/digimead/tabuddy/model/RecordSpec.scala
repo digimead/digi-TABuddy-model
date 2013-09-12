@@ -52,7 +52,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       val record1 = graph.node.safeWrite(_.createChild('test1, UUID.randomUUID()).safeWrite { test1Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
-        val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), elementElementForwardReference,
+        val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), Right(elementElementForwardReference),
           Element.Timestamp(0, 0))(elementType = implicitly[Manifest[Record]],
             node = test1Node, serialization = graph.model.eBox.serialization)
         test1Node.updateState(rootElementBox = elementBox)
@@ -67,7 +67,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       val record2 = graph.node.safeWrite(_.createChild('test2, UUID.randomUUID()).safeWrite { test2Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
-        val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), elementElementForwardReference,
+        val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), Right(elementElementForwardReference),
           Element.Timestamp(0, 0))(elementType = implicitly[Manifest[Record]],
             node = test2Node, serialization = graph.model.eBox.serialization)
         test2Node.updateState(rootElementBox = elementBox)

@@ -30,12 +30,10 @@ import org.digimead.tabuddy.model.Model
  */
 trait NodeState {
   /** Children nodes. */
-  val children: immutable.ListSet[Node]
+  val children: Seq[Node]
   /** Graph to which the node belongs. */
   // Option type is meaningless here. Node is always belong graph.
   val graph: Graph[_ <: Model.Like]
-  /** Global modification time, based on node elements and children state. */
-  val modified: Element.Timestamp
   /** Parent node. */
   // If we have the only strong reference to this node and
   // graph may contains a model node with weak references
@@ -49,9 +47,8 @@ trait NodeState {
 
   /** Copy constructor. */
   def copy(
-    children: immutable.ListSet[Node] = this.children,
+    children: Seq[Node] = this.children,
     graph: Graph[_ <: Model.Like] = this.graph,
-    modified: Element.Timestamp = this.modified,
     parentNodeReference: WeakReference[Node] = this.parentNodeReference,
     projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]] = this.projectionElementBoxes,
     rootElementBox: ElementBox[_ <: Element] = this.rootElementBox): this.type

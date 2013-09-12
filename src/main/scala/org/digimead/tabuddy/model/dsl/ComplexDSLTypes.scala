@@ -24,7 +24,7 @@ import scala.Array.canBuildFrom
 import scala.collection.immutable
 
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.serialization.Serialization
+import org.digimead.tabuddy.model.serialization.transport.Transport
 
 class ComplexDSLTypes extends DSLType {
   protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](
@@ -34,7 +34,7 @@ class ComplexDSLTypes extends DSLType {
    * Commit complex type (if needed) while saving
    */
   def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
-    element: Element, transport: Serialization.Transport, elementURI: URI) {}
+    element: Element, transport: Transport, elementURI: URI) {}
   /**
    * Convert value from string
    */

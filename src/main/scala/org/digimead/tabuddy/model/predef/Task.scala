@@ -18,6 +18,7 @@
 
 package org.digimead.tabuddy.model.predef
 
+import java.io.ObjectInputStream
 import java.util.UUID
 
 import org.digimead.digi.lib.log.api.Loggable
@@ -31,12 +32,15 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 /**
  * Task element.
  */
-class Task(stashArg: Task.Stash)(@transient val eBox: ElementBox[Task]) extends Task.Like with Loggable {
+class Task(val eStash: Task.Stash)(@transient val eBox: ElementBox[Task]) extends Task.Like with Loggable {
   type ElementType = Task
   type StashType = Task.Stash
 
-  /** Get current stash */
-  def eStash = stashArg
+  /** Built in serialization helper. */
+  private def readObject(in: ObjectInputStream) {
+    in.defaultReadObject()
+    readObjectHelper()
+  }
 }
 
 object Task extends Loggable {
@@ -71,7 +75,7 @@ object Task extends Loggable {
       def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         // Modify parent node.
-        element.eNode.safeWrite { parentNode =>
+        element.eNode.safeWrite { parentNode ⇒
           parentNode.find(_.id == id).map { childNode ⇒
             childNode.safeWrite { node ⇒
               log.debug(s"Get or create task element for exists ${node}.")
@@ -114,7 +118,7 @@ object Task extends Loggable {
   }
   /** Task stash. */
   class Stash(val created: Element.Timestamp,
-    val modified: Element.Timestamp,
+    val modificationTimestamp: Element.Timestamp,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
     val scope: Scope)
     extends Stash.Like {

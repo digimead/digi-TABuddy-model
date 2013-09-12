@@ -28,7 +28,7 @@ import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.graph.Node
 
 trait ModelIndex {
-  this: Model with Loggable =>
+  this: Model.Like with Loggable =>
   //type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
   //type HashMapPerAxis = mutable.HashMap[Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Coordinate, HashMapPerOrigin]
   //type HashMapPerId = mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]

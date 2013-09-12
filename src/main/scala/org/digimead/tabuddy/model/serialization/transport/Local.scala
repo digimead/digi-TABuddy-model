@@ -26,8 +26,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URI
 import java.util.UUID
-import scala.collection.JavaConverters._
-import scala.collection.immutable
+
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
@@ -36,86 +35,66 @@ import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.Serialization
 import org.digimead.tabuddy.model.serialization.Serialization.interface2implementation
-import org.digimead.tabuddy.model.element.Coordinate
 
 /**
  * Local transport.
  */
-class Local extends Serialization.Transport with Loggable {
-  /** Load element box with the specific UUID for the specific container. */
-  def acquireElementBox(objectId: UUID, node: Node.ThreadUnsafe, storageURI: URI): ElementBox[_ <: Element] = {
-    log.debug(s"Acquire element box ${objectId} from ${storageURI}.")
+class Local extends Transport with Loggable {
+  /** Load element with the specific UUID for the specific container. */
+  def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A = {
+    log.debug(s"Acquire element ${elementBox} from ${storageURI}.")
+    val serializationMechanism = Serialization.perIdentifier.get(elementBox.serialization) match {
+      case Some(mechanism) ⇒
+        mechanism
+      case None ⇒
+        throw new IllegalArgumentException(s"Serialization for the specified ${elementBox.serialization} not found.")
+    }
+    val storageDirectory = new File(storageURI)
+    val nodeDirectory = elementBox.node.safeRead(getNodeDirectory(storageDirectory, _, false))
+    val elementDirectoryName = "%X-%X".format(elementBox.elementUniqueId.getMostSignificantBits(), elementBox.elementUniqueId.getLeastSignificantBits())
+    val elementDirectory = new File(nodeDirectory, elementDirectoryName)
+    val elementFile = new File(elementDirectory, "element." + elementBox.serialization.extension)
+    val elementBinary = read(elementFile.toURI)
+    serializationMechanism.load(elementBox, elementBinary)
+  }
+  /** Load element box descriptor with the specific UUID for the specific container. */
+  def acquireElementBox(objectId: UUID, node: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Element[_ <: Element] = {
+    log.debug(s"Acquire element box ${objectId} descriptor from ${storageURI}.")
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, node, false)
     val elementDirectoryName = "%X-%X".format(objectId.getMostSignificantBits(), objectId.getLeastSignificantBits())
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
-    val elementDescriptionFile = new File(elementDirectory, descriptionResourceName)
-    val elementDescription = Serialization.elementDescriptionFromYaml(new String(read(elementDescriptionFile.toURI), "UTF-8"))
-    val elementBox = ElementBox[Element](elementDescription.coordinate, elementDescription.elementUniqueId, node, elementDescription.modified,
-      elementDescription.serializationIdentifier)(Manifest.classType(elementDescription.clazz))
-    elementBox
+    val elementDescriptorFile = new File(elementDirectory, descriptorResourceName)
+    elementDescriptorFromYaml(new String(read(elementDescriptorFile.toURI), "UTF-8"))
   }
   /** Load graph from the specific URI. */
-  def acquireGraph(origin: Symbol, storageURI: URI): Graph[_ <: Model.Like] = {
-    log.debug(s"Acquire graph ${origin} from ${storageURI}.")
+  def acquireGraph(origin: Symbol, storageURI: URI): Serialization.Descriptor.Graph[_ <: Model.Like] = {
+    log.debug(s"Acquire graph ${origin} descriptor from ${storageURI}.")
     if (!storageURI.isAbsolute())
       throw new IllegalArgumentException(s"Storage URI(${storageURI}) must be absolute.")
     val storageDirectory = new File(storageURI)
     val graphDirectory = getGraphDirectory(storageDirectory, origin, false)
-    /*
-     * Load graph description.
-     */
-    val graphDescriptionFile = new File(graphDirectory, descriptionResourceName)
-    val graphDescription = {
-      val description = Serialization.graphDescriptionFromYaml(new String(read(graphDescriptionFile.toURI), "UTF-8"))
-      if (!description.storages.contains(storageURI)) description.copy(storages = storageURI +: description.storages) else description
-    }
-    if (graphDescription.origin == null)
-      throw new IllegalStateException("Origin value not found in graph description file.")
-    if (graphDescription.origin.name != origin.name)
-      throw new IllegalStateException(s"Incorrect saved origin value ${graphDescription.origin.name} vs required ${origin.name}.")
-    /*
-     * Load model description.
-     */
-    val modelDirectory = new File(graphDirectory, modelDirectoryName)
-    val nodeDirectory = new File(modelDirectory, graphDescription.modelId.name)
-    val nodeDescriptionFile = new File(nodeDirectory, descriptionResourceName)
-    val nodeDescription = Serialization.nodeDescriptionFromYaml(new String(read(nodeDescriptionFile.toURI), "UTF-8"))
-    if (nodeDescription.elements.isEmpty)
-      throw new IllegalStateException("There are no elements in the model node.")
-    if (nodeDescription.id == null)
-      throw new IllegalStateException("Id value not found in model node description file.")
-    if (nodeDescription.unique == null)
-      throw new IllegalStateException("Unique value not found in model node description file.")
-    if (nodeDescription.id.name != graphDescription.modelId.name)
-      throw new IllegalStateException(s"Incorrect saved model id value ${nodeDescription.id.name} vs required ${graphDescription.modelId.name}.")
-    /*
-     * Create graph and model node
-     */
-    val targetModelNode = Node.model(nodeDescription.id, nodeDescription.unique)
-    val graph = new Graph(graphDescription.created, targetModelNode, origin)(Manifest.classType(graphDescription.modelType))
-    graph.storages = graphDescription.storages
-    targetModelNode.safeWrite { targetNode ⇒
-      targetModelNode.initializeModelNode(graph, graphDescription.modified)
-      val elementBoxes = nodeDescription.elements.map { elementId ⇒
-        Serialization.acquireElementBox(elementId, targetNode)
-      }
-      val (rootElementsPart, projectionElementsPart) = elementBoxes.partition(_.coordinate == Coordinate.root)
-      if (rootElementsPart.isEmpty)
-        throw new IllegalStateException("Root element not found.")
-      if (rootElementsPart.size > 1)
-        throw new IllegalStateException("There are few root elements.")
-      val rootElementBox = rootElementsPart.head
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
-      targetNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
-      if (graph.modelType != graph.node.getRootElementBox.elementType)
-        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.getRootElementBox.elementType}")
-    }
-    graph
+    val graphDescriptorFile = new File(graphDirectory, descriptorResourceName)
+    graphDescriptorFromYaml(new String(read(graphDescriptorFile.toURI), "UTF-8"))
   }
-  /** Load node with the specific UUID for the specific parent. */
-  def acquireNode(uniqueId: UUID, parentNode: Node): Node = {
-    null
+  /** Load model node descriptor with the specific id. */
+  def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Serialization.Descriptor.Node = {
+    log.debug(s"Acquire node ${id} descriptor from ${storageURI}.")
+    val storageDirectory = new File(storageURI)
+    val graphDirectory = new File(storageDirectory, origin.name)
+    val modelDirectory = new File(graphDirectory, modelDirectoryName)
+    val nodeDirectory = new File(modelDirectory, id.name)
+    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
+    nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
+  }
+  /** Load node descriptor with the specific id for the specific parent. */
+  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Node = {
+    log.debug(s"Acquire node ${id} descriptor from ${storageURI}.")
+    val storageDirectory = new File(storageURI)
+    val parentNodeDirectory = getNodeDirectory(storageDirectory, parentNode, true)
+    val nodeDirectory = new File(parentNodeDirectory, id.name)
+    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
+    nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
   }
   /** Delete resource. */
   def delete(uri: URI) = if (new File(uri).delete())
@@ -125,9 +104,9 @@ class Local extends Serialization.Transport with Loggable {
     log.debug(s"Freeze ${elementBox}.")
     val storageDirectory = new File(storageURI)
     val elementDirectory = getElementDirectory(storageDirectory, elementBox, true)
-    val elementDescriptionFile = new File(elementDirectory, descriptionResourceName)
+    val elementDescriptorFile = new File(elementDirectory, descriptorResourceName)
     val elementDirectoryURI = elementDirectory.toURI
-    printToFile(elementDescriptionFile)(_.println(Serialization.elementDescriptionToYAML(elementBox)))
+    printToFile(elementDescriptorFile)(_.println(elementDescriptorToYAML(elementBox)))
     // save element
     elementBox.getModified match {
       case Some(modified) ⇒
@@ -151,8 +130,8 @@ class Local extends Serialization.Transport with Loggable {
     log.debug(s"Freeze ${graph}.")
     val storageDirectory = new File(storageURI)
     val graphDirectory = getGraphDirectory(storageDirectory, graph.origin, true)
-    val graphDescriptionFile = new File(graphDirectory, descriptionResourceName)
-    printToFile(graphDescriptionFile)(_.println(Serialization.graphDescriptionToYAML(graph)))
+    val graphDescriptorFile = new File(graphDirectory, descriptorResourceName)
+    printToFile(graphDescriptorFile)(_.println(graphDescriptorToYAML(graph)))
     graph.node.safeRead { node ⇒ freezeNode(node, storageURI) }
   }
   /** Save node to the specific URI. */
@@ -161,8 +140,8 @@ class Local extends Serialization.Transport with Loggable {
     node.freezeRead { node ⇒
       val storageDirectory = new File(storageURI)
       val nodeDirectory = getNodeDirectory(storageDirectory, node, true)
-      val nodeDescriptionFile = new File(nodeDirectory, descriptionResourceName)
-      printToFile(nodeDescriptionFile)(_.println(Serialization.nodeDescriptionToYAML(node)))
+      val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
+      printToFile(nodeDescriptorFile)(_.println(nodeDescriptorToYAML(node)))
       freezeElementBox(node.rootElementBox, storageURI)
       node.children.foreach { node ⇒ node.safeRead(freezeNode(_, storageURI)) }
     }

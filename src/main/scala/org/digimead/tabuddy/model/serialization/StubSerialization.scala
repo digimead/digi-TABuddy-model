@@ -18,19 +18,17 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import java.util.UUID
-
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.graph.ElementBox
 
-class StubSerialization extends Serialization {
+class StubSerialization extends Mechanism {
   /** Identifier of the serialization mechanism. */
   val identifier = StubSerialization.Identifier
 
   /** Load element. */
-  def acquireElement[A <: Element](objectId: UUID, parentNode: Node, from: Array[Byte])(implicit m: Manifest[A]): Option[A] = None
+  def load[A <: Element](elementBox: ElementBox[A], from: Array[Byte])(implicit m: Manifest[A]): A = ???
   /** Save element. */
-  def freezeElement(element: Element): Array[Byte] = Array()
+  def save(element: Element): Array[Byte] = ???
 }
 
 object StubSerialization {
