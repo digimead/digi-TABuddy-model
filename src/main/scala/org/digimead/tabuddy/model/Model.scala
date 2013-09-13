@@ -194,8 +194,8 @@ object Model extends Loggable {
     }
     /** Get Model for this element. */
     override def eModel = this
-    /** Get mutable representation. */
-    override def eMutable(): Model.Mutable[ElementType] = new Model.Mutable(this.asInstanceOf[ElementType])
+    /** Get relative representation. */
+    override def eRelative(): Model.Relative[ElementType] = new Model.Relative(this.asInstanceOf[ElementType])
     /** Get a container */
     override def eParent(): Option[Node] = None
 
@@ -203,8 +203,8 @@ object Model extends Loggable {
 
     override def toString() = "%s://%s[%s@GLOBAL]".format(eOrigin.name, eStash.scope, eId.name)
   }
-  /** Mutable representation of Model.Like. */
-  class Mutable[A <: Like](e: A) extends Record.Mutable[A](e)
+  /** Relative representation of Model.Like. */
+  class Relative[A <: Like](e: A) extends Record.Relative[A](e)
   /** The marker object that describes model scope */
   class Scope(override val modificator: Symbol = 'Model) extends Record.Scope(modificator) {
     override def canEqual(other: Any): Boolean = other.isInstanceOf[Model.Scope]

@@ -86,7 +86,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       import TestDSL._
       // define record
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val record_0 = model.takeRecord('baseLevel) { r ⇒
         r.takeRecord('level1a) { r ⇒
           r.takeRecord('level2a) { r ⇒
@@ -101,7 +101,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
           r.name = "record_1b"
         }
         r.name = "record_0"
-      }.eMutable
+      }.eRelative
       // check description
       record_0.name should be("record_0")
       (record_0 & RecordLocation('level1a)).name should be("record_1a")

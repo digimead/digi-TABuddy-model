@@ -24,10 +24,10 @@ import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.serialization.Serialization
 
 /**
  * Serialization transport that provides implementation for the specific URI scheme
@@ -44,21 +44,25 @@ trait Transport {
   /** Load element with the specific UUID for the specific container. */
   def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(elementUniqueId: UUID, parentNode: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Element[_ <: Element]
+  def acquireElementBox(elementUniqueId: UUID, parentNode: Node.ThreadUnsafe, storageURI: URI): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
-  def acquireGraph(origin: Symbol, storageURI: URI): Serialization.Descriptor.Graph[_ <: Model.Like]
+  def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte]
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Serialization.Descriptor.Node
+  def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Node
+  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Array[Byte]
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element to the specific URI. */
-  def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI)
+  def freezeElement(element: Element, storageURI: URI, elementContent: Array[Byte])
+  /** Save element box to the specific URI. */
+  def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte])
   /** Save graph to the specific URI. */
-  def freezeGraph(graph: Graph[_ <: Model.Like], storageURI: URI)
+  def freezeGraph(graph: Graph[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte])
   /** Save node to the specific URI. */
-  def freezeNode(node: Node.ThreadUnsafe, storageURI: URI, recursive: Boolean = true)
+  def freezeNode(node: Node.ThreadUnsafe, storageURI: URI, nodeDescriptorContent: Array[Byte])
+  /** Save custom value to the specific URI. */
+  def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte])
   /** Read resource. */
   def read(uri: URI): Array[Byte]
   /** Squeeze model. */

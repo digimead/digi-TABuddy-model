@@ -61,39 +61,22 @@ object Note extends Loggable {
       this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Create a new note or retrieve exists one. */
       def note(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Note =
-        withNote(id, rawCoordinate: _*)(x ⇒ x.immutable)
+        withNote(id, rawCoordinate: _*)(x ⇒ x.absolute)
       /**
        * Create a new note or retrieve exists one and apply fTransform to
        *
        * @return note
        */
-      def takeNode[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] ⇒ A): Note =
-        withNote(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.immutable })
+      def takeNode[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
+        withNote(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new note or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
        */
-      def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Note] ⇒ A): A = {
+      def withNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
-        // Modify parent node.
-        element.eNode.safeWrite { parentNode ⇒
-          parentNode.find(_.id == id).map { childNode ⇒
-            childNode.safeWrite { node ⇒
-              log.debug(s"Get or create note element for exists ${node}.")
-              implicit val shashClass = classOf[Note.Stash]
-              val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
-              fTransform(new Mutable(note))
-            }
-          } getOrElse {
-            parentNode.createChild(id, UUID.randomUUID()).safeWrite { node ⇒
-              log.debug(s"Get or create note element for new ${node}.")
-              implicit val shashClass = classOf[Note.Stash]
-              val note = ElementBox.getOrCreate[Note](coordinate, node, Note.scope, parentNode.rootElementBox.serialization)
-              fTransform(new Mutable(note))
-            }
-          }
-        }
+        withElement[Note, A](id, coordinate, Note.scope, classOf[Note.Stash], (note) ⇒ fTransform(new Relative(note)))
       }
       /** Safe cast element to Note.Like. */
       def toNote() = element.eAs[Note.Like]
@@ -107,13 +90,13 @@ object Note extends Loggable {
     this: Loggable ⇒
     type ElementType <: Like
 
-    /** Get mutable representation. */
-    override def eMutable(): Note.Mutable[ElementType] = new Note.Mutable(this.asInstanceOf[ElementType])
+    /** Get relative representation. */
+    override def eRelative(): Note.Relative[ElementType] = new Note.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Note.Like]
   }
-  /** Mutable representation of Note.Like. */
-  class Mutable[A <: Like](e: A) extends Record.Mutable[A](e)
+  /** Relative representation of Note.Like. */
+  class Relative[A <: Like](e: A) extends Record.Relative[A](e)
   /** The marker object that describes note scope. */
   class Scope(override val modificator: Symbol = 'Note) extends Record.Scope(modificator) {
     override def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.predef.Note.Scope]

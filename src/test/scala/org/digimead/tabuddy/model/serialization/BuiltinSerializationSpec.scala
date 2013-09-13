@@ -28,12 +28,15 @@ import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.lib.test.StorageHelper
 import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.Record
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.dsl.DSLType
+import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
+import org.digimead.tabuddy.model.graph.NodeState
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -45,12 +48,12 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
   }
 
   describe("A SimpleSerialization") {
-    it("should provide serialization mechanism for Model") {
+    it("should provide serialization mechanism for graph") {
       withTempFolder { folder ⇒
         import TestDSL._
         // graph
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID())
-        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val record_0 = model.takeRecord('baseLevel) { r ⇒
           r.takeRecord('level1a) { r ⇒
             r.takeRecord('level2a) { r ⇒
@@ -65,7 +68,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             r.name = "record_1b"
           }
           r.name = "record_0"
-        }.eMutable
+        }.eRelative
         graph.node.safeRead(_.iteratorRecursive().size) should be(5)
         model.eNode.safeRead(_.size) should be(1)
         model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123", Value.Context(model))))))
@@ -159,14 +162,13 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
           }
         }
       }
-
     }
-    it("should provide serialization mechanism for elements") {
+    it("should correct serialize elements") {
       withTempFolder { folder ⇒
         import TestDSL._
 
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID())
-        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val record_root = model.takeRecord('root) { r ⇒
           r.takeRecord('level2) { r ⇒
             r.name = "123"
@@ -193,67 +195,99 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
           }
         }
 
-        /*
-        val dl2 = s.acquire[Record[Record.Stash], Record.Stash](fLoad, fFilter).get
-        dl2.eId.name should be("level2")
-        dl2.eChildren should have size (1)
-        dl2.eStash.model should be(None)
-        dl2.eStash.context.container should be(record.eReference)
-        dl2.name should be("123")
-        val dl3 = dl2.eChildren.head.asInstanceOf[Record[Record.Stash]]
-        dl3.eId.name should be("level3")
-        dl3.eChildren should be('empty)
-        dl3.eStash.model should be(None)
-        dl3.eStash.context.container should be(dl2.eReference)
-        dl3.name should be("456")
-        dl2.name = "789"
-        dl3.name = "098"
-        save.name should be("123")
-        save.eChildren.head.asInstanceOf[Record[Record.Stash]].name should be("456")
-        dl2.eReference should be(save.eReference)
-        dl2.eReference.unique.hashCode() should be(save.eReference.unique.hashCode())
-        dl2.eReference.origin.hashCode() should be(save.eReference.origin.hashCode())
-        dl2.eReference.coordinate.hashCode() should be(save.eReference.coordinate.hashCode())
-        dl2.eReference.hashCode() should be(save.eReference.hashCode())
-        Model.e(save.eReference) should be(Some(save))
-        Model.e(dl2.eReference) should be(Some(save))
-        evaluating { Model.eChildren += dl2 } should produce[AssertionError]*/
-      }
-    }
-    it("should filter elements on save/load") {
-      //      Model.reset()
-      /*val record = Model.record('root) { r =>
-        r.record('level2) { r =>
-          r.name = "123"
-          r.record('level3) { r =>
-            r.name = "456"
+        val oldModification = graph.node.modification
+        (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).name should be("456")
+        record_level3.eRelative.name = "789"
+        (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).name should be("789")
+        graph.model.e(record_level3.eReference).map(_.asInstanceOf[Record].name) should be(Some("789"))
+        val newModification = graph.node.modification
+        newModification should be > (oldModification)
+        newModification should be > (record_level3.eRelative.modification)
+        (model & RecordLocation('root)).eNode.modification should be(newModification)
+        (model & RecordLocation('root) & RecordLocation('level2)).eNode.modification should be(newModification)
+        (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modification should be(newModification)
+
+        val record_level3_rel = graph2.model.e(record_level3.eReference).flatMap(_.eAs[Record]).get.eRelative
+        val record_level2_node = record_level3_rel.eNode.getParent.get
+        record_level2_node.id.name should be("level2")
+        record_level2_node.safeRead(_.children) should have size (1)
+        record_level3_rel.eModel.eq(graph2.model) should be(true)
+        val record_level2_rel = record_level2_node.getRootElementBox.get.eAs[Record].get.eRelative
+        record_level2_rel.name should be("123")
+        record_level2_node.safeRead(_.children) should have size (1)
+        record_level2_node.safeRead(_.children.head.getRootElementBox.get) should be(record_level3_rel.absolute)
+        record_level3_rel.name should be("456")
+        record_level3_rel.eNode.safeRead(_.children) should be('empty)
+
+        record_level3_rel.eReference should be(record_level3.eReference)
+        record_level3_rel.eReference.unique.hashCode() should be(record_level3.eReference.unique.hashCode())
+        record_level3_rel.eReference.origin.hashCode() should be(record_level3.eReference.origin.hashCode())
+        record_level3_rel.eReference.coordinate.hashCode() should be(record_level3.eReference.coordinate.hashCode())
+        record_level3_rel.eReference.hashCode() should be(record_level3.eReference.hashCode())
+
+        graph.model.e(record_level2.eReference) should be(Some(record_level2))
+        graph.model.e(record_level2_rel.eReference) should be(Some(record_level2))
+
+        record_level2.eRelative.name = "111"
+
+        Serialization.freeze(graph)
+        val graph3 = Serialization.acquire(graph.origin, graph.storages.head)
+
+        graph2.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("123")
+        graph.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("111")
+        graph3.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("111")
+
+        graph.node.safeRead { node ⇒
+          graph3.node.safeRead { node3 ⇒
+            node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
           }
         }
       }
-      val note1 = Model.note('note1) { n => }
-      val note2 = Model.note('note2) { n => }
-      val task = Model.task('task) { t => }
-      Model.eFilter(_ => true) should have size (6)
-      // freeze
-      val s = new BuiltinSerialization
-      var frozen: Seq[Array[Byte]] = Seq()
-      def fFilterSave(element: Element.Generic): Option[Element.Generic] = {
-        log.___glance("filter element %s with ancestors %s".format(element, element.eAncestorReferences.mkString(",")))
-        element match {
-          case note: Note.Generic if note.eId == 'note1 =>
-            // alter note1
-            note.name = "save_filter_added"
-            Some(note)
-          case record: Record.Generic if record.eScope == Record.scope =>
-            // drop record and  children
-            log.___glance("drop " + record)
-            None
-          case element =>
-            // pass all other
-            Some(element)
+    }
+    it("should filter elements on save/load") {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID())
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        val record_root = model.takeRecord('root) { r ⇒
+          r.takeRecord('level2) { r ⇒
+            r.name = "123"
+            r.takeRecord('level3) { r ⇒
+              r.name = "456"
+            }
+          }
         }
-      }
-      def fSave(element: Element.Generic, data: Array[Byte]) {
+        val record_level2 = record_root & RecordLocation('level2)
+        val record_level3 = record_level2 & RecordLocation('level3)
+
+        model.e(record_level3.eReference).get.eq(record_level3) should be(true)
+        val note = model.note('note)
+        val task = model.task('task)
+        model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
+
+        def fFilterSave(id: Symbol, unique: UUID, modificationTimestamp: Element.Timestamp, state: NodeState) = {
+          val tState = state
+          log.___glance("pass " + tState)
+          (id, unique, modificationTimestamp, state)
+          /*log.___glance("filter element %s with ancestors %s".format(element, element.eAncestorReferences.mkString(",")))
+          element match {
+            case note: Note.Generic if note.eId == 'note1 =>
+              // alter note1
+              note.name = "save_filter_added"
+              Some(note)
+            case record: Record.Generic if record.eScope == Record.scope =>
+              // drop record and  children
+              log.___glance("drop " + record)
+              None
+            case element =>
+              // pass all other
+              Some(element)
+          }*/
+        }
+        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
+        Serialization.freeze(graph, fFilterSave)
+        /*def fSave(element: Element.Generic, data: Array[Byte]) {
         log.___glance("save element %s, serialized data size is %d bytes".format(element, data.size))
         assert(data.size > 0, "incorrect data size")
         frozen = frozen :+ data
@@ -289,6 +323,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
       deserializedNote1.name should be("save_filter_added")
       val deserializedNote2 = deserializedModel | NoteLocation('note2)
       deserializedNote2.name should be("load_filter_added")*/
+      }
     }
     it("should have a simple API") {
       // 1st variant

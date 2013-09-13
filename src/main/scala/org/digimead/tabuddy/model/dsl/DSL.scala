@@ -22,6 +22,7 @@ import java.util.UUID
 
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Record
+import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.LocationGeneric
 import org.digimead.tabuddy.model.graph.ElementBox
@@ -53,7 +54,7 @@ object DSL {
 
     /** Create or retrieve child of the current element. */
     def |[A <: Element](l: LocationGeneric[A]): A =
-      element.eNode.safeWrite { node =>
+      element.eNode.safeWrite { node ⇒
         node.iterator.find(node ⇒ node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
           case Some(child) ⇒
             child.safeWrite { child ⇒
@@ -76,6 +77,35 @@ object DSL {
       element.eFind[A](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
         l.unique.map(_ == e.eNodeId).getOrElse(true))(l.elementType).
         getOrElse { throw new IllegalArgumentException(s"Unable to find ${l}.") }
+
+    /**
+     * Create a new element or retrieve exists one and apply fTransform to.
+     *
+     * @return fTransform result
+     */
+    protected def withElement[A <: Element, B](id: Symbol, coordinate: Coordinate, scope: A#StashType#ScopeType, stash: Class[_ <: A#StashType],
+      fTransform: A ⇒ B)(implicit m: Manifest[A]): B = {
+      // Double checked locking
+      element.eNode.safeRead { parentNode ⇒
+        parentNode.find(_.id == id).flatMap(_.getProjection(coordinate).
+          map(e ⇒ fTransform(e.get().asInstanceOf[A])))
+      }.getOrElse {
+        // Modify parent node.
+        element.eNode.safeWrite { parentNode ⇒
+          parentNode.find(_.id == id).map { childNode ⇒
+            // node exists
+            childNode.getProjection(coordinate).map(e ⇒ fTransform(e.get().asInstanceOf[A])).getOrElse {
+              childNode.safeWrite { childNode ⇒ fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash)) }
+            }
+          } getOrElse {
+            // node not exists
+            parentNode.createChild(id, UUID.randomUUID()).safeWrite { childNode ⇒
+              fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash))
+            }
+          }
+        }
+      }
+    }
   }
   /** Base trait for element specific DSL builder. */
   trait RichSpecific[A <: Element] {

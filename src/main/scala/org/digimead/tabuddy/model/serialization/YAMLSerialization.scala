@@ -50,7 +50,7 @@ import org.yaml.snakeyaml.representer.Representer
 import java.net.URI
 import org.digimead.tabuddy.model.graph.ElementBox
 
-class YAMLSerialization extends Mechanism {
+class YAMLSerialization extends Mechanism with Loggable {
   /** Identifier of the serialization mechanism. */
   val identifier = YAMLSerialization.Identifier
 

@@ -25,10 +25,11 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.ObjectStreamClass
 
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.ElementBox
 
-class BuiltinSerialization extends Mechanism {
+class BuiltinSerialization extends Mechanism with Loggable {
   /** Identifier of the serialization mechanism. */
   val identifier = BuiltinSerialization.Identifier
 

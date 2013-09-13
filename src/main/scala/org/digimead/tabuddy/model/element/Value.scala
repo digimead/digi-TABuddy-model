@@ -134,7 +134,8 @@ object Value extends Loggable {
       case that: Context if this.## == that.## ⇒ that canEqual this
       case _ ⇒ false
     })
-    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](objectId, line))
+    override def hashCode() = lazyHashCode
+    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](objectId, line))
     override def toString() = "Context[%s:%s]".format(objectId.getOrElse("-"), line.getOrElse("-"))
   }
   object Context {

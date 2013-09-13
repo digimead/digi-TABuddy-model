@@ -31,20 +31,20 @@ object TestDSL extends DSL
   with Note.DSL
   with Task.DSL {
   implicit def e2DSL[A <: Element](e: A) = new ElementSpecificDSL(e)
-  implicit def me2DSL[A <: Element](me: Element.Mutable[A]) = new ElementSpecificDSL(me.immutable)
+  implicit def me2DSL[A <: Element](me: Element.Relative[A]) = new ElementSpecificDSL(me.absolute)
   implicit def eRecord2DSL[A <: Record.Like](e: A) = new RecordSpecificDSL(e)
-  implicit def meRecord2DSL[A <: Record.Like](me: Element.Mutable[A]) = new RecordSpecificDSL(me.immutable)
+  implicit def meRecord2DSL[A <: Record.Like](me: Element.Relative[A]) = new RecordSpecificDSL(me.absolute)
   implicit def eNote2DSL[A <: Note.Like](e: A) = new NoteSpecificDSL(e)
-  implicit def meNote2DSL[A <: Note.Like](me: Element.Mutable[A]) = new NoteSpecificDSL(me.immutable)
+  implicit def meNote2DSL[A <: Note.Like](me: Element.Relative[A]) = new NoteSpecificDSL(me.absolute)
   implicit def eTask2DSL[A <: Task.Like](e: A) = new TaskSpecificDSL(e)
-  implicit def meTask2DSL[A <: Task.Like](me: Element.Mutable[A]) = new TaskSpecificDSL(me.immutable)
+  implicit def meTask2DSL[A <: Task.Like](me: Element.Relative[A]) = new TaskSpecificDSL(me.absolute)
   implicit def eModel2DSL[A <: Model.Like](e: A) = new ModelSpecificDSL(e)
-  implicit def meModel2DSL[A <: Model.Like](me: Element.Mutable[A]) = new ModelSpecificDSL(me.immutable)
+  implicit def meModel2DSL[A <: Model.Like](me: Element.Relative[A]) = new ModelSpecificDSL(me.absolute)
 
   implicit val modelStashClass: Class[_ <: Model.Stash] = classOf[Model.Stash]
   implicit val recordStashClass: Class[_ <: Record.Stash] = classOf[Record.Stash]
   implicit val noteStashClass: Class[_ <: Note.Stash] = classOf[Note.Stash]
   implicit val taskStashClass: Class[_ <: Task.Stash] = classOf[Task.Stash]
 
-  implicit def mutable2immutable[A <: Element](m: Element.Mutable[A]): A = m.immutable
+  implicit def relative2absolute[A <: Element](relative: Element.Relative[A]): A = relative.absolute
 }

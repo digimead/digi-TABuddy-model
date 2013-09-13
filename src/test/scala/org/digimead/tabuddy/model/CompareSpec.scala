@@ -96,38 +96,38 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eStash.scope) should be(myModel2.eStash.scope)
           (myModel1.eStash.property) should be(myModel2.eStash.property)
 
-          val myModel1Mutable = myModel1.eMutable
-          val model1BranchNodes = myModel1Mutable.eNode.safeRead(_.iteratorRecursive().toIndexedSeq)
+          val myModel1Relative = myModel1.eRelative
+          val model1BranchNodes = myModel1Relative.eNode.safeRead(_.iteratorRecursive().toIndexedSeq)
           model1BranchNodes should be(Seq(record.eNode, save.eNode))
 
           myModel1.compare(myModel2) should be(0) // myModel1 == myModel2
-          myModel1Mutable.immutable should be(myModel1)
-          myModel1Mutable.compare(myModel1) should be(0)
-          myModel1Mutable.name = "111"
-          myModel1Mutable.compare(myModel1) should be(1) // myModel1Mutable modified after Model1 (myModel1Mutable > Model1)
+          myModel1Relative.absolute should be(myModel1)
+          myModel1Relative.compare(myModel1) should be(0)
+          myModel1Relative.name = "111"
+          myModel1Relative.compare(myModel1) should be(1) // myModel1Relative modified after Model1 (myModel1Relative > Model1)
           val rootRecord = myModel1 | TestDSL.RecordLocation('root)
           rootRecord should be(record)
           // parent modified after child
           record.compare(record) should be(0)
 
-          myModel1Mutable.compare(record) should be(1) // Model modified after record
-          myModel1Mutable.compare(save) should be(1) // Model modified after save
+          myModel1Relative.compare(record) should be(1) // Model modified after record
+          myModel1Relative.compare(save) should be(1) // Model modified after save
           save.compare(record) should be(1) // save modified after record
 
-          myModel1Mutable.name = "123"
-          myModel1Mutable.compare(record) should be(1) // Model modified after record
-          myModel1Mutable.compare(save) should be(1) // Model modified after record
+          myModel1Relative.name = "123"
+          myModel1Relative.compare(record) should be(1) // Model modified after record
+          myModel1Relative.compare(save) should be(1) // Model modified after record
 
-          val saveMutable = save.eMutable
-          saveMutable.name = "321"
+          val saveRelative = save.eRelative
+          saveRelative.name = "321"
           model1BranchNodes.map(_.getRootElementBox.get).sorted.map(_.eId.name) should be(Seq("root", "level2"))
-          myModel1Mutable.compare(record) should be(1) // Model modified after
-          myModel1Mutable.compare(saveMutable) should be(-1) // Model modified before
-          saveMutable.compare(record) should be(1) // saveMutable modified after
+          myModel1Relative.compare(record) should be(1) // Model modified after
+          myModel1Relative.compare(saveRelative) should be(-1) // Model modified before
+          saveRelative.compare(record) should be(1) // saveRelative modified after
 
-          (myModel1Mutable | RecordLocation('root)).compare(record) should be(0)
+          (myModel1Relative | RecordLocation('root)).compare(record) should be(0)
 
-          record.eMutable.name = "321"
+          record.eRelative.name = "321"
           model1BranchNodes.map(_.getRootElementBox.get).sorted.map(_.eId.name) should be(Seq("level2", "root"))
         }
       }
@@ -138,7 +138,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       import TestDSL._
       multithread(1000, 10) { i ⇒
         val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
-        val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+        val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val rA1 = model1.takeRecord('rA) { r ⇒
           Thread.sleep(10)
           r.takeRecord('rB) { r ⇒
@@ -147,26 +147,26 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
               r.name = "123"
             }
           }
-        }.eMutable
-        val rB1 = (rA1 & RecordLocation('rB)).eMutable
-        val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eMutable
+        }.eRelative
+        val rB1 = (rA1 & RecordLocation('rB)).eRelative
+        val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eRelative
 
         val graph2 = graph1.copy('john2)
         graph1.model.eStash.created should be(graph2.model.eStash.created)
-        val model2 = graph2.model.eMutable
-        val rA2 = (model2 & RecordLocation('rA)).eMutable
-        val rB2 = (rA2 & RecordLocation('rB)).eMutable
-        val rLeaf2 = (rB2 & RecordLocation('rLeaf)).eMutable
+        val model2 = graph2.model.eRelative
+        val rA2 = (model2 & RecordLocation('rA)).eRelative
+        val rB2 = (rA2 & RecordLocation('rB)).eRelative
+        val rLeaf2 = (rB2 & RecordLocation('rLeaf)).eRelative
 
         CompareByTimestampAndThenContent.doWith {
           Element.comparator.value should be(CompareByTimestampAndThenContent)
           rB1.compare(rA1) should be(1) // rB1 modified after rA1 record
-          model1.immutable should not be (model2.immutable)
-          rA1.immutable should not be (rA2.immutable)
-          rB1.immutable should not be (rB2.immutable)
-          rLeaf1.immutable should not be (rLeaf2.immutable)
-          model1.eModel.eq(model1.immutable) should be(true)
-          model2.eModel.eq(model2.immutable) should be(true)
+          model1.absolute should not be (model2.absolute)
+          rA1.absolute should not be (rA2.absolute)
+          rB1.absolute should not be (rB2.absolute)
+          rLeaf1.absolute should not be (rLeaf2.absolute)
+          model1.eModel.eq(model1.absolute) should be(true)
+          model2.eModel.eq(model2.absolute) should be(true)
           model1.compare(model2) should be(0)
           rA1.compare(rA2) should be(0)
           rB1.compare(rB2) should be(0)
@@ -217,7 +217,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           model2.name = "444"
           model1.compare(model2) should be(-1) // model1 modified before model2
           model1.name = "444"
-          (model1 | RecordLocation('rA) | RecordLocation('rB)).eMutable.name = "AAA"
+          (model1 | RecordLocation('rA) | RecordLocation('rB)).eRelative.name = "AAA"
           (model1 | RecordLocation('rA) | RecordLocation('rB)).compare(rB2) should be(1)
           rB2.name = "AAA"
           (model1 | RecordLocation('rA) | RecordLocation('rB)).compare(rB2) should be(0)

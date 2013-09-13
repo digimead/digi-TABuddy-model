@@ -45,16 +45,16 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     it("should attach and detach element") {
       import TestDSL._
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
-      val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+      val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val rA1 = model1.takeRecord('rA) { r ⇒
         r.takeRecord('rB) { r ⇒
           r.takeRecord('rLeaf) { r ⇒
             r.name = "123"
           }
         }
-      }.eMutable
-      val rB1 = (rA1 & RecordLocation('rB)).eMutable
-      val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eMutable
+      }.eRelative
+      val rB1 = (rA1 & RecordLocation('rB)).eRelative
+      val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eRelative
 
       val graphCopy = graph.copy('john2)
       graphCopy.nodes.size should be(graph.nodes.size)

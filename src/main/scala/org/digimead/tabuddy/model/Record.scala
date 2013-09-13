@@ -22,6 +22,7 @@ import java.io.ObjectInputStream
 import java.util.UUID
 
 import scala.Array.canBuildFrom
+import scala.collection.TraversableOnce.flattenTraversableOnce
 
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Axis
@@ -31,7 +32,6 @@ import org.digimead.tabuddy.model.element.LocationGeneric
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 
 /**
  * Record element.
@@ -64,39 +64,22 @@ object Record extends Loggable {
       this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Create a new record or retrieve exists one. */
       def record(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Record =
-        withRecord(id, rawCoordinate: _*)(x ⇒ x.immutable)
+        withRecord(id, rawCoordinate: _*)(x ⇒ x.absolute)
       /**
        * Create a new record or retrieve exists one and apply fTransform to
        *
        * @return record
        */
-      def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] ⇒ A): Record =
-        withRecord(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.immutable })
+      def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
+        withRecord(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new record or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
        */
-      def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Record] ⇒ A): A = {
+      def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
-        // Modify parent node.
-        element.eNode.safeWrite { parentNode =>
-          parentNode.find(_.id == id).map { childNode ⇒
-            childNode.safeWrite { node ⇒
-              log.debug(s"Get or create record element for exists ${node}.")
-              implicit val shashClass = classOf[Record.Stash]
-              val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
-              fTransform(new Mutable(record))
-            }
-          } getOrElse {
-            parentNode.createChild(id, UUID.randomUUID()).safeWrite { node ⇒
-              log.debug(s"Get or create record element for new ${node}.")
-              implicit val shashClass = classOf[Record.Stash]
-              val record = ElementBox.getOrCreate[Record](coordinate, node, Record.scope, parentNode.rootElementBox.serialization)
-              fTransform(new Mutable(record))
-            }
-          }
-        }
+        withElement[Record, A](id, coordinate, Record.scope, classOf[Record.Stash], (record) ⇒ fTransform(new Relative(record)))
       }
       /** Safe cast element to Record.Like. */
       def toRecord() = element.eAs[Record.Like]
@@ -142,15 +125,15 @@ object Record extends Loggable {
           // try to find value at root node
           eRoot.flatMap(_.eGet(id, typeSignature))
       }
-    /** Get mutable representation. */
-    override def eMutable(): Record.Mutable[ElementType] = new Record.Mutable(this.asInstanceOf[ElementType])
+    /** Get relative representation. */
+    override def eRelative(): Record.Relative[ElementType] = new Record.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Record.Like]
   }
-  /** Mutable representation of Record.Like. */
-  class Mutable[A <: Like](e: A) extends Element.Mutable[A](e) {
-    def name = element.name
-    def name_=(value: String) { element = element.eSet('name, value, "").asInstanceOf[A] }
+  /** Relative representation of Record.Like. */
+  class Relative[A <: Like](e: A) extends Element.Relative[A](e) {
+    def name = absolute.name
+    def name_=(value: String) { absolute.eSet('name, value, "").asInstanceOf[A] }
   }
   /** The marker object that describes record scope. */
   class Scope(override val modificator: Symbol = 'Record) extends Element.Scope(modificator) {

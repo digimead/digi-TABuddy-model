@@ -44,7 +44,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       import TestDSL._
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
-      val container = model.record('test).eMutable
+      val container = model.record('test).eRelative
       new Value.Static("123", Value.Context(container)) === new Value.Static("123", Value.Context(container)) should be(true)
       new Value.Static("123", Value.Context(container)) == new Value.Static("123", Value.Context(container)) should be(true)
 //      new Value.Static("123", Value.Context(container)) === new Value.Static("123", Value.Context(container.eReference, None, Some(0), None)) should be(false)
@@ -58,8 +58,8 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       import TestDSL._
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
-      val rootWorkspace = model.record('test).eMutable
-      implicit val container = rootWorkspace.immutable
+      val rootWorkspace = model.record('test).eRelative
+      implicit val container = rootWorkspace.absolute
       // x2value: convert T -> Option[Value[T]]
       val context = Value.Context(rootWorkspace)
       var test: Option[Value[String]] = None
@@ -76,7 +76,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       import TestDSL._
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
-      val rootWorkspace = model.record('test).eMutable
+      val rootWorkspace = model.record('test).eRelative
       // x2value: convert T -> Option[Value[T]]
       val context = Value.Context(rootWorkspace)
       var test: Option[Value[String]] = None
@@ -92,10 +92,10 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       import TestDSL._
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
-      val rootWorkspace = model.record('test).eMutable
+      val rootWorkspace = model.record('test).eRelative
       rootWorkspace.eCoordinate.isRoot should be(true)
       rootWorkspace.name should be("")
-      val otherWorkspace = model.record('test, ('a, 0)).eMutable
+      val otherWorkspace = model.record('test, ('a, 0)).eRelative
       // child of same root with same id MUST have same unique values
       rootWorkspace.eId.name should be(otherWorkspace.eId.name)
       rootWorkspace.eNodeId should be(otherWorkspace.eNodeId)

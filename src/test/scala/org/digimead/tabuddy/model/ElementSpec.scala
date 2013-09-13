@@ -76,39 +76,39 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       import TestDSL._
       // graph 1
       val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
-      val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eMutable
+      val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val rA1 = model1.takeRecord('rA) { r ⇒
         r.takeRecord('rAB) { r ⇒
           r.takeRecord('rLeaf) { r ⇒
             r.name = "123"
           }
         }
-      }.eMutable
-      val rAB1 = (rA1 & RecordLocation('rAB)).eMutable
-      val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).eMutable
+      }.eRelative
+      val rAB1 = (rA1 & RecordLocation('rAB)).eRelative
+      val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).eRelative
       // graph 2
       val graph2 = graph1.copy('john2)
-      val model2 = graph2.model.eMutable
-      val rA2 = (model2 & RecordLocation('rA)).eMutable
-      val rAB2 = (rA2 & RecordLocation('rAB)).eMutable
-      val rLeaf2 = (rAB2 & RecordLocation('rLeaf)).eMutable
+      val model2 = graph2.model.eRelative
+      val rA2 = (model2 & RecordLocation('rA)).eRelative
+      val rAB2 = (rA2 & RecordLocation('rAB)).eRelative
+      val rLeaf2 = (rAB2 & RecordLocation('rLeaf)).eRelative
 
-      model1.immutable.canEqual(model2.immutable) should be(true)
+      model1.absolute.canEqual(model2.absolute) should be(true)
       model1.eStash.canEqual(model2.eStash) should be(true)
 
       rA1.eStash should be(rA1.eStash)
       val curtom_rA1 = new Record(rA1.eStash)(rAB2.eBox) // different eBox
-      curtom_rA1.canEqual(rA1.immutable) should be(true)
+      curtom_rA1.canEqual(rA1.absolute) should be(true)
       curtom_rA1.eStash should be(rA1.eStash)
-      curtom_rA1 should not be(rA1.immutable)
+      curtom_rA1 should not be(rA1.absolute)
 
-      val rLeaf2_orig = rLeaf2.immutable
+      val rLeaf2_orig = rLeaf2.absolute
       rLeaf2.name should be("123")
       rLeaf2.name = "321"
-      rLeaf2_orig should not be (rLeaf2.immutable)
+      rLeaf2_orig should not be (rLeaf2.absolute)
 
-      model1 should be(model1.immutable)
-      model1.immutable should be(model1)
+      model1 should be(model1.absolute)
+      model1.absolute should be(model1)
     }
     it("should have proper copy") {
       import TestDSL._
@@ -135,6 +135,13 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         val task2 = task1.eCopy(task1.eNode, ('x, i))
         task2 should not be null
       }
+      val rootX = myModel.record('root).eRelative
+      val oldCreated = rootX.eStash.created
+      val newCreated = Element.timestamp()
+      oldCreated should not be (newCreated)
+      rootX.eStash.created should be (oldCreated)
+      rootX.copy(rootX.eStash.copy(created = newCreated))
+      rootX.eStash.created should be (newCreated)
     }
     it("should have proper constraints") {
       import TestDSL._

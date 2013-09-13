@@ -104,9 +104,9 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
     case that: ElementBox[_] ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
     case _ ⇒ false
   }
-  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.coordinate, this.elementUniqueId,
+  override def hashCode() = lazyHashCode
+  protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.coordinate, this.elementUniqueId,
     this.unmodified, this.elementType, this.node, this.serialization))
-
   override def toString = s"graph.Box[${context}:${coordinate}/${elementType};${node.id}]"
 }
 
@@ -128,7 +128,8 @@ object ElementBox {
       case that: Context if this.## == that.## ⇒ that canEqual this
       case _ ⇒ false
     })
-    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](file, digest))
+    override def hashCode() = lazyHashCode
+    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](file, digest))
     override def toString() = "Context[%s:%s]".format(digest.getOrElse("-"), file.getOrElse("-"))
   }
   /**
@@ -184,7 +185,7 @@ object ElementBox {
       // create root or projection element
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
       val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), modified)(m, elementNode, serialization)
-      elementNode.updateElementBox(coordinate, elementBox, modified)
+      elementNode.updateElementBox(coordinate, elementBox)
       // 3rd. Create element.
       val element = Element.apply[A](elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
       elementElementForwardReference.set(element)
@@ -215,7 +216,7 @@ object ElementBox {
       // create root or projection element
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
       val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), stash.modificationTimestamp)(m, elementNode, serialization)
-      elementNode.updateElementBox(coordinate, elementBox, stash.modificationTimestamp)
+      elementNode.updateElementBox(coordinate, elementBox)
       // 3rd. Create element.
       val element = Element.apply[A](elementBox, stash)
       elementElementForwardReference.set(element)
@@ -242,7 +243,7 @@ object ElementBox {
           }
           elementBox match {
             case Some(box) ⇒
-              node.updateElementBox(coordinate, box, timestamp)
+              node.updateElementBox(coordinate, box)
               box.get
             case None ⇒
               throw new IllegalStateException("Unable to create element box.")

@@ -25,7 +25,8 @@ import org.digimead.tabuddy.model.graph.ElementBox
 /**
  * Interface for serialization of an element content.
  */
-trait Mechanism extends Loggable {
+trait Mechanism {
+  this: Loggable ⇒
   /** Identifier of the serialization mechanism. */
   val identifier: Serialization.Identifier
 

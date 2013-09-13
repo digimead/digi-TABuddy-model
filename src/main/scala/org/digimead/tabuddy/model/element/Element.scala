@@ -136,8 +136,8 @@ trait Element extends Equals with java.io.Serializable {
   def eGraph: Graph[_ <: Model.Like] = eBox.node.graph
   /** Get node/element verbose id. */
   def eId(): Symbol = eBox.node.id
-  /** Get mutable representation. */
-  def eMutable(): Element.Mutable[ElementType] = new Element.Mutable(this.asInstanceOf[ElementType]) {}
+  /** Get relative representation. */
+  def eRelative(): Element.Relative[ElementType] = new Element.Relative(this.asInstanceOf[ElementType]) {}
   /** Get Model for this element. */
   def eModel(): Model.Like = eNode.graph.model
   /** Get element node. */
@@ -250,14 +250,14 @@ trait Element extends Equals with java.io.Serializable {
   }
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Element]
   override def equals(that: Any): Boolean = that match {
-    case that: Element ⇒ // vs immutable
+    case that: Element ⇒ // vs absolute
       (that eq this) || ((that canEqual this) && this.## == that.##)
-    case that: Element.Mutable[_] ⇒ // vs mutable
-      (that.immutable eq this) || ((that.immutable canEqual this) && this.## == that.immutable.##)
+    case that: Element.Relative[_] ⇒ // vs relative
+      (that.absolute eq this) || ((that.absolute canEqual this) && this.## == that.absolute.##)
     case _ ⇒ false
   }
-  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.eStash, eBox.elementUniqueId))
-
+  override def hashCode() = lazyHashCode
+  protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.eStash, eBox.elementUniqueId))
   override def toString() = "%s[%s@%s]".format(eStash.scope, eId.name, eCoordinate.toString)
 }
 
@@ -463,28 +463,39 @@ object Element extends Loggable {
     //  }
   }*/
   /** Emulate mutable behavior for immutable element. */
-  abstract class Mutable[A <: Element](@volatile protected var element: A) extends Equals {
-    def immutable() = element
+  abstract class Relative[A <: Element] private (protected val node: Node, protected val coordinate: Coordinate) extends Equals {
+    def this(element: A) = this(element.eNode, element.eBox.coordinate)
+
+    /** Get absolute element representation. */
+    def absolute(): A = if (coordinate.isRoot)
+      node.safeRead(_.rootElementBox).asInstanceOf[ElementBox[A]].get
+    else
+      node.safeRead(_.projectionElementBoxes(coordinate)).asInstanceOf[ElementBox[A]].get
+    /** Get list of axes(tags). */
+    def eCoordinate() = coordinate
+    /** Get element node. */
+    def eNode(): Node = node
 
     /** Copy constructor */
     def copy(stash: A#StashType): A = {
-      val e = element
-      element = e.eCopy(e.eBox.asInstanceOf[ElementBox[e.ElementType]], stash.asInstanceOf[e.ElementType#StashType]).asInstanceOf[A]
-      element
+      val e = absolute
+      e.eCopy(e.eNode, e.eBox.coordinate, stash.asInstanceOf[e.ElementType#StashType], e.eBox.serialization).asInstanceOf[A]
     }
 
     override def canEqual(that: Any) = that match {
-      case thatMutable: Mutable[_] ⇒ element.canEqual(thatMutable.element)
-      case _ ⇒ element.canEqual(that)
+      case that: Relative[_] ⇒ that.absolute.canEqual(this.absolute)
+      case that: Element ⇒ that.canEqual(this.absolute)
+      case _ => false
     }
     override def equals(that: Any): Boolean = that match {
-      case thatMutable: Mutable[_] ⇒ element.equals(thatMutable.element)
-      case _ ⇒ element.equals(that)
+      case that: Relative[_] if that canEqual this ⇒ this.absolute.equals(that.absolute)
+      case that: Element if that canEqual this.absolute => this.absolute.equals(that)
+      case _ ⇒ false
     }
-    override def hashCode = element.##
+    override def hashCode = absolute.##
   }
-  object Mutable {
-    implicit def mutable2immutable[A <: Element](m: Mutable[A]): A = m.element
+  object Relative {
+    implicit def relative2absolute[A <: Element](m: Relative[A]): A = m.absolute
   }
   /** The class that provides a marker for additional specialization of the element */
   abstract class Scope(val modificator: Symbol) extends java.io.Serializable with Equals {

@@ -87,6 +87,7 @@ object Stash {
       case that: Element ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
       case _ ⇒ false
     }
-    override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modificationTimestamp, property, scope))
+    override def hashCode() = lazyHashCode
+    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modificationTimestamp, property, scope))
   }
 }

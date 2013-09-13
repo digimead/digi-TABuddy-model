@@ -59,39 +59,22 @@ object Task extends Loggable {
       this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Create a new task or retrieve exists one. */
       def task(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Task =
-        withTask(id, rawCoordinate: _*)(x ⇒ x.immutable)
+        withTask(id, rawCoordinate: _*)(x ⇒ x.absolute)
       /**
        * Create a new task or retrieve exists one and apply fTransform to
        *
        * @return task
        */
-      def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): Task =
-        withTask(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.immutable })
+      def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
+        withTask(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new task or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
        */
-      def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Mutable[Task] ⇒ A): A = {
+      def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
-        // Modify parent node.
-        element.eNode.safeWrite { parentNode ⇒
-          parentNode.find(_.id == id).map { childNode ⇒
-            childNode.safeWrite { node ⇒
-              log.debug(s"Get or create task element for exists ${node}.")
-              implicit val shashClass = classOf[Task.Stash]
-              val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
-              fTransform(new Mutable(task))
-            }
-          } getOrElse {
-            parentNode.createChild(id, UUID.randomUUID()).safeWrite { node ⇒
-              log.debug(s"Get or create task element for new ${node}.")
-              implicit val shashClass = classOf[Task.Stash]
-              val task = ElementBox.getOrCreate[Task](coordinate, node, Task.scope, parentNode.rootElementBox.serialization)
-              fTransform(new Mutable(task))
-            }
-          }
-        }
+        withElement[Task, A](id, coordinate, Task.scope, classOf[Task.Stash], (task) ⇒ fTransform(new Relative(task)))
       }
       /** Safe cast element to Task.Like. */
       def toTask() = element.eAs[Task.Like]
@@ -105,13 +88,13 @@ object Task extends Loggable {
     this: Loggable ⇒
     type ElementType <: Like
 
-    /** Get mutable representation. */
-    override def eMutable(): Task.Mutable[ElementType] = new Task.Mutable(this.asInstanceOf[ElementType])
+    /** Get relative representation. */
+    override def eRelative(): Task.Relative[ElementType] = new Task.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Task.Like]
   }
-  /** Mutable representation of Task.Like. */
-  class Mutable[A <: Task.Like](e: A) extends Note.Mutable[A](e)
+  /** Relative representation of Task.Like. */
+  class Relative[A <: Task.Like](e: A) extends Note.Relative[A](e)
   /** The marker object that describes task scope. */
   class Scope(override val modificator: Symbol = 'Task) extends Note.Scope(modificator) {
     override def canEqual(other: Any): Boolean = other.isInstanceOf[org.digimead.tabuddy.model.predef.Task.Scope]

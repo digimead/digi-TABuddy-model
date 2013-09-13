@@ -21,29 +21,26 @@ package org.digimead.tabuddy.model.element
 /** Contain list of an axis values. */
 class Coordinate private (
   /** List of an axis values. */
-  val coordinate: List[Axis[_ <: AnyRef with java.io.Serializable]]) extends java.io.Serializable {
+  val coordinate: List[Axis[_ <: AnyRef with java.io.Serializable]]) extends Equals with java.io.Serializable {
   /** Check if coordinate at the root point. */
   def isRoot() = coordinate.isEmpty
-  /** Visual coordinate representation. */
+
+  override def canEqual(that: Any) = that.isInstanceOf[Coordinate]
+  override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
+    case that: Coordinate if that canEqual this => this.## == that.##
+    case _ => false
+  })
+  override def hashCode() = lazyHashCode
+  protected lazy val lazyHashCode = if (coordinate.nonEmpty)
+    java.util.Arrays.hashCode(this.coordinate.sortBy(_.id.name).toArray[AnyRef])
+  else
+    Coordinate.##
+
+  /** Verbose coordinate representation. */
   override def toString() = if (coordinate.nonEmpty)
     "Axis(%s)".format(coordinate.map(axis => "%s->%s".format(axis.id.name, axis.value.toString)).mkString(", "))
   else
     "ROOT"
-  override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-    case that: Coordinate =>
-      this.coordinate.sortBy(_.id.name) == that.coordinate.sortBy(_.id.name)
-    case _ => false
-  })
-  override def hashCode() = {
-    /*
-     * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
-     * RISC machine (because 31 is the difference of two powers of two). P(33) is
-     * similarly cheap to calculate, but it's performance is marginally worse, and
-     * 33 is composite, which makes me a bit nervous.
-     */
-    val p = 31
-    coordinate.foldLeft(0)((a, b) => a * p + b.hashCode)
-  }
 }
 
 /**

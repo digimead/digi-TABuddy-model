@@ -81,7 +81,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node,
     case that: Graph[_] ⇒ that.canEqual(this) && this.## == that.##
     case _ ⇒ false
   }
-  override lazy val hashCode = java.util.Arrays.hashCode(Array[AnyRef](this.created, this.node, this.origin, this.modelType))
+  override def hashCode() = lazyHashCode
+  protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.created, this.node, this.origin, this.modelType))
   override def toString() = s"Graph[${origin}]#${modification}"
 }
 

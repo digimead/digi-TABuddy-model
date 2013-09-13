@@ -30,6 +30,7 @@ import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Node
@@ -41,7 +42,6 @@ import org.digimead.tabuddy.model.serialization.Serialization
 class Local extends Transport with Loggable {
   /** Load element with the specific UUID for the specific container. */
   def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A = {
-    log.debug(s"Acquire element ${elementBox} from ${storageURI}.")
     val serializationMechanism = Serialization.perIdentifier.get(elementBox.serialization) match {
       case Some(mechanism) ⇒
         mechanism
@@ -52,98 +52,88 @@ class Local extends Transport with Loggable {
     val nodeDirectory = elementBox.node.safeRead(getNodeDirectory(storageDirectory, _, false))
     val elementDirectoryName = "%X-%X".format(elementBox.elementUniqueId.getMostSignificantBits(), elementBox.elementUniqueId.getLeastSignificantBits())
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
-    val elementFile = new File(elementDirectory, "element." + elementBox.serialization.extension)
-    val elementBinary = read(elementFile.toURI)
+    val element = new File(elementDirectory, "element." + elementBox.serialization.extension).toURI
+    log.debug(s"Acquire ${elementBox} from ${element}.")
+    val elementBinary = read(element)
     serializationMechanism.load(elementBox, elementBinary)
   }
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(objectId: UUID, node: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Element[_ <: Element] = {
-    log.debug(s"Acquire element box ${objectId} descriptor from ${storageURI}.")
+  def acquireElementBox(objectId: UUID, node: Node.ThreadUnsafe, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, node, false)
     val elementDirectoryName = "%X-%X".format(objectId.getMostSignificantBits(), objectId.getLeastSignificantBits())
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
-    val elementDescriptorFile = new File(elementDirectory, descriptorResourceName)
-    Serialization.inner.elementDescriptorFromYaml(new String(read(elementDescriptorFile.toURI), "UTF-8"))
+    val elementDescriptor = new File(elementDirectory, descriptorResourceName).toURI
+    log.debug(s"Acquire descriptor from ${elementDescriptor}.")
+    read(elementDescriptor)
   }
   /** Load graph from the specific URI. */
-  def acquireGraph(origin: Symbol, storageURI: URI): Serialization.Descriptor.Graph[_ <: Model.Like] = {
-    log.debug(s"Acquire graph ${origin} descriptor from ${storageURI}.")
+  def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte] = {
     if (!storageURI.isAbsolute())
       throw new IllegalArgumentException(s"Storage URI(${storageURI}) must be absolute.")
     val storageDirectory = new File(storageURI)
     val graphDirectory = getGraphDirectory(storageDirectory, origin, false)
-    val graphDescriptorFile = new File(graphDirectory, descriptorResourceName)
-    Serialization.inner.graphDescriptorFromYaml(new String(read(graphDescriptorFile.toURI), "UTF-8"))
+    val graphDescriptor = new File(graphDirectory, descriptorResourceName).toURI
+    log.debug(s"Acquire descriptor from ${graphDescriptor}.")
+    read(graphDescriptor)
   }
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Serialization.Descriptor.Node = {
-    log.debug(s"Acquire node ${id} descriptor from ${storageURI}.")
+  def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val graphDirectory = new File(storageDirectory, origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val nodeDirectory = new File(modelDirectory, id.name)
-    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
-    Serialization.inner.nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
+    val nodeDescriptor = new File(nodeDirectory, descriptorResourceName).toURI
+    log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
+    read(nodeDescriptor)
   }
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Node = {
-    log.debug(s"Acquire node ${id} descriptor from ${storageURI}.")
+  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val parentNodeDirectory = getNodeDirectory(storageDirectory, parentNode, true)
     val nodeDirectory = new File(parentNodeDirectory, id.name)
-    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
-    Serialization.inner.nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
+    val nodeDescriptor = new File(nodeDirectory, descriptorResourceName).toURI
+    log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
+    read(nodeDescriptor)
   }
   /** Delete resource. */
   def delete(uri: URI) = if (new File(uri).delete())
     throw new IOException(s"Unable to delete ${uri}.")
   /** Save element to the specific URI. */
-  def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI) {
-    log.debug(s"Freeze ${elementBox}.")
+  def freezeElement(element: Element, storageURI: URI, elementContent: Array[Byte]) {
+    val storageDirectory = new File(storageURI)
+    val elementDirectory = getElementDirectory(storageDirectory, element.eBox, true)
+    val elementURI = elementDirectory.toURI.resolve(elementResourceName + "." + element.eBox.serialization.extension)
+    log.debug(s"Freeze ${element} to ${elementURI}.")
+    write(elementContent, elementURI)
+  }
+  /** Save element to the specific URI. */
+  def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val elementDirectory = getElementDirectory(storageDirectory, elementBox, true)
-    val elementDescriptorFile = new File(elementDirectory, descriptorResourceName)
-    val elementDirectoryURI = elementDirectory.toURI
-    printToFile(elementDescriptorFile)(_.println(Serialization.inner.elementDescriptorToYAML(elementBox)))
-    // save element
-    elementBox.getModified match {
-      case Some(modified) ⇒
-        log.debug(s"Freeze element to ${elementDirectoryURI}.")
-        if (modified ne elementBox.get)
-          throw new IllegalStateException("Element and modified element are different.")
-        write(elementBox.save(), elementDirectoryURI.resolve(elementResourceName + "." + elementBox.serialization.extension))
-        elementBox.get.eStash.property.foreach {
-          case (valueId, perTypeMap) ⇒
-            perTypeMap.foreach {
-              case (typeSymbolId, value) ⇒
-                value.commit(elementBox.get, this, elementDirectory.toURI())
-            }
-        }
-      case None ⇒
-        log.debug("Skip unmodified element.")
-    }
+    val elementDescriptorFile = new File(elementDirectory, descriptorResourceName).toURI
+    log.debug(s"Freeze descriptor to ${elementDescriptorFile}.")
+    write(elementBoxDescriptorContent, elementDescriptorFile)
   }
   /** Save graph to the specific URI. */
-  def freezeGraph(graph: Graph[_ <: Model.Like], storageURI: URI) {
-    log.debug(s"Freeze ${graph}.")
+  def freezeGraph(graph: Graph[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val graphDirectory = getGraphDirectory(storageDirectory, graph.origin, true)
-    val graphDescriptorFile = new File(graphDirectory, descriptorResourceName)
-    printToFile(graphDescriptorFile)(_.println(Serialization.inner.graphDescriptorToYAML(graph)))
-    graph.node.safeRead { node ⇒ freezeNode(node, storageURI) }
+    val graphDescriptorFile = new File(graphDirectory, descriptorResourceName).toURI
+    log.debug(s"Freeze descriptor to ${graphDescriptorFile}.")
+    write(graphDescriptorContent, graphDescriptorFile)
   }
   /** Save node to the specific URI. */
-  def freezeNode(node: Node.ThreadUnsafe, storageURI: URI, recursive: Boolean = true) {
-    log.debug(s"Freeze ${node}.")
-    node.freezeRead { node ⇒
-      val storageDirectory = new File(storageURI)
-      val nodeDirectory = getNodeDirectory(storageDirectory, node, true)
-      val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
-      printToFile(nodeDescriptorFile)(_.println(Serialization.inner.nodeDescriptorToYAML(node)))
-      freezeElementBox(node.rootElementBox, storageURI)
-      node.children.foreach { node ⇒ node.safeRead(freezeNode(_, storageURI)) }
-    }
+  def freezeNode(node: Node.ThreadUnsafe, storageURI: URI, nodeDescriptorContent: Array[Byte]) {
+    val storageDirectory = new File(storageURI)
+    val nodeDirectory = getNodeDirectory(storageDirectory, node, true)
+    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName).toURI
+    log.debug(s"Freeze descriptor to ${nodeDescriptorFile}.")
+    write(nodeDescriptorContent, nodeDescriptorFile)
+  }
+  /** Save custom value to the specific URI. */
+  def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte]) {
+
   }
   /** Read resource. */
   def read(uri: URI): Array[Byte] = {
@@ -211,11 +201,6 @@ class Local extends Transport with Loggable {
         throw new IOException(s"Directory ${nodeDirectory} not exists.")
       }
     nodeDirectory
-  }
-  /** Print to file. */
-  protected def printToFile(f: java.io.File)(op: java.io.PrintWriter ⇒ Unit) {
-    val p = new java.io.PrintWriter(f)
-    try { op(p) } finally { p.close() }
   }
 }
 
