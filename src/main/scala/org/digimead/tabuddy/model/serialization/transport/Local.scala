@@ -34,7 +34,6 @@ import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.Serialization
-import org.digimead.tabuddy.model.serialization.Serialization.interface2implementation
 
 /**
  * Local transport.
@@ -65,7 +64,7 @@ class Local extends Transport with Loggable {
     val elementDirectoryName = "%X-%X".format(objectId.getMostSignificantBits(), objectId.getLeastSignificantBits())
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
     val elementDescriptorFile = new File(elementDirectory, descriptorResourceName)
-    elementDescriptorFromYaml(new String(read(elementDescriptorFile.toURI), "UTF-8"))
+    Serialization.inner.elementDescriptorFromYaml(new String(read(elementDescriptorFile.toURI), "UTF-8"))
   }
   /** Load graph from the specific URI. */
   def acquireGraph(origin: Symbol, storageURI: URI): Serialization.Descriptor.Graph[_ <: Model.Like] = {
@@ -75,7 +74,7 @@ class Local extends Transport with Loggable {
     val storageDirectory = new File(storageURI)
     val graphDirectory = getGraphDirectory(storageDirectory, origin, false)
     val graphDescriptorFile = new File(graphDirectory, descriptorResourceName)
-    graphDescriptorFromYaml(new String(read(graphDescriptorFile.toURI), "UTF-8"))
+    Serialization.inner.graphDescriptorFromYaml(new String(read(graphDescriptorFile.toURI), "UTF-8"))
   }
   /** Load model node descriptor with the specific id. */
   def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Serialization.Descriptor.Node = {
@@ -85,7 +84,7 @@ class Local extends Transport with Loggable {
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val nodeDirectory = new File(modelDirectory, id.name)
     val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
-    nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
+    Serialization.inner.nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
   }
   /** Load node descriptor with the specific id for the specific parent. */
   def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Serialization.Descriptor.Node = {
@@ -94,7 +93,7 @@ class Local extends Transport with Loggable {
     val parentNodeDirectory = getNodeDirectory(storageDirectory, parentNode, true)
     val nodeDirectory = new File(parentNodeDirectory, id.name)
     val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
-    nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
+    Serialization.inner.nodeDescriptorFromYaml(new String(read(nodeDescriptorFile.toURI), "UTF-8"))
   }
   /** Delete resource. */
   def delete(uri: URI) = if (new File(uri).delete())
@@ -106,7 +105,7 @@ class Local extends Transport with Loggable {
     val elementDirectory = getElementDirectory(storageDirectory, elementBox, true)
     val elementDescriptorFile = new File(elementDirectory, descriptorResourceName)
     val elementDirectoryURI = elementDirectory.toURI
-    printToFile(elementDescriptorFile)(_.println(elementDescriptorToYAML(elementBox)))
+    printToFile(elementDescriptorFile)(_.println(Serialization.inner.elementDescriptorToYAML(elementBox)))
     // save element
     elementBox.getModified match {
       case Some(modified) ⇒
@@ -131,7 +130,7 @@ class Local extends Transport with Loggable {
     val storageDirectory = new File(storageURI)
     val graphDirectory = getGraphDirectory(storageDirectory, graph.origin, true)
     val graphDescriptorFile = new File(graphDirectory, descriptorResourceName)
-    printToFile(graphDescriptorFile)(_.println(graphDescriptorToYAML(graph)))
+    printToFile(graphDescriptorFile)(_.println(Serialization.inner.graphDescriptorToYAML(graph)))
     graph.node.safeRead { node ⇒ freezeNode(node, storageURI) }
   }
   /** Save node to the specific URI. */
@@ -141,7 +140,7 @@ class Local extends Transport with Loggable {
       val storageDirectory = new File(storageURI)
       val nodeDirectory = getNodeDirectory(storageDirectory, node, true)
       val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName)
-      printToFile(nodeDescriptorFile)(_.println(nodeDescriptorToYAML(node)))
+      printToFile(nodeDescriptorFile)(_.println(Serialization.inner.nodeDescriptorToYAML(node)))
       freezeElementBox(node.rootElementBox, storageURI)
       node.children.foreach { node ⇒ node.safeRead(freezeNode(_, storageURI)) }
     }

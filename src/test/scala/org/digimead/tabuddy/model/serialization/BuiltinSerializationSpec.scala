@@ -34,7 +34,6 @@ import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.serialization.Serialization.interface2implementation
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -75,7 +74,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         // serialize
         new File(folder, "john1") should not be ('exists)
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
-        Serialization.freezeGraph(graph)
+        Serialization.freeze(graph)
         new File(folder, "john1") should be('directory)
         new File(folder, "john1").length() should be > (0L)
         new File(folder, "john1/descriptor.yaml") should be('file)
@@ -97,7 +96,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         //testTxtSource.close()
 
         // deserialize
-        val graph2 = Serialization.acquireGraph(graph.origin, folder.toURI)
+        val graph2 = Serialization.acquire(graph.origin, folder.toURI)
         /* compare graph */
         graph2 should not be (null)
         graph2 should be(graph)
@@ -162,7 +161,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
       }
 
     }
-    it("should provide serialization mechanism for Element") {
+    it("should provide serialization mechanism for elements") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -185,8 +184,8 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
 
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
-        Serialization.freezeGraph(graph)
-        val graph2 = Serialization.acquireGraph(graph.origin, folder.toURI)
+        Serialization.freeze(graph)
+        val graph2 = Serialization.acquire(graph.origin, folder.toURI)
 
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
