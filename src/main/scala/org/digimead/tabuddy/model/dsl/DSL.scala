@@ -27,6 +27,7 @@ import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.LocationGeneric
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.ElementBox.box2interface
+import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
 
@@ -54,21 +55,22 @@ object DSL {
 
     /** Create or retrieve child of the current element. */
     def |[A <: Element](l: LocationGeneric[A]): A =
-      element.eNode.safeWrite { node ⇒
-        node.iterator.find(node ⇒ node.id == l.id && l.unique.map(_ == node.unique).getOrElse(true)) match {
+      element.eNode.safeWrite { parentNode ⇒
+        implicit val m = l.elementType
+        parentNode.iterator.find(child ⇒ child.id == l.id && l.unique.map(_ == child.unique).getOrElse(true)) match {
           case Some(child) ⇒
-            child.safeWrite { child ⇒
-              Option(child.rootElementBox).map(_.elementType).foreach(existsElementType ⇒
-                if (!existsElementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
-                  throw new IllegalArgumentException(s"Unable to cast ${l.elementType.runtimeClass} to ${existsElementType}."))
-              child.getProjection(l.coordinate) match {
-                case Some(box) ⇒ box.get.asInstanceOf[A]
-                case None ⇒ ElementBox.getOrCreate(l.coordinate, child, l.scope, null)(l.elementType, l.stashClass)
-              }
+            child.safeWrite {
+              case child: Node.ThreadUnsafe[A] ⇒
+                if (!child.elementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
+                  throw new IllegalArgumentException(s"Unable to cast ${l.elementType} to ${parentNode.elementType}.")
+                child.getProjection(l.coordinate) match {
+                  case Some(box) ⇒ box.get
+                  case None ⇒ ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootElementBox.serialization)(l.elementType, l.stashClass)
+                }
             }
           case None ⇒
-            node.createChild(l.id, l.unique.getOrElse(UUID.randomUUID())).safeWrite { node ⇒
-              ElementBox.getOrCreate(l.coordinate, node, l.scope, null)(l.elementType, l.stashClass)
+            parentNode.createChild[A](l.id, l.unique.getOrElse(UUID.randomUUID())).safeWrite { child ⇒
+              ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootElementBox.serialization)(l.elementType, l.stashClass)
             }
         }
       }
@@ -87,19 +89,19 @@ object DSL {
       fTransform: A ⇒ B)(implicit m: Manifest[A]): B = {
       // Double checked locking
       element.eNode.safeRead { parentNode ⇒
-        parentNode.find(_.id == id).flatMap(_.getProjection(coordinate).
+        parentNode.find(child ⇒ child.id == id && child.elementType.runtimeClass.isAssignableFrom(m.runtimeClass)).flatMap(_.getProjection(coordinate).
           map(e ⇒ fTransform(e.get().asInstanceOf[A])))
       }.getOrElse {
         // Modify parent node.
         element.eNode.safeWrite { parentNode ⇒
-          parentNode.find(_.id == id).map { childNode ⇒
+          parentNode.find(child ⇒ child.id == id && child.elementType.runtimeClass.isAssignableFrom(m.runtimeClass)).map { childNode ⇒
             // node exists
-            childNode.getProjection(coordinate).map(e ⇒ fTransform(e.get().asInstanceOf[A])).getOrElse {
-              childNode.safeWrite { childNode ⇒ fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash)) }
+            childNode.asInstanceOf[Node[A]].getProjection(coordinate).map(e ⇒ fTransform(e.get())).getOrElse {
+              childNode.asInstanceOf[Node[A]].safeWrite { childNode ⇒ fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash)) }
             }
           } getOrElse {
             // node not exists
-            parentNode.createChild(id, UUID.randomUUID()).safeWrite { childNode ⇒
+            parentNode.createChild[A](id, UUID.randomUUID()).safeWrite { childNode ⇒
               fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash))
             }
           }

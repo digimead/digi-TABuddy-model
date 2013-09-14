@@ -51,5 +51,5 @@ trait ModelIndex {
     e(reference.unique).flatMap { _.getProjection(reference.coordinate).map(_.get) }
   }
   /** Get node for the unique id from the current graph. */
-  def e(unique: UUID): Option[Node] = eNode.graph.nodes.get(unique)
+  def e(unique: UUID): Option[Node[ _<: Element]] = eNode.graph.nodes.get(unique)
 }

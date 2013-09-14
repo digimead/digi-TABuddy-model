@@ -63,7 +63,7 @@ trait Element extends Equals with java.io.Serializable {
   /** Compares this object with the specified object for order. */
   def compare(that: Element): Int = Element.comparator.value.compare(this, that)
   /** Build an ancestors sequence. */
-  def eAncestors(): Seq[Node] = eNode.safeRead(_.ancestors)
+  def eAncestors(): Seq[Node[_ <: Element]] = eNode.safeRead(_.ancestors)
   /**
    * As an optional instance of for Element
    *
@@ -82,14 +82,14 @@ trait Element extends Equals with java.io.Serializable {
   def eCopy(elementBox: ElementBox[ElementType], stash: ElementType#StashType): ElementType =
     Element[ElementType](elementBox, stash)(Manifest.classType(getClass))
   /** Copy constructor that attach copy to the target node. */
-  def eCopy(target: Node, rawCoordinate: Axis.Generic*): ElementType =
+  def eCopy(target: Node[ElementType], rawCoordinate: Axis.Generic*): ElementType =
     eCopy(target, Coordinate(rawCoordinate: _*))
   /** Copy constructor that attach copy to the target node. */
   /*
    * copy must preserve creation time
    * copy must preserve modification time if scope && properties content are the same
    */
-  def eCopy(target: Node, coordinate: Coordinate = eBox.coordinate, serialization: Serialization.Identifier = eBox.serialization): ElementType = {
+  def eCopy(target: Node[ElementType], coordinate: Coordinate = eBox.coordinate, serialization: Serialization.Identifier = eBox.serialization): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
     target.safeWrite { target ⇒
@@ -102,7 +102,7 @@ trait Element extends Equals with java.io.Serializable {
    * copy must preserve creation time
    * copy must preserve modification time if scope && properties content are the same
    */
-  def eCopy(target: Node, coordinate: Coordinate, stash: ElementType#StashType, serialization: Serialization.Identifier): ElementType = {
+  def eCopy(target: Node[ElementType], coordinate: Coordinate, stash: ElementType#StashType, serialization: Serialization.Identifier): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
     target.safeWrite(target ⇒
@@ -112,10 +112,8 @@ trait Element extends Equals with java.io.Serializable {
   def eDump(brief: Boolean, padding: Int = 2): String
   /** Find child element. */
   def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.safeRead {
-    _.view.map(_.getElementBoxes).flatten.find { box ⇒ box.elementType == a && p(box.get.asInstanceOf[A]) } match {
-      case e @ Some(element) if element.get.getClass.isAssignableFrom(a.runtimeClass) ⇒ Some(element.get.asInstanceOf[A])
-      case _ ⇒ None
-    }
+    _.view.map(_.getElementBoxes: Seq[ElementBox[_ <: Element]]).flatten.
+      find { box ⇒ box.node.elementType.runtimeClass.isAssignableFrom(a.runtimeClass) && p(box.get.asInstanceOf[A]) }.map(_.get.asInstanceOf[A])
   }
   /** Get a property. */
   def eGet[A <: AnyRef with java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] =
@@ -141,13 +139,13 @@ trait Element extends Equals with java.io.Serializable {
   /** Get Model for this element. */
   def eModel(): Model.Like = eNode.graph.model
   /** Get element node. */
-  def eNode(): Node = eBox.node
+  def eNode(): Node[ElementType] = eBox.node
   /** Get identifier which uniquely identify this element. */
   def eObjectId(): UUID = eBox.elementUniqueId
   /** Get graph owner identifier. */
   def eOrigin(): Symbol = eBox.node.graph.origin
   /** Get a container. */
-  def eParent(): Option[Node] = eNode.getParent
+  def eParent(): Option[Node[_ <: Element]] = eNode.getParent
   /** Get reference of this element */
   def eReference() = Reference(eOrigin, eNodeId, eCoordinate)
   /** Remove the specific property's value */
@@ -463,8 +461,8 @@ object Element extends Loggable {
     //  }
   }*/
   /** Emulate mutable behavior for immutable element. */
-  abstract class Relative[A <: Element] private (protected val node: Node, protected val coordinate: Coordinate) extends Equals {
-    def this(element: A) = this(element.eNode, element.eBox.coordinate)
+  abstract class Relative[A <: Element] private (protected val node: Node[A], protected val coordinate: Coordinate) extends Equals {
+    def this(element: A) = this(element.eNode.asInstanceOf[Node[A]], element.eBox.coordinate)
 
     /** Get absolute element representation. */
     def absolute(): A = if (coordinate.isRoot)
@@ -474,7 +472,7 @@ object Element extends Loggable {
     /** Get list of axes(tags). */
     def eCoordinate() = coordinate
     /** Get element node. */
-    def eNode(): Node = node
+    def eNode(): Node[A] = node
 
     /** Copy constructor */
     def copy(stash: A#StashType): A = {
@@ -485,11 +483,11 @@ object Element extends Loggable {
     override def canEqual(that: Any) = that match {
       case that: Relative[_] ⇒ that.absolute.canEqual(this.absolute)
       case that: Element ⇒ that.canEqual(this.absolute)
-      case _ => false
+      case _ ⇒ false
     }
     override def equals(that: Any): Boolean = that match {
       case that: Relative[_] if that canEqual this ⇒ this.absolute.equals(that.absolute)
-      case that: Element if that canEqual this.absolute => this.absolute.equals(that)
+      case that: Element if that canEqual this.absolute ⇒ this.absolute.equals(that)
       case _ ⇒ false
     }
     override def hashCode = absolute.##

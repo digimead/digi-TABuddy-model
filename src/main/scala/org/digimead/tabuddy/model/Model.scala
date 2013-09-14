@@ -197,7 +197,7 @@ object Model extends Loggable {
     /** Get relative representation. */
     override def eRelative(): Model.Relative[ElementType] = new Model.Relative(this.asInstanceOf[ElementType])
     /** Get a container */
-    override def eParent(): Option[Node] = None
+    override def eParent(): Option[Node[_ <: Element]] = None
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Like]
 

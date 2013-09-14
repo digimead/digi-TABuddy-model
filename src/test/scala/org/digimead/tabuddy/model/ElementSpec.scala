@@ -236,9 +236,9 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       record.eNode.safeWrite(_ += save.eNode)
       myModel.e(save.eReference) should be('nonEmpty)
       save.eModel should be(myModel)
-      var newChild: Node = null
+      var newChild: Node[_ <: Element] = null
       val newRecord2 = save.eNode.getParent.map(_.safeWrite { parent ⇒
-        parent.createChild('new, UUID.randomUUID()).safeWrite { child ⇒
+        parent.createChild[Record]('new, UUID.randomUUID()).safeWrite { child ⇒
           newChild = child
           save.eCopy(child, save.eCoordinate, save.eStash, save.eBox.serialization)
         }
@@ -306,7 +306,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       myModel.eNode.safeRead { modelNode ⇒
         val modelIterator = modelNode.iteratorRecursive()
         assert(modelIterator.length === 3) // Model + 3 children
-        val modelChildren = modelNode.iteratorRecursive().foldLeft(Seq[Node]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
+        val modelChildren = modelNode.iteratorRecursive().foldLeft(Seq[Node[_ <: Element]]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
         Seq(e1.eNode, e2.eNode, e3.eNode).sortBy(_.unique).sameElements(modelChildren)
         assert(e2.eNode.safeRead { _.iteratorRecursive().length === 1 })
         assert(e3.eNode.safeRead { _.iteratorRecursive().length === 0 })

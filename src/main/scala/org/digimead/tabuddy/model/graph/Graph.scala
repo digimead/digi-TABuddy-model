@@ -40,10 +40,10 @@ import scala.language.implicitConversions
  * @param node root element of the graph
  * @param origin graph owner identifier
  */
-class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node,
+class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   val origin: Symbol)(implicit val modelType: Manifest[A]) extends Equals {
   /** Index of all graph nodes. */
-  val nodes = new mutable.HashMap[UUID, Node] with mutable.SynchronizedMap[UUID, Node]
+  val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]]
   /** Path to graph storages. */
   @volatile var storages: Seq[URI] = Seq()
 
@@ -53,17 +53,17 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node,
     /*
      * Create graph and model node
      */
-    val targetModelNode = Node.model(id, unique)
+    val targetModelNode = Node.model[A](id, unique)
     val graph = new Graph[A](timestamp, targetModelNode, origin)
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, timestamp)
       val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode)
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = sourceModelNode.projectionElementBoxes.map {
+      val projectionElementBoxes: Seq[(Coordinate, ElementBox[A])] = sourceModelNode.projectionElementBoxes.map {
         case (coordinate, box) ⇒ coordinate -> box.copy(node = targetNode)
       }.toSeq
       targetNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
-      if (graph.modelType != graph.node.getRootElementBox.elementType)
-        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.getRootElementBox.elementType}")
+      if (graph.modelType != graph.node.elementType)
+        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
       /*
        * Copy model children
        */
@@ -72,7 +72,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node,
     graph
   }
   /** Get graph model. */
-  def model(): A = node.getRootElementBox.get.asInstanceOf[A]
+  def model(): A = node.getRootElementBox.get
   /** Get modification timestamp. */
   def modification: Element.Timestamp = node.modification
 
@@ -90,7 +90,7 @@ object Graph {
   implicit def graph2interface(g: Graph.type): Interface = DI.implementation
 
   trait Interface {
-    def apply[A <: Model.Like: Manifest](node: Node, origin: Symbol): Graph[A] = new Graph(Element.timestamp(), node, origin)
+    def apply[A <: Model.Like: Manifest](node: Node[A], origin: Symbol): Graph[A] = new Graph(Element.timestamp(), node, origin)
     /** Create a new graph. */
     def apply[A <: Model.Like: Manifest](origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
       unique: UUID)(implicit stashClass: Class[_ <: A#StashType]): Graph[A] =
@@ -99,18 +99,18 @@ object Graph {
     def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
       unique: UUID)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val timestamp = Element.timestamp()
-      val modelNode = Node.model(id, unique)
+      val modelNode = Node.model[A](id, unique)
       val modelGraph = new Graph[A](timestamp, modelNode, origin)
       modelNode.safeWrite { node ⇒
         modelNode.initializeModelNode(modelGraph, timestamp)
         val modelBox = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
-        if (modelGraph.modelType != modelGraph.node.getRootElementBox.elementType)
-          throw new IllegalArgumentException(s"Unexpected model type ${modelGraph.modelType} vs ${modelGraph.node.getRootElementBox.elementType}")
+        if (modelGraph.modelType != modelGraph.node.elementType)
+          throw new IllegalArgumentException(s"Unexpected model type ${modelGraph.modelType} vs ${modelGraph.node.elementType}")
         modelGraph
       }
     }
     /** Dump the graph structure. */
-    def dump(graph: Graph[_], brief: Boolean, padding: Int = 2): String = synchronized {
+    def dump(graph: Graph[_ <: Model.Like], brief: Boolean, padding: Int = 2): String = synchronized {
       val pad = " " * padding
       val self = "graph origin:%s, model id:%s, model unique:%s".format(graph.origin, graph.node.id, graph.node.unique)
       val childrenDump = Node.dump(graph.node, brief, padding)

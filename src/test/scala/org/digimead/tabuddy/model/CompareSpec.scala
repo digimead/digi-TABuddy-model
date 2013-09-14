@@ -140,9 +140,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
         val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val rA1 = model1.takeRecord('rA) { r ⇒
-          Thread.sleep(10)
           r.takeRecord('rB) { r ⇒
-            Thread.sleep(10)
             r.takeRecord('rLeaf) { r ⇒
               r.name = "123"
             }

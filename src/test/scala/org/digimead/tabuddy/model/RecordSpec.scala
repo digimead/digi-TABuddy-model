@@ -49,7 +49,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
 
       val record1Timestamp = Element.timestamp()
       // 1. create node
-      val record1 = graph.node.safeWrite(_.createChild('test1, UUID.randomUUID()).safeWrite { test1Node ⇒
+      val record1 = graph.node.safeWrite(_.createChild[Record]('test1, UUID.randomUUID()).safeWrite { test1Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
         val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), Right(elementElementForwardReference),
@@ -64,7 +64,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
 
       val record2Timestamp = Element.timestamp()
       // 1. create node
-      val record2 = graph.node.safeWrite(_.createChild('test2, UUID.randomUUID()).safeWrite { test2Node ⇒
+      val record2 = graph.node.safeWrite(_.createChild[Record]('test2, UUID.randomUUID()).safeWrite { test2Node ⇒
         // 2. create element box
         val elementElementForwardReference = new AtomicReference[Record](null)
         val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), Right(elementElementForwardReference),

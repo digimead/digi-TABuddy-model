@@ -58,7 +58,7 @@ class Local extends Transport with Loggable {
     serializationMechanism.load(elementBox, elementBinary)
   }
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(objectId: UUID, node: Node.ThreadUnsafe, storageURI: URI): Array[Byte] = {
+  def acquireElementBox(objectId: UUID, node: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, node, false)
     val elementDirectoryName = "%X-%X".format(objectId.getMostSignificantBits(), objectId.getLeastSignificantBits())
@@ -88,7 +88,7 @@ class Local extends Transport with Loggable {
     read(nodeDescriptor)
   }
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Array[Byte] = {
+  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val parentNodeDirectory = getNodeDirectory(storageDirectory, parentNode, true)
     val nodeDirectory = new File(parentNodeDirectory, id.name)
@@ -124,7 +124,7 @@ class Local extends Transport with Loggable {
     write(graphDescriptorContent, graphDescriptorFile)
   }
   /** Save node to the specific URI. */
-  def freezeNode(node: Node.ThreadUnsafe, storageURI: URI, nodeDescriptorContent: Array[Byte]) {
+  def freezeNode(node: Node.ThreadUnsafe[_ <: Element], storageURI: URI, nodeDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, node, true)
     val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceName).toURI
@@ -188,7 +188,7 @@ class Local extends Transport with Loggable {
     graphDirectory
   }
   /** Get or create node directory. */
-  protected def getNodeDirectory(base: File, node: Node.ThreadUnsafe, create: Boolean): File = {
+  protected def getNodeDirectory(base: File, node: Node.ThreadUnsafe[_ <: Element], create: Boolean): File = {
     val relativePart = (node +: node.ancestors).reverse.map(_.id.name).mkString(File.separator)
     val graphDirectory = new File(base, node.graph.origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)

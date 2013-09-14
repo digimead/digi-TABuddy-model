@@ -131,18 +131,19 @@ class Serialization extends Serialization.Interface with Loggable {
     if (nodeDescriptor.id.name != graphDescriptor.modelId.name)
       throw new IllegalStateException(s"Incorrect saved model id value ${nodeDescriptor.id.name} vs required ${graphDescriptor.modelId.name}.")
     /*
-       * Create graph and model node
-       */
+     * Create graph and model node
+     */
     log.debug(s"Acquire node ${nodeDescriptor.id} from ${storageURI}.")
-    val targetModelNode = Node.model(nodeDescriptor.id, nodeDescriptor.unique)
-    val graph = new Graph(graphDescriptor.created, targetModelNode, graphDescriptor.origin)(Manifest.classType(graphDescriptor.modelType))
+    val modelTypeManifest = Manifest.classType[Model.Like](graphDescriptor.modelType)
+    val targetModelNode = Node.model[Model.Like](nodeDescriptor.id, nodeDescriptor.unique)(modelTypeManifest)
+    val graph = new Graph[Model.Like](graphDescriptor.created, targetModelNode, graphDescriptor.origin)(modelTypeManifest)
     graph.storages = graphDescriptor.storages
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, nodeDescriptor.modificationTimestamp)
       /* Get element boxes */
       val elementBoxes = nodeDescriptor.elements.map { elementUniqueId ⇒
         val descriptor = elementDescriptorFromYaml(transport.acquireElementBox(elementUniqueId, targetNode, storageURI))
-        ElementBox[Element](descriptor.coordinate, descriptor.elementUniqueId, targetNode, storageURI,
+        ElementBox[Model.Like](descriptor.coordinate, descriptor.elementUniqueId, targetNode, storageURI,
           descriptor.serializationIdentifier, descriptor.modificationTimestamp)(Manifest.classType(descriptor.clazz))
       }
       val (rootElementsPart, projectionElementsPart) = elementBoxes.partition(_.coordinate == Coordinate.root)
@@ -151,7 +152,7 @@ class Serialization extends Serialization.Interface with Loggable {
       if (rootElementsPart.size > 1)
         throw new IllegalStateException("There are few root elements.")
       val rootElementBox = rootElementsPart.head
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
+      val projectionElementBoxes: Seq[(Coordinate, ElementBox[Model.Like])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
       /* Get children */
       val children = nodeDescriptor.children.flatMap(acquireNode(_, targetNode, fTransform))
       targetNode.updateState(children = children,
@@ -159,17 +160,17 @@ class Serialization extends Serialization.Interface with Loggable {
         projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*),
         rootElementBox = rootElementBox)
       targetNode.graph.nodes ++= targetNode.children.map(node ⇒ (node.unique, node))
-      if (graph.modelType != graph.node.getRootElementBox.elementType)
-        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.getRootElementBox.elementType}")
+      if (graph.modelType != graph.node.elementType)
+        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
     }
     graph
   }
   /** Internal method that loads node with the specific id for the specific parent. */
-  protected def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, fTransform: Serialization.AcquireTransformation): Option[Node] = try {
+  protected def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe[_ <: Element], fTransform: Serialization.AcquireTransformation): Option[Node[_ <: Element]] = try {
     log.debug(s"Acquire node ${id}.")
     if (parentNode.graph.storages.isEmpty)
       throw new IllegalArgumentException("Unable to aquire element box without any defined storages.")
-    val nodeDescriptors: Seq[Option[(Serialization.Descriptor.Node, URI, Transport)]] =
+    val nodeDescriptors: Seq[Option[(Serialization.Descriptor.Node[_<: Element], URI, Transport)]] =
       parentNode.graph.storages.map {
         case storageURI if storageURI.isAbsolute() ⇒
           Serialization.perScheme.get(storageURI.getScheme()) match {
@@ -204,22 +205,21 @@ class Serialization extends Serialization.Interface with Loggable {
         throw e // rethrow
   }
   /** Internal method that loads node from the specific storageURI. */
-  protected def acquireNode(nodeDescriptor: Serialization.Descriptor.Node, parentNode: Node,
-    storageURI: URI, transport: Transport, fTransform: Serialization.AcquireTransformation): Node = {
+  protected def acquireNode(nodeDescriptor: Serialization.Descriptor.Node[_<: Element], parentNode: Node[_ <: Element],
+    storageURI: URI, transport: Transport, fTransform: Serialization.AcquireTransformation): Node[_ <: Element] = {
     if (nodeDescriptor.elements.isEmpty)
       throw new IllegalStateException("There are no elements in the model node.")
     if (nodeDescriptor.id == null)
       throw new IllegalStateException("Id value not found in model node descriptor file.")
     if (nodeDescriptor.unique == null)
       throw new IllegalStateException("Unique value not found in model node descriptor file.")
-    val targetNode = Node.model(nodeDescriptor.id, nodeDescriptor.unique)
+    val targetNodeInitialState = new Node.State[Element](children = Seq(),
+      graph = parentNode.graph,
+      parentNodeReference = WeakReference(parentNode),
+      projectionElementBoxes = immutable.HashMap(),
+      rootElementBox = null)
+    val targetNode = Node[Element](nodeDescriptor.id, nodeDescriptor.unique, targetNodeInitialState)
     targetNode.safeWrite { targetNode ⇒
-      targetNode.updateState(children = Seq(),
-        graph = parentNode.graph,
-        modificationTimestamp = nodeDescriptor.modificationTimestamp,
-        parentNodeReference = WeakReference(parentNode),
-        projectionElementBoxes = immutable.HashMap(),
-        rootElementBox = null)
       /* Get element boxes */
       val elementBoxes = nodeDescriptor.elements.map { elementUniqueId ⇒
         log.debug(s"Acquire element box ${elementUniqueId}.")
@@ -233,7 +233,7 @@ class Serialization extends Serialization.Interface with Loggable {
       if (rootElementsPart.size > 1)
         throw new IllegalStateException("There are few root elements.")
       val rootElementBox = rootElementsPart.head
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[_ <: Element])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
+      val projectionElementBoxes: Seq[(Coordinate, ElementBox[Element])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
       /* Get children */
       val children = nodeDescriptor.children.flatMap(acquireNode(_, targetNode, fTransform))
       targetNode.graph.nodes ++= children.map(node ⇒ (node.unique, node))
@@ -283,7 +283,7 @@ class Serialization extends Serialization.Interface with Loggable {
     val modified_nano = elementBox.get.modification.nanoShift
     val descriptorMap = new java.util.HashMap[String, AnyRef]()
     descriptorMap.put("axes", axisMap)
-    descriptorMap.put("class", elementBox.elementType.runtimeClass.getName)
+    descriptorMap.put("class", elementBox.node.elementType.runtimeClass.getName)
     descriptorMap.put("element_unique_id", elementBox.elementUniqueId.toString)
     descriptorMap.put("modified_milli", modified_milli: java.lang.Long)
     descriptorMap.put("modified_nano", modified_nano: java.lang.Long)
@@ -308,11 +308,12 @@ class Serialization extends Serialization.Interface with Loggable {
     }
   }
   /** Internal method that saves the node descriptor. */
-  protected def freezeNode(node: Node, storageURI: URI, transport: Transport, fTransform: Serialization.FreezeTransformation, recursive: Boolean = true) {
+  protected def freezeNode(node: Node[_ <: Element], storageURI: URI, transport: Transport, fTransform: Serialization.FreezeTransformation, recursive: Boolean = true) {
     log.debug(s"Freeze ${node}.")
     node.freezeRead { node ⇒
-      val (id, unique, modification, state) = fTransform(node.id, node.unique, node.modification, node.state)
-      transport.freezeNode(node, storageURI, nodeDescriptorToYAML(id, modification, state, unique))
+      val (id: Symbol, unique: UUID, modification: Element.Timestamp, state: NodeState[_]) =
+        fTransform(node.id, node.unique, node.modification, node.state: NodeState[_ <: Element])
+      transport.freezeNode(node, storageURI, nodeDescriptorToYAML(node.elementType, id, modification, state, unique))
       freezeElementBox(state.rootElementBox, storageURI, transport)
       state.projectionElementBoxes.foreach { case (coordinate, box) ⇒ freezeElementBox(box, storageURI, transport) }
       state.children.foreach(freezeNode(_, storageURI, transport, fTransform))
@@ -356,7 +357,7 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("created_milli", graph.created.milliseconds: java.lang.Long)
     descriptorMap.put("created_nano", graph.created.nanoShift: java.lang.Long)
     descriptorMap.put("model_id", graph.node.id.name)
-    descriptorMap.put("model_type", graph.node.getRootElementBox.elementType.runtimeClass.getName())
+    descriptorMap.put("model_type", graph.node.elementType.runtimeClass.getName())
     descriptorMap.put("modified_milli", graph.modification.milliseconds: java.lang.Long)
     descriptorMap.put("modified_nano", graph.modification.nanoShift: java.lang.Long)
     descriptorMap.put("origin", graph.origin.name)
@@ -364,8 +365,9 @@ class Serialization extends Serialization.Interface with Loggable {
     yaml.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
   }
   /** Create node descriptor from YAML content. */
-  protected def nodeDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Node = {
+  protected def nodeDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Node[_<: Element] = {
     var children = Seq[Symbol]()
+    var clazz: Class[_ <: Element] = null
     var elements = Seq[UUID]()
     var id: Symbol = null
     var unique: UUID = null
@@ -375,6 +377,7 @@ class Serialization extends Serialization.Interface with Loggable {
       asInstanceOf[java.util.LinkedHashMap[String, AnyRef]].asScala.foreach {
         case ("children_ids", value: java.util.ArrayList[_]) ⇒
           children = value.asInstanceOf[java.util.ArrayList[String]].asScala.map(Symbol(_))
+        case ("class", value: String) ⇒ clazz = getClass.getClassLoader().loadClass(value).asInstanceOf[Class[_ <: Element]]
         case ("element_ids", value: java.util.ArrayList[_]) ⇒
           elements = value.asInstanceOf[java.util.ArrayList[String]].asScala.map(UUID.fromString(_))
         case ("id", value: String) ⇒ id = Symbol(value)
@@ -386,14 +389,15 @@ class Serialization extends Serialization.Interface with Loggable {
         case (key, value) ⇒
           log.warn(s"Unknown node descriptor entry: ${key} -> ${value}.")
       }
-    Serialization.Descriptor.Node(children, elements, id, Element.timestamp(modified_milli, modified_nano), unique)
+    Serialization.Descriptor.Node(children, clazz, elements, id, Element.timestamp(modified_milli, modified_nano), unique)
   }
   /** Create YAML node descriptor. */
-  protected def nodeDescriptorToYAML(id: Symbol, modification: Element.Timestamp, state: NodeState, unique: UUID): Array[Byte] = {
+  protected def nodeDescriptorToYAML(elementType: Manifest[_ <: Element], id: Symbol, modification: Element.Timestamp, state: NodeState[_ <: Element], unique: UUID): Array[Byte] = {
     val elementIds = (Seq(state.rootElementBox) ++ state.projectionElementBoxes.values).map(_.elementUniqueId.toString).asJava
     val childrenIds = state.children.map(_.id.name).asJava
     val descriptorMap = new java.util.HashMap[String, AnyRef]()
     descriptorMap.put("children_ids", childrenIds)
+    descriptorMap.put("class", elementType.runtimeClass.getName)
     descriptorMap.put("element_ids", elementIds)
     descriptorMap.put("id", id.name)
     descriptorMap.put("modified_milli", modification.milliseconds: java.lang.Long)
@@ -405,20 +409,22 @@ class Serialization extends Serialization.Interface with Loggable {
 
 object Serialization {
   /** Transformation that is applied to acquiring nodes. */
-  type AcquireTransformation = Function2[Option[Node], Descriptor.Node, Descriptor.Node]
+  type AcquireTransformation = Function2[Option[Node[_ <: Element]], Descriptor.Node[_ <: Element], Descriptor.Node[_ <: Element]]
   /** Transformation that is applied to freezing nodes. */
-  type FreezeTransformation = Function4[Symbol, UUID, Element.Timestamp, NodeState, (Symbol, UUID, Element.Timestamp, NodeState)]
+  /* Returns NodeState[Element] because serialization is simplify structures and types. */
+  type FreezeTransformation = Function4[Symbol, UUID, Element.Timestamp, NodeState[_ <: Element], (Symbol, UUID, Element.Timestamp, NodeState[Element])]
   /** Serialization stash. */
   val stash = new ThreadLocal[AnyRef]()
 
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation = defaultAcquireTransformation): Graph[_ <: Model.Like] =
     inner.acquireGraph(origin, bootstrapStorageURI, fTransform)
-  /** Freeze transformation that keeps arguments are unmodified. */
-  def defaultAcquireTransformation(parentNode: Option[Node], nodeDescriptor: Descriptor.Node) = nodeDescriptor
-  /** Freeze transformation that keeps arguments are unmodified. */
-  def defaultFreezeTransformation(nodeId: Symbol, nodeUnique: UUID, nodeModificationTimestamp: Element.Timestamp, nodeState: NodeState) =
-    (nodeId, nodeUnique, nodeModificationTimestamp, nodeState)
+  /** Acquire transformation that keeps arguments unmodified. */
+  def defaultAcquireTransformation(parentNode: Option[Node[_ <: Element]], nodeDescriptor: Descriptor.Node[_ <: Element]) = nodeDescriptor
+  /** Freeze transformation that keeps arguments unmodified. */
+  def defaultFreezeTransformation(nodeId: Symbol, nodeUnique: UUID, nodeModificationTimestamp: Element.Timestamp,
+    nodeState: NodeState[_ <: Element]): (Symbol, UUID, Element.Timestamp, NodeState[Element]) =
+    (nodeId, nodeUnique, nodeModificationTimestamp, nodeState.asInstanceOf[NodeState[Element]])
   /** Save graph. */
   def freeze(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation = defaultFreezeTransformation) =
     inner.freezeGraph(graph, fTransform)
@@ -469,7 +475,7 @@ object Serialization {
     import org.digimead.tabuddy.model.element.{ Element ⇒ TAElement }
     case class Element[A <: TAElement](val clazz: Class[A], val coordinate: Coordinate, elementUniqueId: UUID,
       val modificationTimestamp: TAElement.Timestamp, val serializationIdentifier: Serialization.Identifier)
-    case class Node(val children: Seq[Symbol], val elements: Seq[UUID], val id: Symbol,
+    case class Node[A <: TAElement](val children: Seq[Symbol], val clazz: Class[A], val elements: Seq[UUID], val id: Symbol,
       val modificationTimestamp: TAElement.Timestamp, val unique: UUID)
     case class Graph[A <: Model.Like](val created: TAElement.Timestamp, val modelId: Symbol, val modelType: Class[A],
       val modificationTimestamp: TAElement.Timestamp, val origin: Symbol, val storages: Seq[URI])

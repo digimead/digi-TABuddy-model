@@ -120,12 +120,12 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
 
             node2.graph should be(graph2)
             node2.parentNodeReference.get should be(Some(node2))
+            node2.elementType should be(node.elementType)
 
             /* compare root element box */
             node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
             node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
             node2.rootElementBox.unmodified should be(node.rootElementBox.unmodified)
-            node2.rootElementBox.elementType should be(node.rootElementBox.elementType)
             node2.rootElementBox.node should be(node.rootElementBox.node)
             node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
 
@@ -266,24 +266,9 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         val task = model.task('task)
         model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
 
-        def fFilterSave(id: Symbol, unique: UUID, modificationTimestamp: Element.Timestamp, state: NodeState) = {
+        def fFilterSave(id: Symbol, unique: UUID, modificationTimestamp: Element.Timestamp, state: NodeState[_ <: Element]) = {
           val tState = state
-          log.___glance("pass " + tState)
-          (id, unique, modificationTimestamp, state)
-          /*log.___glance("filter element %s with ancestors %s".format(element, element.eAncestorReferences.mkString(",")))
-          element match {
-            case note: Note.Generic if note.eId == 'note1 =>
-              // alter note1
-              note.name = "save_filter_added"
-              Some(note)
-            case record: Record.Generic if record.eScope == Record.scope =>
-              // drop record and  children
-              log.___glance("drop " + record)
-              None
-            case element =>
-              // pass all other
-              Some(element)
-          }*/
+          (id, unique, modificationTimestamp, state.asInstanceOf[NodeState[Element]]) //.copy(children = Seq()))
         }
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
         Serialization.freeze(graph, fFilterSave)

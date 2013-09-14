@@ -28,9 +28,12 @@ import org.digimead.tabuddy.model.Model
 /**
  * Node state is a mutable part of a node.
  */
-trait NodeState {
+trait NodeState[A <: Element] {
+  /** NodeState type. */
+  type NodeStateType <: NodeState[A]
+
   /** Children nodes. */
-  val children: Seq[Node]
+  val children: Seq[Node[_ <: Element]]
   /** Graph to which the node belongs. */
   // Option type is meaningless here. Node is always belong graph.
   val graph: Graph[_ <: Model.Like]
@@ -38,19 +41,19 @@ trait NodeState {
   // If we have the only strong reference to this node and
   // graph may contains a model node with weak references
   // then all other nodes will be GC'ed and we may work only with our part of tree.
-  val parentNodeReference: WeakReference[Node]
+  val parentNodeReference: WeakReference[Node[_ <: Element]]
   /** Elements with non-root coordinates(List of axes(tags)). */
-  val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]]
+  val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]]
   /** Element with root coordinate. */
   // Option type is meaningless here. Root element must be defined every time.
-  val rootElementBox: ElementBox[_ <: Element]
+  val rootElementBox: ElementBox[A]
 
   /** Copy constructor. */
   def copy(
-    children: Seq[Node] = this.children,
+    children: Seq[Node[_ <: Element]] = this.children,
     graph: Graph[_ <: Model.Like] = this.graph,
-    parentNodeReference: WeakReference[Node] = this.parentNodeReference,
-    projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[_ <: Element]] = this.projectionElementBoxes,
-    rootElementBox: ElementBox[_ <: Element] = this.rootElementBox): this.type
+    parentNodeReference: WeakReference[Node[_ <: Element]] = this.parentNodeReference,
+    projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionElementBoxes,
+    rootElementBox: ElementBox[A] = this.rootElementBox): NodeStateType
 }
 

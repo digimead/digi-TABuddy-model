@@ -44,13 +44,13 @@ trait Transport {
   /** Load element with the specific UUID for the specific container. */
   def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(elementUniqueId: UUID, parentNode: Node.ThreadUnsafe, storageURI: URI): Array[Byte]
+  def acquireElementBox(elementUniqueId: UUID, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
   def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte]
   /** Load model node descriptor with the specific id. */
   def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe, storageURI: URI): Array[Byte]
+  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element to the specific URI. */
@@ -60,7 +60,7 @@ trait Transport {
   /** Save graph to the specific URI. */
   def freezeGraph(graph: Graph[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte])
   /** Save node to the specific URI. */
-  def freezeNode(node: Node.ThreadUnsafe, storageURI: URI, nodeDescriptorContent: Array[Byte])
+  def freezeNode(node: Node.ThreadUnsafe[_ <: Element], storageURI: URI, nodeDescriptorContent: Array[Byte])
   /** Save custom value to the specific URI. */
   def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte])
   /** Read resource. */
