@@ -37,20 +37,20 @@ trait Transport {
   /** Element resource name. */
   val elementResourceName = "element"
   /** Descriptor resource name. */
-  val descriptorResourceName = "descriptor.yaml"
+  val descriptorResourceName = "descriptor"
   /** Model directory name. */
   val modelDirectoryName = "model"
 
   /** Load element with the specific UUID for the specific container. */
   def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(elementUniqueId: UUID, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
+  def acquireElementBox(elementUniqueId: UUID, modificationTimestamp: Element.Timestamp, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
   def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte]
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, storageURI: URI): Array[Byte]
+  def acquireModel(id: Symbol, origin: Symbol, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(id: Symbol, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
+  def acquireNode(id: Symbol, modificationTimestamp: Element.Timestamp, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element to the specific URI. */

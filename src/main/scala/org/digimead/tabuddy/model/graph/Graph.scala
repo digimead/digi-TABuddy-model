@@ -46,6 +46,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]]
   /** Path to graph storages. */
   @volatile var storages: Seq[URI] = Seq()
+  /** List of timestamp to stored graphs. */
+  @volatile var stored = Seq[Element.Timestamp]()
 
   /** Copy graph. */
   def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freezeWrite { sourceModelNode ⇒

@@ -37,6 +37,7 @@ import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.graph.NodeState
+import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -77,23 +78,37 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         // serialize
         new File(folder, "john1") should not be ('exists)
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
+        graph.stored should be('empty)
         Serialization.freeze(graph)
+        graph.stored should have size (1)
+        graph.stored.head should be(graph.modification)
+
         new File(folder, "john1") should be('directory)
         new File(folder, "john1").length() should be > (0L)
         new File(folder, "john1/descriptor.yaml") should be('file)
         new File(folder, "john1/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/john1/descriptor.yaml") should be('file)
-        new File(folder, "john1/model/john1/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/descriptor.yaml") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1a/descriptor.yaml") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1a/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1b/descriptor.yaml") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1b/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/descriptor.yaml") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1a/level2a/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/descriptor.yaml") should be('file)
-        new File(folder, "john1/model/john1/baseLevel/level1b/level2b/descriptor.yaml").length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.from(model.eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.from(model.eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel)).eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel)).eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
+          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))).length() should be > (0L)
         //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
         //val str = testTxtSource.getLines.mkString("\n")
         //testTxtSource.close()
