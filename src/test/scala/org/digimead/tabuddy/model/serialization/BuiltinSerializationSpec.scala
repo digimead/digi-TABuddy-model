@@ -176,6 +176,52 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             graph2.model.e(graph2.node.safeRead(_.head).safeRead(_.rootElementBox.get()).eReference) should not be ('empty)
           }
         }
+
+        val graphModification = graph.modification
+        val baseLevel = graph.model | RecordLocation('baseLevel) eRelative ()
+        baseLevel.name = "321"
+        graph.modification should be > (graphModification)
+
+        Serialization.freeze(graph)
+        graph.stored should have size (2)
+        graph.stored.last should be(graph.modification)
+        graph.stored.head should be(graphModification)
+
+        val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
+        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last))
+
+        val size = graph.node.safeRead(_.iteratorRecursive().size)
+        val size2 = graph2.node.safeRead(_.iteratorRecursive().size)
+        val size1x = graph1x.node.safeRead(_.iteratorRecursive().size)
+        val size2x = graph2x.node.safeRead(_.iteratorRecursive().size)
+
+        assert(size === size2)
+        assert(size === size1x)
+        assert(size === size2x)
+
+        graph2.node.safeRead { node ⇒
+          graph1x.node.safeRead { node2 ⇒
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+          }
+        } should be(true)
+        graph.node.safeRead { node ⇒
+          graph2x.node.safeRead { node2 ⇒
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+          }
+        } should be(true)
+        graph1x.node.safeRead { node ⇒
+          graph2x.node.safeRead { node2 ⇒
+            node.iteratorRecursive().zip(node2.iteratorRecursive()).forall {
+              case (a, b) ⇒
+                a.ne(b) && {
+                  if (a.id == 'john1 || a.id == 'baseLevel)
+                    a.modification != b.modification
+                  else
+                    a.modification == b.modification
+                }
+            }
+          }
+        } should be(true)
       }
     }
     it("should correct serialize elements") {
@@ -208,7 +254,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
           graph2.node.safeRead { node2 ⇒
             node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
           }
-        }
+        } should be(true)
 
         val oldModification = graph.node.modification
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).name should be("456")
@@ -256,7 +302,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
           graph3.node.safeRead { node3 ⇒
             node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
           }
-        }
+        } should be(true)
       }
     }
     it("should filter elements on save/load") {

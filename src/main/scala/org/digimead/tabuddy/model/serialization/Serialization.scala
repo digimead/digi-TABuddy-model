@@ -424,8 +424,8 @@ object Serialization {
   val stash = new ThreadLocal[AnyRef]()
 
   /** Load graph with the specific origin. */
-  def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation = defaultAcquireTransformation,
-    modificationTimestamp: Option[Element.Timestamp] = None): Graph[_ <: Model.Like] =
+  def acquire(origin: Symbol, bootstrapStorageURI: URI, modificationTimestamp: Option[Element.Timestamp] = None,
+    fTransform: AcquireTransformation = defaultAcquireTransformation): Graph[_ <: Model.Like] =
     inner.acquireGraph(origin, bootstrapStorageURI, fTransform, modificationTimestamp)
   /** Acquire transformation that keeps arguments unmodified. */
   def defaultAcquireTransformation(parentNode: Option[Node[_ <: Element]], nodeDescriptor: Descriptor.Node[_ <: Element]) = nodeDescriptor

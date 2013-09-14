@@ -253,7 +253,7 @@ object Model extends Loggable {
    * Dependency injection routines.
    */
   private object DI extends DependencyInjection.PersistentInjectable {
-    /** The local origin that is alias of a user or a system or an anything other */
-    def defaultOrigin() = inject[Symbol]("Model.Origin")
+    /** The local origin that is alias of a user or a system or an anything other. */
+    lazy val defaultOrigin = inject[Symbol]("Model.Origin")
   }
 }
