@@ -105,8 +105,19 @@ trait Element extends Equals with java.io.Serializable {
   def eCopy(target: Node[ElementType], coordinate: Coordinate, stash: ElementType#StashType, serialization: Serialization.Identifier): ElementType = {
     // asInstanceOf[ElementType#StashType] is simplify type between
     // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
-    target.safeWrite(target ⇒
-      ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass)).get)
+    target.safeWrite { target ⇒
+      if (target.rootElementBox == null && coordinate != Coordinate.root) {
+        val root = ElementBox(Coordinate.root, stash.created, target, stash.modificationTimestamp, stash.scope, serialization)(Manifest.classType(getClass), stash.getClass)
+        val projection = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
+        target.updateState(target.state.copy(projectionElementBoxes = target.state.projectionElementBoxes + (coordinate -> projection),
+          rootElementBox = root), stash.modificationTimestamp)
+        projection
+      } else {
+        val box = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
+        target.updateElementBox(coordinate, box, stash.modificationTimestamp)
+        box
+      }
+    }.get
   }
   /** Dump the element content. */
   def eDump(brief: Boolean, padding: Int = 2): String

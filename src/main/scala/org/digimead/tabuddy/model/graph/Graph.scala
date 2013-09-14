@@ -55,7 +55,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
     /*
      * Create graph and model node
      */
-    val targetModelNode = Node.model[A](id, unique)
+    val targetModelNode = Node.model[A](id, unique, timestamp)
     val graph = new Graph[A](timestamp, targetModelNode, origin)
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, timestamp)
@@ -101,11 +101,12 @@ object Graph {
     def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
       unique: UUID)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val timestamp = Element.timestamp()
-      val modelNode = Node.model[A](id, unique)
+      val modelNode = Node.model[A](id, unique, timestamp)
       val modelGraph = new Graph[A](timestamp, modelNode, origin)
       modelNode.safeWrite { node ⇒
         modelNode.initializeModelNode(modelGraph, timestamp)
         val modelBox = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
+        node.updateElementBox(Coordinate.root, modelBox, timestamp)
         if (modelGraph.modelType != modelGraph.node.elementType)
           throw new IllegalArgumentException(s"Unexpected model type ${modelGraph.modelType} vs ${modelGraph.node.elementType}")
         modelGraph

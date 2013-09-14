@@ -165,41 +165,29 @@ object ElementBox {
       serialization: Serialization.Identifier, unmodified: Element.Timestamp)(implicit m: Manifest[A]): ElementBox[A] = {
       apply[A](coordinate, elementUniqueId, Left(base), unmodified)(m, node, serialization)
     }
-    /** Create element, element box with specific parameters and assign it to node. */
+    /** Create element, element box with specific parameters. */
     def apply[A <: Element](coordinate: Coordinate, created: Element.Timestamp, elementNode: Node.ThreadUnsafe[A],
       modified: Element.Timestamp, scope: A#StashType#ScopeType, serialization: Serialization.Identifier)(implicit m: Manifest[A],
         stashClass: Class[_ <: A#StashType]): ElementBox[A] = {
-      // create root element before projection one
-      if (elementNode.rootElementBox == null && coordinate != Coordinate.root)
-        apply(Coordinate.root, created, elementNode, modified, scope, serialization)
-      // create root or projection element
+      // create root or projection element box
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
       val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), modified)(m, elementNode, serialization)
-      elementNode.updateElementBox(coordinate, elementBox)
-      // 3rd. Create element.
+      // create element.
       val element = Element.apply[A](elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
       elementElementForwardReference.set(element)
-      elementBox.get
       if (elementBox.get == null)
         throw new IllegalStateException(s"${element} element is absent.")
       elementBox
     }
-    /** Create element, element box with specific stash and assign it to node. */
+    /** Create element, element box with specific stash. */
     def apply[A <: Element](coordinate: Coordinate, elementNode: Node.ThreadUnsafe[A],
       serialization: Serialization.Identifier, stash: A#StashType)(implicit m: Manifest[A]): ElementBox[A] = {
-      // create root element before projection one
-      if (elementNode.rootElementBox == null && coordinate != Coordinate.root) {
-        implicit val stashClass = stash.getClass
-        apply(Coordinate.root, stash.created, elementNode, stash.modificationTimestamp, stash.scope, serialization)
-      }
-      // create root or projection element
+      // create root or projection element box
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
       val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), stash.modificationTimestamp)(m, elementNode, serialization)
-      elementNode.updateElementBox(coordinate, elementBox)
-      // 3rd. Create element.
+      // create element.
       val element = Element.apply[A](elementBox, stash)
       elementElementForwardReference.set(element)
-      elementBox.get
       if (elementBox.get == null)
         throw new IllegalStateException(s"${element} element is absent.")
       elementBox
@@ -218,14 +206,22 @@ object ElementBox {
           val elementBox = for {
             parent ← node.parentNodeReference.get
           } yield {
-            ElementBox[A](coordinate, timestamp, node, timestamp, scope, serialization)
+            // create root element before projection one
+            if (node.rootElementBox == null && coordinate != Coordinate.root) {
+              val root = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
+              val projection = ElementBox[A](coordinate, timestamp, node, timestamp, scope, serialization)
+              node.updateState(node.state.copy(projectionElementBoxes = node.state.projectionElementBoxes + (coordinate -> projection),
+                rootElementBox = root), timestamp)
+              projection
+            } else {
+              val box = ElementBox[A](coordinate, timestamp, node, timestamp, scope, serialization)
+              node.updateElementBox(coordinate, box, timestamp)
+              box
+            }
           }
           elementBox match {
-            case Some(box) ⇒
-              node.updateElementBox(coordinate, box)
-              box.get
-            case None ⇒
-              throw new IllegalStateException("Unable to create element box.")
+            case Some(box) ⇒ box.get
+            case None ⇒ throw new IllegalStateException("Unable to create element box.")
           }
         }
     }

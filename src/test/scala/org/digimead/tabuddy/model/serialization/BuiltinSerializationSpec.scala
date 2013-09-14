@@ -36,7 +36,8 @@ import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.graph.NodeState
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
@@ -134,7 +135,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             node2.rootElementBox should be(node.rootElementBox)
 
             node2.graph should be(graph2)
-            node2.parentNodeReference.get should be(Some(node2))
+            node2.parentNodeReference.get should be(None)
             node2.elementType should be(node.elementType)
 
             /* compare root element box */
@@ -224,7 +225,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         } should be(true)
       }
     }
-    it("should correct serialize elements") {
+    it("should correctly serialize elements") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -263,7 +264,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         graph.model.e(record_level3.eReference).map(_.asInstanceOf[Record].name) should be(Some("789"))
         val newModification = graph.node.modification
         newModification should be > (oldModification)
-        newModification should be > (record_level3.eRelative.modification)
+        newModification should be >= (record_level3.eRelative.modification)
         (model & RecordLocation('root)).eNode.modification should be(newModification)
         (model & RecordLocation('root) & RecordLocation('level2)).eNode.modification should be(newModification)
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modification should be(newModification)
@@ -326,13 +327,39 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         val note = model.note('note)
         val task = model.task('task)
         model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
-
-        def fFilterSave(id: Symbol, unique: UUID, modificationTimestamp: Element.Timestamp, state: NodeState[_ <: Element]) = {
-          val tState = state
-          (id, unique, modificationTimestamp, state.asInstanceOf[NodeState[Element]]) //.copy(children = Seq()))
-        }
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
-        Serialization.freeze(graph, fFilterSave)
+
+        def fFilterSave1(node: Node.ThreadUnsafe[Element]): Node.ThreadUnsafe[Element] =
+          Node(node.id, node.unique, node.state.copy(children = Seq()), node.modification)(node.elementType)
+        Serialization.freeze(graph, fFilterSave1)
+
+        val graph2 = Serialization.acquire('john1, folder.toURI)
+        graph2.node.safeRead(_.children) should be('empty)
+        graph2.node.safeRead(_.iteratorRecursive().size) should be(0)
+
+        graph2.modification should be(graph.modification)
+
+        @volatile var x = 0
+        def fFilterSave2(node: Node.ThreadUnsafe[Element]): Node.ThreadUnsafe[Element] = {
+          x += 1
+          Node(node.id, node.unique, node.state, Element.timestamp(0, 0))(node.elementType)
+        }
+        Serialization.freeze(graph, fFilterSave2)
+
+        val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))
+        graph3.node.safeRead(_.iteratorRecursive().size) should be(5)
+        graph3.modification should be(Element.timestamp(0, 0))
+        graph3.node.modification should be(Element.timestamp(0, 0))
+        graph3.node.safeRead(_.iteratorRecursive().forall(_.modification == Element.timestamp(0, 0))) should be(true)
+        x should be(11) // model + all elements + children
+
+        def fFilterSave3(node: Node.ThreadUnsafe[Element]): Node.ThreadUnsafe[Element] =
+          Node(Symbol("x" + node.id.name), node.unique, node.state, node.modification)(node.elementType)
+        Serialization.freeze(graph, fFilterSave3)
+
+        val graph4 = Serialization.acquire('john1, folder.toURI)
+        System.err.println(Graph.dump(graph4, false))
+
         /*def fSave(element: Element.Generic, data: Array[Byte]) {
         log.___glance("save element %s, serialized data size is %d bytes".format(element, data.size))
         assert(data.size > 0, "incorrect data size")

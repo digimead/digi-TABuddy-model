@@ -151,7 +151,7 @@ trait Node[A <: Element] extends Modifiable with Equals {
     finally { rwl.writeLock().unlock() }
   }
   /** Get internal state, */
-  def state() = internalState
+  def state = internalState
 
   override def toString = s"graph.Node[${unique}(${id})]"
 }
@@ -161,8 +161,7 @@ object Node extends Loggable {
 
   /** Simple implementation of the mutable part of a node. */
   class State[A <: Element](val children: Seq[Node[_ <: Element]], val graph: Graph[_ <: Model.Like], val parentNodeReference: WeakReference[Node[_ <: Element]],
-    val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]],
-    val rootElementBox: ElementBox[A]) extends NodeState[A] {
+    val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]], val rootElementBox: ElementBox[A]) extends NodeState[A] {
     type NodeStateType = State[A]
 
     /** Copy constructor. */
@@ -179,10 +178,16 @@ object Node extends Loggable {
    */
   trait Interface {
     /** Create common element node. */
-    def apply[A <: Element: Manifest](id: Symbol, unique: UUID, state: NodeState[A]): Node[A] = new ThreadUnsafe[A](id, unique, state)
+    def apply[A <: Element: Manifest](id: Symbol, unique: UUID, state: NodeState[A], modificationTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] = {
+      val node = new ThreadUnsafe[A](id, unique, state)
+      node.modificationTimestamp = modificationTimestamp
+      node
+    }
     /** Create model node. */
-    def model[A <: Element: Manifest](id: Symbol, unique: UUID): Node[A] with ModelNodeInitializer = {
-      new ThreadUnsafe[A](id, unique, null) with ModelNodeInitializer
+    def model[A <: Element: Manifest](id: Symbol, unique: UUID, modificationTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] with ModelNodeInitializer = {
+      val model = new ThreadUnsafe[A](id, unique, null) with ModelNodeInitializer
+      model.modificationTimestamp = modificationTimestamp
+      model
     }
     /** Dump the node structure. */
     def dump(node: Node[_ <: Element], brief: Boolean, padding: Int = 2): String = node.safeRead { node ⇒
@@ -218,7 +223,7 @@ object Node extends Loggable {
         assert(internalState == null)
         internalState = new State(children = Seq(),
           graph = graph,
-          parentNodeReference = WeakReference(this),
+          parentNodeReference = WeakReference(null),
           projectionElementBoxes = immutable.HashMap(),
           rootElementBox = null)
         graph.nodes += this.unique -> this
@@ -292,6 +297,14 @@ object Node extends Loggable {
       //val undoF = () ⇒ { state.children.foreach(super.add) }
       //Element.Event.publish(Element.Event.ChildrenReset(parentNode.get, parentNode.get.eModified)(undoF))
     }
+    /** Clone this node. */
+    override def clone(): Node.ThreadUnsafe[A] = {
+      val node = new Node.ThreadUnsafe[A](id, unique, internalState)(elementType)
+      node.modificationTimestamp = this.modificationTimestamp
+      node
+    }
+    /** Tests whether this set contains a given node as a children. */
+    def contains(elem: Node[_ <: Element]): Boolean = internalState.children.contains(elem)
     /** Create new children node. */
     def createChild[B <: Element: Manifest](id: Symbol, unique: UUID): Node[B] = {
       internalState.children.foreach { child ⇒
@@ -304,12 +317,10 @@ object Node extends Loggable {
         graph = graph,
         parentNodeReference = WeakReference(this),
         projectionElementBoxes = immutable.HashMap(),
-        rootElementBox = null))
+        rootElementBox = null), Element.timestamp())
       add(newNode)
       newNode
     }
-    /** Tests whether this set contains a given node as a children. */
-    def contains(elem: Node[_ <: Element]): Boolean = internalState.children.contains(elem)
     /**
      * The empty set of the same type as this set
      * @return  an empty set of type `Node`.
@@ -351,9 +362,10 @@ object Node extends Loggable {
     /** The number of children. */
     override def size: Int = internalState.children.size
     /** Update state of the current node. */
-    def updateState(state: NodeState[A], modificationTimestamp: Element.Timestamp) {
+    def updateState(state: NodeState[A], modificationTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] = {
       this.internalState = state
       modification = modificationTimestamp
+      this
     }
     /** Update state of the current node. */
     def updateState(children: Seq[Node[_ <: Element]] = this.internalState.children,
@@ -361,17 +373,19 @@ object Node extends Loggable {
       modificationTimestamp: Element.Timestamp = Element.timestamp(),
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.internalState.parentNodeReference,
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionElementBoxes,
-      rootElementBox: ElementBox[A] = this.internalState.rootElementBox) {
+      rootElementBox: ElementBox[A] = this.internalState.rootElementBox): Node.ThreadUnsafe[A] = {
       internalState = new State[A](children, graph, parentNodeReference, projectionElementBoxes, rootElementBox)
       modification = modificationTimestamp
+      this
     }
     /** Update element box at the specific coordinates. */
-    def updateElementBox(coordinate: Coordinate, box: ElementBox[A], modificationTimestamp: Element.Timestamp = Element.timestamp()): Unit = {
+    def updateElementBox(coordinate: Coordinate, box: ElementBox[A], modificationTimestamp: Element.Timestamp = Element.timestamp()): Node.ThreadUnsafe[A] = {
       if (coordinate == Coordinate.root)
         internalState = internalState.copy(rootElementBox = box)
       else
         internalState = internalState.copy(projectionElementBoxes = internalState.projectionElementBoxes + (coordinate -> box))
       modification = modificationTimestamp
+      this
     }
 
     /*

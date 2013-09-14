@@ -44,23 +44,23 @@ trait Transport {
   /** Load element with the specific UUID for the specific container. */
   def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(elementUniqueId: UUID, modificationTimestamp: Element.Timestamp, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
+  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
   def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte]
   /** Load model node descriptor with the specific id. */
   def acquireModel(id: Symbol, origin: Symbol, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(id: Symbol, modificationTimestamp: Element.Timestamp, parentNode: Node.ThreadUnsafe[_ <: Element], storageURI: URI): Array[Byte]
+  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element to the specific URI. */
-  def freezeElement(element: Element, storageURI: URI, elementContent: Array[Byte])
+  def freezeElement(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, elementContent: Array[Byte])
   /** Save element box to the specific URI. */
-  def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte])
+  def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte])
   /** Save graph to the specific URI. */
-  def freezeGraph(graph: Graph[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte])
+  def freezeGraph(node: Node[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte])
   /** Save node to the specific URI. */
-  def freezeNode(node: Node.ThreadUnsafe[_ <: Element], storageURI: URI, nodeDescriptorContent: Array[Byte])
+  def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte])
   /** Save custom value to the specific URI. */
   def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte])
   /** Read resource. */
