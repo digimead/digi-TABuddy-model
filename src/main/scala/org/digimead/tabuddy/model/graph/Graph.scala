@@ -41,7 +41,7 @@ import scala.language.implicitConversions
  * @param origin graph owner identifier
  */
 class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
-  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Equals {
+  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with Equals {
   /** Index of all graph nodes. */
   val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]]
   /** Path to graph storages. */

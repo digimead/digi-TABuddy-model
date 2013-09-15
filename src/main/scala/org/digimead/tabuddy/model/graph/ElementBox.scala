@@ -40,7 +40,7 @@ import language.implicitConversions
  * @param initial initial element location or value, which is erased after save
  * @param node container of the element box
  * @param serialization type of the serialization mechanism
- * @param unmodified the modification timestamp of the unmodified element
+ * @param unmodified the modification timestamp of the original element
  * @param elementType manifest with an element type
  */
 /*
@@ -59,7 +59,7 @@ import language.implicitConversions
  * (<- ElementBox <-> Element) is CG'ed part.
  */
 abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementUniqueId: UUID, initial: ⇒ Either[URI, A],
-  val node: Node[A], val serialization: Serialization.Identifier, val unmodified: Element.Timestamp) extends Equals {
+  val node: Node[A], val serialization: Serialization.Identifier, unmodified: Element.Timestamp) extends Modifiable.Read with Equals {
   def this(coordinate: Coordinate, elementUniqueId: UUID, initial: Either[URI, AtomicReference[A]], node: Node[A],
     serialization: Serialization.Identifier, unmodified: Element.Timestamp) =
     this(coordinate, elementUniqueId, initial match {
@@ -89,24 +89,28 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   def get(): A
   /** Get modified element. Returns only if value was modified. */
   def getModified(): Option[A]
+  /** Get unmodified element. */
+  def getUnmodified(): A
   /** (Re)Load element. */
   def load(): A
+  /** Get modification timestamp. */
+  def modification: Element.Timestamp = getModified.map(_.modification) getOrElse unmodified
   /** Save element. */
   def save(): Array[Byte] = Serialization.perIdentifier.get(serialization) match {
     case Some(serialization) ⇒ serialization.save(get)
     case None ⇒ throw new IllegalStateException(s"Serialization for ${serialization} not found.")
   }
   /** Set element. */
-  def set(arg: A)
+  def set(arg: Option[A])
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[ElementBox[_]]
   override def equals(that: Any): Boolean = that match {
     case that: ElementBox[_] ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
     case _ ⇒ false
   }
-  override def hashCode() = lazyHashCode
+  override def hashCode() = java.util.Arrays.hashCode(Array[Int](lazyHashCode))
   protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.coordinate, this.elementUniqueId,
-    this.unmodified, this.node, this.serialization))
+    this.node, this.serialization))
   override def toString = s"graph.Box[${context}:${coordinate}/${node.elementType};${node.id}]"
 }
 
@@ -184,7 +188,7 @@ object ElementBox {
       serialization: Serialization.Identifier, stash: A#StashType)(implicit m: Manifest[A]): ElementBox[A] = {
       // create root or projection element box
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-      val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), stash.modificationTimestamp)(m, elementNode, serialization)
+      val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), stash.modification)(m, elementNode, serialization)
       // create element.
       val element = Element.apply[A](elementBox, stash)
       elementElementForwardReference.set(element)
@@ -238,8 +242,10 @@ object ElementBox {
         case initial @ Left(baseURIForLazyLoading) ⇒ Left(baseURIForLazyLoading)
         case Right(explicitElement) ⇒ Right(explicitElement.get)
       }, node, serialization, unmodified)(elementType)
-    /** Element object. */
-    @volatile protected var cached: Option[A] = None
+    /** Modified element object. */
+    @volatile protected var modifiedCache: Option[A] = None
+    /** Unmodified element object. */
+    @volatile protected var unmodifiedCache: Option[A] = None
 
     /** Current box context. */
     def context(): ElementBox.Context = new ElementBox.Context(None, None)
@@ -248,13 +254,14 @@ object ElementBox {
      * Hard element box is always contains the initial data.
      * The simplest way is just to overwrite it. Returns 0 timestamp.
      */
-    def get(): A = cached getOrElse load()
-    def getModified(): Option[A] = initial.right.toOption
+    def get(): A = getModified getOrElse getUnmodified
+    def getModified(): Option[A] = modifiedCache
+    def getUnmodified(): A = unmodifiedCache getOrElse load()
     def load(): A = synchronized {
       initial match {
         case Right(element) ⇒
           // Element is explicitly passed to this box
-          cached = Some(element)
+          unmodifiedCache = Some(element)
           element
         case Left(baseURIForLazyLoading) ⇒
           // Base URI that is passed instead of element.
@@ -264,16 +271,22 @@ object ElementBox {
             case None ⇒
               throw new IllegalArgumentException(s"Transport for the specified scheme '${baseURIForLazyLoading.getScheme()}' not found.")
           }
-          cached = Some(element)
+          unmodifiedCache = Some(element)
           element
       }
     }
-    def set(arg: A) = throw new UnsupportedOperationException
+    def set(arg: Option[A]) = {
+      modifiedCache = arg
+      arg match {
+        case Some(element) ⇒ node.modificationUpdate(element.modification)
+        case None ⇒ node.modificationUpdate(unmodified)
+      }
+    }
 
     override def toString = s"graph.Box$$Hard[${coordinate}/${elementType};${node.id}]"
   }
   /**
-   * Soft element reference that contains element only while there is enough memory (RAM) available.
+   * Soft element reference that contains element only while there is enough memory available.
    * And reload it if required.
    */
   // Implement if needed with SoftReference

@@ -18,13 +18,13 @@
 
 package org.digimead.tabuddy.model.element
 
-import java.util.UUID
-
 import scala.collection.immutable
+
+import org.digimead.tabuddy.model.graph.Modifiable
 
 /** Generic element stash. */
 class Stash(val created: Element.Timestamp,
-  val modificationTimestamp: Element.Timestamp,
+  val modification: Element.Timestamp,
   val property: Stash.Data,
   val scope: Element.Scope) extends Stash.Like {
   /** Stash type. */
@@ -49,7 +49,7 @@ object Stash {
    *
    * (origin, unique, coordinate) is element reference that allow unambiguously identify this data piece.
    */
-  trait Like extends Equals with java.io.Serializable {
+  trait Like extends Modifiable.Read with Equals with java.io.Serializable {
     /** Stash type. */
     type StashType <: Like
     /** Scope type */
@@ -58,7 +58,7 @@ object Stash {
     /** Element creation time */
     val created: Element.Timestamp
     /** Element modification time. */
-    val modificationTimestamp: Element.Timestamp
+    val modification: Element.Timestamp
     /** Element properties(values) map: Erasure -> Symbol -> Value[T]. */
     val property: Stash.Data
     /** User scope. */
@@ -66,20 +66,20 @@ object Stash {
 
     /** Copy constructor */
     def copy(created: Element.Timestamp = this.created,
-      modificationTimestamp: Element.Timestamp = this.modificationTimestamp,
+      modification: Element.Timestamp = this.modification,
       property: Stash.Data = this.property,
       scope: Element.Scope = this.scope): StashType = {
       assert(scope == this.scope, "Incorrect scope %s, must be %s".format(scope, this.scope))
       val newStashCtor = this.getClass.getConstructors.find(_.getParameterTypes() match {
         case Array(createdArg, modifiedArg, dataArg, scopeArg) ⇒
           scopeArg.isAssignableFrom(scope.getClass) && createdArg.isAssignableFrom(created.getClass()) &&
-            modifiedArg.isAssignableFrom(modificationTimestamp.getClass()) && dataArg.isAssignableFrom(property.getClass())
+            modifiedArg.isAssignableFrom(modification.getClass()) && dataArg.isAssignableFrom(property.getClass())
         case _ ⇒ false
       }) getOrElse {
         throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")
       }
       val data = new Stash.Data
-      newStashCtor.newInstance(created, modificationTimestamp, property, scope).asInstanceOf[StashType]
+      newStashCtor.newInstance(created, modification, property, scope).asInstanceOf[StashType]
     }
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Stash.Like]
@@ -88,6 +88,6 @@ object Stash {
       case _ ⇒ false
     }
     override def hashCode() = lazyHashCode
-    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modificationTimestamp, property, scope))
+    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](created, modification, property, scope))
   }
 }

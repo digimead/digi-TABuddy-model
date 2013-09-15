@@ -101,7 +101,7 @@ object Task extends Loggable {
   }
   /** Task stash. */
   class Stash(val created: Element.Timestamp,
-    val modificationTimestamp: Element.Timestamp,
+    val modification: Element.Timestamp,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
     val scope: Scope)
     extends Stash.Like {

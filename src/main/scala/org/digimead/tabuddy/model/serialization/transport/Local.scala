@@ -65,11 +65,11 @@ class Local extends Transport with Loggable {
     serializationMechanism.load(elementBox, elementBinary)
   }
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte] = {
+  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modification: Element.Timestamp, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestors, false)
     val elementDirectoryName = "%X-%X-%s".format(elementUniqueId.getMostSignificantBits(),
-      elementUniqueId.getLeastSignificantBits(), Timestamp.from(modificationTimestamp))
+      elementUniqueId.getLeastSignificantBits(), Timestamp.from(modification))
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
     val elementDescriptor = new File(elementDirectory, descriptorResourceSimple).toURI
     log.debug(s"Acquire descriptor from ${elementDescriptor}.")
@@ -86,21 +86,21 @@ class Local extends Transport with Loggable {
     read(graphDescriptor)
   }
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte] = {
+  def acquireModel(id: Symbol, origin: Symbol, modification: Element.Timestamp, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val graphDirectory = new File(storageDirectory, origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val nodeDirectory = new File(modelDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
-    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(modificationTimestamp))).toURI
+    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(modification))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
     read(nodeDescriptor)
   }
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modificationTimestamp: Element.Timestamp, storageURI: URI): Array[Byte] = {
+  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modification: Element.Timestamp, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val parentNodeDirectory = getNodeDirectory(storageDirectory, ancestors, true)
     val nodeDirectory = new File(parentNodeDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
-    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(modificationTimestamp))).toURI
+    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(modification))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
     read(nodeDescriptor)
   }
@@ -162,7 +162,7 @@ class Local extends Transport with Loggable {
   protected def getElementDirectory(base: File, nodes: Seq[Node[_ <: Element]],
     elementBox: ElementBox[_ <: Element], create: Boolean): File = {
     val elementBoxDirectoryName = "%X-%X-%s".format(elementBox.elementUniqueId.getMostSignificantBits(),
-      elementBox.elementUniqueId.getLeastSignificantBits(), Timestamp.from(elementBox.getModified.map(_.modification).getOrElse(elementBox.unmodified)))
+      elementBox.elementUniqueId.getLeastSignificantBits(), Timestamp.from(elementBox.modification))
     val relativePart = (nodes.map { node ⇒
       nodeNameTemplate.format(node.id.name, node.id.name.hashCode())
     } :+ elementBoxDirectoryName).mkString(File.separator)

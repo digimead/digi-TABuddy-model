@@ -36,6 +36,7 @@ import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.Modifiable
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.Serialization
 
@@ -46,7 +47,7 @@ import scala.language.implicitConversions
  * builded with the curiously recurring generic pattern
  * contains stash with actual data.
  */
-trait Element extends Equals with java.io.Serializable {
+trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   this: Loggable ⇒
   /** Element type. */
   type ElementType <: Element
@@ -79,8 +80,11 @@ trait Element extends Equals with java.io.Serializable {
   /** Get list of axes(tags). */
   def eCoordinate() = eBox.coordinate
   /** Copy constructor. */
-  def eCopy(elementBox: ElementBox[ElementType], stash: ElementType#StashType): ElementType =
-    Element[ElementType](elementBox, stash)(Manifest.classType(getClass))
+  def eCopy(elementBox: ElementBox[ElementType], stash: ElementType#StashType): ElementType = {
+    val element = Element[ElementType](elementBox, stash)(Manifest.classType(getClass))
+    elementBox.set(Some(element))
+    element
+  }
   /** Copy constructor that attach copy to the target node. */
   def eCopy(target: Node[ElementType], rawCoordinate: Axis.Generic*): ElementType =
     eCopy(target, Coordinate(rawCoordinate: _*))
@@ -103,21 +107,24 @@ trait Element extends Equals with java.io.Serializable {
    * copy must preserve modification time if scope && properties content are the same
    */
   def eCopy(target: Node[ElementType], coordinate: Coordinate, stash: ElementType#StashType, serialization: Serialization.Identifier): ElementType = {
-    // asInstanceOf[ElementType#StashType] is simplify type between
-    // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
-    target.safeWrite { target ⇒
-      if (target.rootElementBox == null && coordinate != Coordinate.root) {
-        val root = ElementBox(Coordinate.root, stash.created, target, stash.modificationTimestamp, stash.scope, serialization)(Manifest.classType(getClass), stash.getClass)
-        val projection = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
-        target.updateState(target.state.copy(projectionElementBoxes = target.state.projectionElementBoxes + (coordinate -> projection),
-          rootElementBox = root), stash.modificationTimestamp)
-        projection
-      } else {
-        val box = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
-        target.updateElementBox(coordinate, box, stash.modificationTimestamp)
-        box
-      }
-    }.get
+    if (target == eNode && coordinate == eCoordinate && serialization == eBox.serialization)
+      eCopy(eBox, stash)
+    else
+      target.safeWrite { target ⇒
+        // asInstanceOf[ElementType#StashType] is simplify type between
+        // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
+        if (target.rootElementBox == null && coordinate != Coordinate.root) {
+          val root = ElementBox(Coordinate.root, stash.created, target, stash.modification, stash.scope, serialization)(Manifest.classType(getClass), stash.getClass)
+          val projection = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
+          target.updateState(target.state.copy(projectionElementBoxes = target.state.projectionElementBoxes + (coordinate -> projection),
+            rootElementBox = root), stash.modification)
+          projection
+        } else {
+          val box = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
+          target.updateElementBox(coordinate, box, stash.modification)
+          box
+        }
+      }.get
   }
   /** Dump the element content. */
   def eDump(brief: Boolean, padding: Int = 2): String
@@ -211,17 +218,17 @@ trait Element extends Equals with java.io.Serializable {
                   val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               }
-              eCopy(eNode, eCoordinate, eStash.copy(modificationTimestamp = Element.timestamp(),
+              eCopy(eBox, eStash.copy(modification = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
-                asInstanceOf[ElementType#StashType], eBox.serialization)
+                asInstanceOf[ElementType#StashType])
             case None ⇒
               val newValue = value.copy(context = Value.Context(this))
               val undoF = () ⇒ {}
               //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               None
-              eCopy(eNode, eCoordinate, eStash.copy(modificationTimestamp = Element.timestamp(), property = eStash.property.updated(id,
+              eCopy(eBox, eStash.copy(modification = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
-                asInstanceOf[ElementType#StashType], eBox.serialization)
+                asInstanceOf[ElementType#StashType])
           }
         case _ ⇒
           // Set default value or None
@@ -232,8 +239,8 @@ trait Element extends Equals with java.io.Serializable {
                 val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueRemove(this, previous, eModified)(undoF))
               }
-              eCopy(eNode, eCoordinate, eStash.copy(modificationTimestamp = Element.timestamp(),
-                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType], eBox.serialization)
+              eCopy(eBox, eStash.copy(modification = Element.timestamp(),
+                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])
             case None ⇒
               Element.this.asInstanceOf[ElementType]
           }
@@ -246,7 +253,7 @@ trait Element extends Equals with java.io.Serializable {
   /** Get node/element unique id. */
   def eNodeId(): UUID = eBox.node.unique
   /** Get modification timestamp. */
-  def modification = eStash.modificationTimestamp
+  def modification = eStash.modification
 
   /** Built in serialization helper. */
   protected def readObjectHelper() = {
@@ -328,27 +335,6 @@ object Element extends Loggable {
     apply[A](box, stash)
   }
 
-  /**
-   * Check new/exists/modified stash against neighbor
-   */
-  def check(element: Element, stash: Stash) {
-    //stash.model match {
-    // case Some(model) =>
-    /*model.e(stash.context.container).map(_.eChildren.filter(_.eId == stash.id)).getOrElse(ArrayBuffer[Element2]()).foreach {
-          nighborWithSameID =>
-            val neighborStash = nighborWithSameID.eStash.asInstanceOf[Stash]
-            assert(nighborWithSameID.eNodeId == stash.unique, "Illegal new element %s. %s MUST be the same as id %s of neighbor %s.".
-              format(element, stash.unique, nighborWithSameID.eNodeId, nighborWithSameID))
-            assert(neighborStash.coordinate != stash.coordinate, "Illegal new element %s. There is already neighbor %s exists with same coordinate.".
-              format(element, nighborWithSameID))
-            assert(nighborWithSameID.canEqual(element.getClass(), stash.getClass()), "Illegal new element %s. There is already neighbor %s exists and it has different type.".
-              format(element, nighborWithSameID))
-        }*/
-    //assert(model.e(element.eReference).isEmpty, "Illegal new element %s with reference %s. Such element is already attached.".format(element, element.eReference))
-    //case None =>
-    //assert(false, s"unable to check $element against stash with undefined model")
-    //}
-  }
   /** Create new timestamp object */
   def timestamp(ms: Long = System.currentTimeMillis(), ns: java.lang.Long = null) =
     if (ns == null) Timestamp(ms, System.nanoTime() - nanoBase) else Timestamp(ms, ns)
