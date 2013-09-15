@@ -19,7 +19,9 @@
 package org.digimead.tabuddy.model.serialization.yaml
 
 import org.digimead.tabuddy.model.element.Element
-import org.yaml.snakeyaml.constructor.SafeConstructor.ConstructYamlTimestamp
+import org.yaml.snakeyaml.DumperOptions
+import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.AbstractConstruct
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.ScalarNode
 import org.yaml.snakeyaml.nodes.Tag
@@ -32,23 +34,22 @@ object Timestamp {
   val tag = new Tag(Tag.PREFIX + "ts")
 
   /** Convert string to Element.Timestamp. */
-  def to(arg: String): Element.Timestamp = {
-    val left = arg.takeWhile(_ != '.')
-    Element.timestamp(java.lang.Long.parseLong(left.substring(0, left.size - 2), 16),
-      java.lang.Long.parseLong(arg.substring(left.size + 1, arg.size - 2), 16))
-  }
+  def load(arg: String): Element.Timestamp = YAML.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
   /** Convert Element.Timestamp to string. */
-  def from(arg: Element.Timestamp): String = "%Xms.%Xns".format(arg.milliseconds, arg.nanoShift)
+  def dump(arg: Element.Timestamp): String = YAML.dump(arg).trim
 
   trait Constructor {
     this: YAML.Constructor ⇒
     getYAMLConstructors.put(Timestamp.tag, new ConstructTimestamp())
+    getYAMLConstructors.put(new Tag(classOf[Element.Timestamp]), new ConstructTimestamp())
 
-    private class ConstructTimestamp extends ConstructYamlTimestamp {
+    private class ConstructTimestamp extends AbstractConstruct {
       override def construct(node: Node): AnyRef = {
         val scalar = node.asInstanceOf[ScalarNode]
         val nodeValue = scalar.getValue()
-        Timestamp.to(nodeValue)
+        val left = nodeValue.takeWhile(_ != '.')
+        Element.timestamp(java.lang.Long.parseLong(left.substring(0, left.size - 2), 16),
+          java.lang.Long.parseLong(nodeValue.substring(left.size + 1, nodeValue.size - 2), 16))
       }
     }
   }
@@ -57,7 +58,8 @@ object Timestamp {
     getMultiRepresenters.put(classOf[Element.Timestamp], new RepresentTimestamp())
 
     class RepresentTimestamp extends Represent {
-      def representData(data: AnyRef): Node = representScalar(Timestamp.tag, Timestamp.from(data.asInstanceOf[Element.Timestamp]), null)
+      def representData(data: AnyRef): Node = representScalar(Tag.STR,
+        "%Xms.%Xns".format(data.asInstanceOf[Element.Timestamp].milliseconds, data.asInstanceOf[Element.Timestamp].nanoShift), null)
     }
   }
 }

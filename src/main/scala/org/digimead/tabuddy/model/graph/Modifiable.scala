@@ -28,7 +28,7 @@ object Modifiable {
     /** Get modification timestamp. */
     def modification: Element.Timestamp
   }
-  trait ReadWrite {
+  trait Write extends Read {
     /** Set modification timestamp. */
     def modification_=(arg: Element.Timestamp)
     /** Update modification timestamp only if argument is greater than current value or generate new timestamp. */

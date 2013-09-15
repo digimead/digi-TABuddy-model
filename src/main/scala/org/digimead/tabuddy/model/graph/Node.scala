@@ -39,7 +39,7 @@ import scala.language.implicitConversions
 /**
  * Node is a brick of graph.
  */
-trait Node[A <: Element] extends Modifiable.ReadWrite with Equals {
+trait Node[A <: Element] extends Modifiable.Write with Equals {
   /** Node element type. */
   val elementType: Manifest[A]
   /** Element verbose id. */
@@ -357,7 +357,8 @@ object Node extends Loggable {
     /** Update state of the current node. */
     def updateState(state: NodeState[A], modification: Element.Timestamp): Node.ThreadUnsafe[A] = {
       internalState = state
-      this.modification = modification
+      if (modification != null)
+        this.modification = modification
       this
     }
     /** Update state of the current node. */
@@ -368,7 +369,8 @@ object Node extends Loggable {
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionElementBoxes,
       rootElementBox: ElementBox[A] = this.internalState.rootElementBox): Node.ThreadUnsafe[A] = {
       internalState = new State[A](children, graph, parentNodeReference, projectionElementBoxes, rootElementBox)
-      this.modification = modification
+      if (modification != null)
+        this.modification = modification
       this
     }
     /** Update element box at the specific coordinates. */
@@ -377,7 +379,8 @@ object Node extends Loggable {
         internalState = internalState.copy(rootElementBox = box)
       else
         internalState = internalState.copy(projectionElementBoxes = internalState.projectionElementBoxes + (coordinate -> box))
-      this.modification = modification
+      if (modification != null)
+        this.modification = modification
       this
     }
 

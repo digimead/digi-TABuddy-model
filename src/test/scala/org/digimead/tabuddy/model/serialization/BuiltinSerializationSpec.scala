@@ -88,28 +88,28 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         new File(folder, "john1").length() should be > (0L)
         new File(folder, "john1/descriptor.yaml") should be('file)
         new File(folder, "john1/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.from(model.eNode.modification))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.from(model.eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))).length() should be > (0L)
         //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
         //val str = testTxtSource.getLines.mkString("\n")
         //testTxtSource.close()
@@ -267,7 +267,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         graph.model.e(record_level3.eReference).map(_.asInstanceOf[Record].name) should be(Some("789"))
         val newModification = graph.node.modification
         newModification should be > (oldModification)
-        newModification should be (record_level3.eRelative.modification)
+        newModification should be(record_level3.eRelative.modification)
         (model & RecordLocation('root)).eNode.modification should be(newModification)
         (model & RecordLocation('root) & RecordLocation('level2)).eNode.modification should be(newModification)
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modification should be(newModification)

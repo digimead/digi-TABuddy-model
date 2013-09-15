@@ -57,7 +57,18 @@ class YAMLSerialization extends Mechanism with Loggable {
   /** Load element. */
   def load[A <: Element](elementBox: ElementBox[A], from: Array[Byte])(implicit m: Manifest[A]): A = {
     log.debug(s"Load ${elementBox}.")
-    /*   if (ma.runtimeClass == classOf[Nothing])
+    if (m.runtimeClass == classOf[Nothing])
+      throw new IllegalArgumentException("Element type is undefined.")
+    val yaml = new Yaml(YAMLSerialization.ElementConstructor)
+    //Option(yaml.load(data).asInstanceOf[Element])
+    //element.asInstanceOf[A]
+    null.asInstanceOf[A]
+  }
+
+  /** Load element. */
+  /*def load[A <: Element](elementBox: ElementBox[A], from: Array[Byte])(implicit m: Manifest[A]): A = {
+    log.debug(s"Load ${elementBox}.")
+       if (ma.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined")
     //    if (mb.runtimeClass == classOf[Nothing])
     //      throw new IllegalArgumentException("Stash type is undefined")
@@ -119,9 +130,9 @@ class YAMLSerialization extends Mechanism with Loggable {
       case None =>
         log.error("there are more than one root elements detected: " + rootElements.mkString(","))
         None
-    }*/
+    }
     null.asInstanceOf[A]
-  }
+  }*/
   /**
    * Get serialized element.
    * Filter/adjust children with filter()
@@ -170,8 +181,8 @@ object YAMLSerialization extends Loggable {
     null
   }
 
-  /*  object ElementConstructor extends Constructor(classOf[Element]) {
-    val tagContext = new Tag(classOf[Context])
+  object ElementConstructor extends Constructor(classOf[Element]) {
+    /* val tagContext = new Tag(classOf[Context])
     val tagCoordinate = new Tag(classOf[Coordinate])
     val tagElement = new Tag(classOf[Element])
     val tagProperty = new Tag(classOf[YAMLSerialization.Property])
@@ -366,28 +377,6 @@ object YAMLSerialization extends Loggable {
         property
       }
     }
-    abstract class CustomConstruct extends ConstructMapping {
-      override protected def createEmptyJavaBean(node: MappingNode): AnyRef =
-        null // skip a bean creation
-      override def constructJavaBean2ndStep(node: MappingNode, obj: AnyRef): AnyRef = {
-        var map = mutable.HashMap[String, Node]()
-        flattenMapping(node)
-        /*        for (tuple <- node.getValue()) {
-          // key must be scalar
-          val keyNode = if (tuple.getKeyNode().isInstanceOf[ScalarNode])
-            tuple.getKeyNode().asInstanceOf[ScalarNode]
-          else
-            throw new YAMLException("Keys must be scalars but found: " + tuple.getKeyNode());
-          val valueNode = tuple.getValueNode()
-          // keys can only be Strings
-          keyNode.setType(classOf[String])
-          val key = constructObject(keyNode).asInstanceOf[String]
-          map(key) = valueNode
-        }*/
-        constructCustom(map)
-      }
-      def constructCustom(map: mutable.HashMap[String, Node]): AnyRef
-    }
   }
 
   class ElementRepresenter extends Representer {
@@ -503,10 +492,10 @@ object YAMLSerialization extends Loggable {
         //map.put("property", seqAsJavaList(properties))
         representMapping(Tag.MAP, map, null)
       }
-    }
+    }*/
   }
 
-  case class Property(val context: Context, val typeSymbol: String, val data: String, val id: String, val static: Boolean)*/
+  //case class Property(val context: Context, val typeSymbol: String, val data: String, val id: String, val static: Boolean)
   /** YAMLSerialization identifier. */
   object Identifier extends Serialization.Identifier { val extension = "yaml" }
 }

@@ -69,7 +69,7 @@ class Local extends Transport with Loggable {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestors, false)
     val elementDirectoryName = "%X-%X-%s".format(elementUniqueId.getMostSignificantBits(),
-      elementUniqueId.getLeastSignificantBits(), Timestamp.from(modification))
+      elementUniqueId.getLeastSignificantBits(), Timestamp.dump(modification))
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
     val elementDescriptor = new File(elementDirectory, descriptorResourceSimple).toURI
     log.debug(s"Acquire descriptor from ${elementDescriptor}.")
@@ -91,7 +91,7 @@ class Local extends Transport with Loggable {
     val graphDirectory = new File(storageDirectory, origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val nodeDirectory = new File(modelDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
-    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(modification))).toURI
+    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.dump(modification))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
     read(nodeDescriptor)
   }
@@ -100,7 +100,7 @@ class Local extends Transport with Loggable {
     val storageDirectory = new File(storageURI)
     val parentNodeDirectory = getNodeDirectory(storageDirectory, ancestors, true)
     val nodeDirectory = new File(parentNodeDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
-    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(modification))).toURI
+    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.dump(modification))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
     read(nodeDescriptor)
   }
@@ -135,7 +135,7 @@ class Local extends Transport with Loggable {
   def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestorsNSelf, true)
-    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.from(ancestorsNSelf.last.modification))).toURI
+    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.dump(ancestorsNSelf.last.modification))).toURI
     log.debug(s"Freeze descriptor to ${nodeDescriptorFile}.")
     write(nodeDescriptorContent, nodeDescriptorFile)
   }
@@ -162,7 +162,7 @@ class Local extends Transport with Loggable {
   protected def getElementDirectory(base: File, nodes: Seq[Node[_ <: Element]],
     elementBox: ElementBox[_ <: Element], create: Boolean): File = {
     val elementBoxDirectoryName = "%X-%X-%s".format(elementBox.elementUniqueId.getMostSignificantBits(),
-      elementBox.elementUniqueId.getLeastSignificantBits(), Timestamp.from(elementBox.modification))
+      elementBox.elementUniqueId.getLeastSignificantBits(), Timestamp.dump(elementBox.modification))
     val relativePart = (nodes.map { node ⇒
       nodeNameTemplate.format(node.id.name, node.id.name.hashCode())
     } :+ elementBoxDirectoryName).mkString(File.separator)

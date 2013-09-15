@@ -35,9 +35,7 @@ import org.digimead.tabuddy.model.graph.Graph
 import java.util.UUID
 import java.io.File
 import java.util.UUID
-
 import scala.collection.immutable
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
@@ -56,6 +54,11 @@ import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
+import org.digimead.tabuddy.model.serialization
+import org.digimead.tabuddy.model.element.Axis
+import scala.collection.JavaConverters._
+import org.digimead.tabuddy.model.element.Coordinate
+import org.digimead.tabuddy.model.element.Reference
 
 class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
@@ -65,7 +68,48 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
   }
 
   describe("A YAMLSerialization") {
-    it("should provide serialization mechanism for graph") {
+    it("should convert Symbol") {
+      val data = yaml.Symbol.dump('abcd)
+      data should be("abcd")
+      yaml.Symbol.load(data).name should be('abcd.name)
+    }
+    it("should convert UUID") {
+      val uuid = UUID.fromString("50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac")
+      val data = yaml.UUID.dump(uuid)
+      data should be("50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac")
+      yaml.UUID.load(data) should be(uuid)
+    }
+    it("should convert Element.Timestamp") {
+      val ts = Element.timestamp(1234567890, 987654321)
+      val data = yaml.Timestamp.dump(ts)
+      data should be("499602D2ms.3ADE68B1ns")
+      yaml.Timestamp.load(data) should be(ts)
+    }
+    it("should convert Axis") {
+      val axis = Axis('a, 1: java.lang.Integer)
+      val data = yaml.Axis.dump(axis)
+      data should be("id: a\nvalue: '1'\ntype: Integer")
+      yaml.Axis.load(data) should be(axis)
+
+      val axis2 = Axis('b, null.asInstanceOf[java.lang.Integer])
+      val data2 = yaml.Axis.dump(axis2)
+      yaml.Axis.load(data2) should be(axis2)
+    }
+    it("should convert Coordinate") {
+      val coordinate = Coordinate(Axis('a, 1: java.lang.Integer), Axis('b, 2: java.lang.Integer))
+      val data = yaml.Coordinate.dump(coordinate)
+      data should be("- id: a\n  value: '1'\n  type: Integer\n- id: b\n  value: '2'\n  type: Integer")
+      yaml.Coordinate.load(data) should be(coordinate)
+    }
+    it("should convert Reference") {
+      val uuid = UUID.fromString("50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac")
+      val coordinate = Coordinate(Axis('a, 1: java.lang.Integer), Axis('b, 2: java.lang.Integer))
+      val reference = Reference('test, uuid, coordinate)
+      val data = yaml.Reference.dump(reference)
+      data should be("unique: 50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac\ncoordinate:\n- id: a\n  value: '1'\n  type: Integer\n- id: b\n  value: '2'\n  type: Integer\norigin: test")
+      yaml.Reference.load(data) should be(reference)
+    }
+    ignore("should provide serialization mechanism for graph") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -104,28 +148,28 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         new File(folder, "john1").length() should be > (0L)
         new File(folder, "john1/descriptor.yaml") should be('file)
         new File(folder, "john1/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.from(model.eNode.modification))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.from(model.eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modification))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
-          format(Timestamp.from((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))).length() should be > (0L)
         //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
         //val str = testTxtSource.getLines.mkString("\n")
         //testTxtSource.close()
@@ -241,7 +285,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         } should be(true)
       }
     }
-    it("should correctly serialize elements") {
+    ignore("should correctly serialize elements") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -322,7 +366,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         } should be(true)
       }
     }
-    it("should filter elements on save/load") {
+    ignore("should filter elements on save/load") {
       withTempFolder { folder ⇒
         import TestDSL._
 

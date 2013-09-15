@@ -39,12 +39,14 @@ class ComplexDSLTypes extends DSLType {
    * Convert value from string
    */
   def convertFromString: PartialFunction[(Symbol, String), _ <: AnyRef with java.io.Serializable] = {
-    case ('ArrayOfSymbol, valueData) => valueData.split(" ").map(Symbol(_)).toArray
+    case (_, null) ⇒ null
+    case ('ArrayOfSymbol, valueData) ⇒ valueData.split(" ").map(Symbol(_)).toArray
   }
   /**
    * Save value to string
    */
   def convertToString: PartialFunction[(Symbol, _ <: AnyRef with java.io.Serializable), String] = {
-    case ('ArrayOfSymbol, valueData) => valueData.asInstanceOf[Array[Symbol]].map(_.name).mkString(" ")
+    case (_, null) ⇒ null
+    case ('ArrayOfSymbol, valueData) ⇒ valueData.asInstanceOf[Array[Symbol]].map(_.name).mkString(" ")
   }
 }

@@ -18,11 +18,20 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
+import scala.collection.JavaConverters._
+import scala.collection.immutable
+import scala.collection.mutable
+
 import org.digimead.digi.lib.api.DependencyInjection
+import org.digimead.tabuddy.model.serialization.Serialization
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.{ Constructor ⇒ YAMLConstructor }
+import org.yaml.snakeyaml.error.YAMLException
+import org.yaml.snakeyaml.nodes.MappingNode
 import org.yaml.snakeyaml.nodes.Node
+import org.yaml.snakeyaml.nodes.ScalarNode
+import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.representer.{ Representer ⇒ YAMLRepresenter }
 
@@ -37,29 +46,95 @@ object YAML {
   /** YAML de/serializer. */
   lazy val yaml = {
     val options = new DumperOptions()
+    options.setAllowUnicode(true)
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
     new Yaml(DI.constructor, DI.representer, options)
   }
 
+  /** Default YAML constructor. */
+  def constructor = DI.constructor
+  /** Default YAML representer. */
+  def representer = DI.representer
+
   /** Base YAML constructor. */
   class Constructor extends YAMLConstructor {
     // Workaround for java.lang.IllegalAccessError
-    protected def getYAMLConstructors = this.yamlConstructors
+    override protected def constructObject(node: Node): AnyRef =
+      super.constructObject(node)
+    override protected def constructMapping(node: MappingNode): java.util.Map[AnyRef, AnyRef] =
+      super.constructMapping(node)
+    override protected def constructSequence(node: SequenceNode): java.util.List[_] =
+      super.constructSequence(node)
+    protected def getYAMLClassConstructors =
+      this.yamlClassConstructors
+    protected def getYAMLConstructors =
+      this.yamlConstructors
+
+    abstract class CustomConstruct extends ConstructMapping {
+      /** Map with explicit type per key. */
+      protected val keyTypes: immutable.HashMap[String, PartialFunction[Node, Unit]]
+
+      override protected def createEmptyJavaBean(node: MappingNode): AnyRef = null // skip a bean creation
+      override def constructJavaBean2ndStep(node: MappingNode, obj: AnyRef): AnyRef = {
+        var map = mutable.HashMap[String, AnyRef]()
+        flattenMapping(node)
+        for (tuple ← node.getValue().asScala) {
+          // key must be scalar
+          val keyNode = if (tuple.getKeyNode().isInstanceOf[ScalarNode])
+            tuple.getKeyNode().asInstanceOf[ScalarNode]
+          else
+            throw new YAMLException("Keys must be scalars but found: " + tuple.getKeyNode());
+          val valueNode = tuple.getValueNode()
+          // keys can only be Strings
+          keyNode.setType(classOf[String])
+          val key = constructObject(keyNode).asInstanceOf[String]
+          keyTypes.get(key).foreach(_(valueNode))
+          map(key) = constructObject(valueNode) match {
+            case s: java.lang.Iterable[_] ⇒ s.asScala
+            case m: java.util.Map[_, _] ⇒ m.asScala
+            case v ⇒ v
+          }
+        }
+        constructCustom(map)
+      }
+      def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef
+    }
+  }
+  /** Default constructor base trait. */
+  trait DefaultConstructor
+    extends Axis.Constructor
+    with Coordinate.Constructor
+    with Reference.Constructor
+    with Serialization.Descriptor.Element.Constructor
+    with Serialization.Descriptor.Graph.Constructor
+    with Serialization.Descriptor.Node.Constructor
+    with Symbol.Constructor
+    with Timestamp.Constructor
+    with UUID.Constructor {
+    this: Constructor ⇒
   }
   /** Base YAML representer. */
   class Representer extends YAMLRepresenter {
     // Workaround for java.lang.IllegalAccessError
     protected def getMultiRepresenters = this.multiRepresenters
-    protected override def representScalar(tag: Tag, value: String): Node = super.representScalar(tag, value)
-    protected override def representScalar(tag: Tag, value: String, style: Character): Node = super.representScalar(tag, value, style)
+    protected override def representMapping(tag: Tag, mapping: java.util.Map[_, AnyRef], flowStyle: java.lang.Boolean): Node =
+      super.representMapping(tag, mapping, flowStyle)
+    protected override def representScalar(tag: Tag, value: String): Node =
+      super.representScalar(tag, value)
+    protected override def representScalar(tag: Tag, value: String, style: Character): Node =
+      super.representScalar(tag, value, style)
+    protected override def representSequence(tag: Tag, sequence: java.lang.Iterable[_], flowStyle: java.lang.Boolean): Node =
+      super.representSequence(tag, sequence, flowStyle)
   }
   /**
    * Dependency injection routines.
    */
   private object DI extends DependencyInjection.PersistentInjectable {
     /** YAML constructor. */
-    val constructor = injectOptional[Constructor] getOrElse new Constructor with Timestamp.Constructor
+    val constructor = injectOptional[Constructor] getOrElse
+      new Constructor with DefaultConstructor
     /** YAML representer. */
-    val representer = injectOptional[Representer] getOrElse new Representer with Timestamp.Representer
+    val representer = injectOptional[Representer] getOrElse
+      new Representer with Timestamp.Representer with Axis.Representer with Coordinate.Representer with Reference.Representer with UUID.Representer with Symbol.Representer
   }
 }

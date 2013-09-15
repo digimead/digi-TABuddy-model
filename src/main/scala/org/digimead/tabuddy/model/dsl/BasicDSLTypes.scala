@@ -46,6 +46,7 @@ class BasicDSLTypes extends DSLType with Loggable {
    * Convert value from string
    */
   def convertFromString: PartialFunction[(Symbol, String), _ <: AnyRef with java.io.Serializable] = {
+    case (_, null) => null
     case ('Byte, valueData) => valueData.toByte
     case ('Double, valueData) => valueData.toDouble
     case ('Float, valueData) => valueData.toFloat
@@ -59,6 +60,7 @@ class BasicDSLTypes extends DSLType with Loggable {
    * Save value to string
    */
   def convertToString: PartialFunction[(Symbol, _ <: AnyRef with java.io.Serializable), String] = {
+    case (_, null) => null
     case ('Byte, valueData) => String.valueOf(valueData)
     case ('Double, valueData) => String.valueOf(valueData)
     case ('Float, valueData) => String.valueOf(valueData)

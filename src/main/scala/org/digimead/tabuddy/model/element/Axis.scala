@@ -28,7 +28,8 @@ case class Axis[T <: AnyRef with java.io.Serializable](
   val id: Symbol,
   /** Axis value. */
   val value: T)(implicit val m: Manifest[T]) {
-  assert(DSLType.classes(m.runtimeClass), "unknown type " + m.runtimeClass)
+  if (!DSLType.classes(m.runtimeClass))
+    throw new IllegalArgumentException(s"Unknown value type: ${m.runtimeClass.getName}.")
 }
 
 /**
