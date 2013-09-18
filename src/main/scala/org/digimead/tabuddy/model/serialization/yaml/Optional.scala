@@ -34,8 +34,8 @@ import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.representer.Represent
 
-/** Container for optional information: Value Id -> Type Id -> (Static/Dynamic, Context) */
-case class Optional(values: immutable.HashMap[scala.Symbol, immutable.HashMap[scala.Symbol, (Boolean, Value.Context)]])
+/** Container for optional information: Value Id -> Type Id -> (Static/Dynamic) */
+case class Optional(values: immutable.HashMap[scala.Symbol, immutable.HashMap[scala.Symbol, (Boolean)]])
 
 object Optional {
   val tag = new Tag(Tag.PREFIX + "optional")
@@ -50,7 +50,7 @@ object Optional {
       case (valueId, valueMap) ⇒
         val perValueId = valueMap.map {
           case (typeSymbol, value) if DSLType.symbols(typeSymbol) ⇒
-            typeSymbol -> (value.getClass().isAssignableFrom(classOf[Value.Static[_]]), value.context)
+            typeSymbol -> (value.getClass().isAssignableFrom(classOf[Value.Static[_]]))
           case (typeSymbol, value) ⇒
             throw new YAMLException(s"Unable to process properties with symbol ${typeSymbol}. Suitable type not found.")
         }
@@ -67,25 +67,14 @@ object Optional {
     getYAMLConstructors.put(new Tag(classOf[Optional]), new ConstructOptional())
 
     private class ConstructOptional extends CustomConstruct {
-      protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]](
-        "values" -> {
-          case n: MappingNode ⇒ n.getValue().iterator().asScala.foreach(_.getValueNode() match {
-            case n: MappingNode ⇒ n.getValue().iterator().asScala.foreach(_.getValueNode() match {
-              case n: SequenceNode ⇒
-                setTagSafe(n.getValue().get(2), UUID.tag)
-            })
-          })
-        })
+      protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]]()
       def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
         val valuesSeq = map("values").asInstanceOf[mutable.Map[String, java.util.LinkedHashMap[String, java.util.List[AnyRef]]]].toSeq.map {
           case (valueId, perTypeMapYAML) ⇒
             val perTypeSeq = perTypeMapYAML.asScala.toSeq.map {
               case (typeId, info) ⇒
                 val isStatic = info.get(0).asInstanceOf[java.lang.Boolean].booleanValue()
-                val contextLine = info.get(1).asInstanceOf[java.lang.Integer]
-                val contextId = info.get(2).asInstanceOf[java.util.UUID]
-                Symbol.load(typeId) -> (isStatic, new Value.Context(if (contextId != null) Some(contextId) else None,
-                  if (contextLine != null) Some(contextLine) else None))
+                Symbol.load(typeId) -> isStatic
             }
             Symbol.load(valueId) -> immutable.HashMap(perTypeSeq: _*)
         }
@@ -109,10 +98,8 @@ object Optional {
               perTypeMap
             }
             perTypeMap.foreach {
-              case (typeId, (isStatic, context)) ⇒
-                perTypeMapYAML.put(Symbol.dump(typeId), Array[AnyRef](isStatic: java.lang.Boolean,
-                  context.line.map(i ⇒ i: java.lang.Integer).getOrElse(null),
-                  context.objectId.getOrElse(null)))
+              case (typeId, isStatic) ⇒
+                perTypeMapYAML.put(Symbol.dump(typeId), Array[AnyRef](isStatic: java.lang.Boolean))
             }
         }
         val map = new java.util.TreeMap[String, AnyRef]()

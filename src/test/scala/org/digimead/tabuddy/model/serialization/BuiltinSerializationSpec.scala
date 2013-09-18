@@ -73,7 +73,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         }.eRelative
         graph.node.safeRead(_.iteratorRecursive().size) should be(5)
         model.eNode.safeRead(_.size) should be(1)
-        model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123", Value.Context(model))))))
+        model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123")))))
         log.___glance("Model dump:\n" + model.eDump(false))
 
         // serialize

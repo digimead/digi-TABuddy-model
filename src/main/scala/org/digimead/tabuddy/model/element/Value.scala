@@ -34,13 +34,8 @@ import org.digimead.tabuddy.model.serialization.transport.Transport
  * Trait that provide general interface for Value implementation
  */
 trait Value[T] extends Equals with java.io.Serializable {
-  /** Value context information */
-  val context: Value.Context
-
   /** Commit complex property (if needed) while saving. */
   def commit(element: Element, transport: Transport, elementDirectoryURI: URI)
-  /** Copy constructor */
-  def copy(context: Value.Context = this.context): this.type
   /** Get value. */
   def get(): T
   /** Value equality. */
@@ -48,16 +43,12 @@ trait Value[T] extends Equals with java.io.Serializable {
     case that: Value[_] ⇒ this.get == that.get
     case _ ⇒ false
   }
-  /** Class equality with context but without values. */
-  def =:=(that: Any): Boolean
-  /** get() equality. */
-  override def equals(that: Any): Boolean =
-    (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Value[_] ⇒ this.get == that.get && this.## == that.##
-      case _ ⇒ false
-    })
-  override def hashCode() = lazyHashCode
-  protected lazy val lazyHashCode = context.hashCode
+  /** Equality. */
+  override def equals(that: Any): Boolean = that match {
+    case that: Value[_] ⇒ (this eq that) ||
+      (this.canEqual(that) && that.canEqual(this) && this.## == that.##)
+    case _ ⇒ false
+  }
   /** Needed for correct definition of equals for general classes. */
   def canEqual(that: Any): Boolean
 }
@@ -94,120 +85,49 @@ object Value extends Loggable {
   /**
    * Convert [T] to Value.Static
    */
-  def static[T <: AnyRef with java.io.Serializable](x: T)(implicit container: Element = null, m: Manifest[T]): Static[T] =
-    if (container == null)
-      new Static(x, new Value.Context(None, None))
-    else {
-      val stack = new Throwable().getStackTrace()
-      if (stack.size < 1)
-        new Static(x, new Value.Context(Some(container.eUniqueId), None))
-      else
-        new Static(x, container.eModel.contextForChild(container, Some(stack(1))))
-    }
+  def static[T <: AnyRef with java.io.Serializable: Manifest](arg: T): Static[T] = new Static[T](arg)
   /**
    * Convert () => [T] to Value.Dinamic
    */
-  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](container: Element, x: () ⇒ T): Dynamic[T] = {
-    implicit val e = container
-    dinamic(x)
-  }
+  def dinamic[T <: AnyRef with java.io.Serializable: Manifest](arg: () ⇒ T): Dynamic[T] = new Dynamic[T](arg)
   /**
-   * Convert () => [T] to Value.Dinamic
+   * Dynamic value implementation.
+   *
+   * @param data actual value
    */
-  def dinamic[T <: AnyRef with java.io.Serializable](x: () ⇒ T)(implicit container: Element = null, m: Manifest[T]): Dynamic[T] =
-    if (container == null)
-      new Dynamic(x, new Value.Context(None, None))
-    else {
-      val stack = new Throwable().getStackTrace()
-      if (stack.size < 1)
-        new Dynamic(x, new Value.Context(Some(container.eUniqueId), None))
-      else
-        new Dynamic(x, container.eModel.contextForChild(container, Some(stack(1))))
-    }
-
-  /** Value context information. */
-  class Context(
-    /** Context object. */
-    val objectId: Option[UUID],
-    /** Context file line. */
-    val line: Option[Int]) extends Equals with java.io.Serializable {
-
-    /** Copy constructor. */
-    def copy(objectId: Option[UUID] = this.objectId, line: Option[Int] = this.line) = new Context(objectId, line)
-
-    override def canEqual(that: Any) = that.isInstanceOf[Context]
-    override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Context if this.## == that.## ⇒ that canEqual this
-      case _ ⇒ false
-    })
-    override def hashCode() = lazyHashCode
-    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](objectId, line))
-    override def toString() = "Context[%s:%s]".format(objectId.getOrElse("-"), line.getOrElse("-"))
-  }
-  object Context {
-    /** Create empty context for unbound value. */
-    def apply() = new Value.Context(None, None)
-    /** Create context for element. */
-    def apply(element: Element) = new Value.Context(Some(element.eUniqueId), None)
-    /** Create context for element box. */
-    def apply(box: ElementBox[_ <: Element]) = new Value.Context(Some(box.elementUniqueId), None)
-  }
-  /**
-   * Dynamic value implementation
-   */
-  class Dynamic[T <: AnyRef with java.io.Serializable](
-    /** Actual value. */
-    protected val data: () ⇒ T,
-    /** Value context information. */
-    val context: Context)(implicit m: Manifest[T]) extends Value[T] {
+  class Dynamic[T <: AnyRef with java.io.Serializable](protected val data: () ⇒ T)(implicit m: Manifest[T]) extends Value[T] {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
     /** Commit complex property (if needed) while saving. */
     def commit(element: Element, transport: Transport, elementDirectoryURI: URI) =
       DSLType.commit[T](this, element, transport, elementDirectoryURI)
-    /** Copy constructor */
-    def copy(context: Context = this.context): this.type = (new Dynamic(data, context)).asInstanceOf[this.type]
     /** Get value. */
     def get() = data()
-    /** Class equality with context but without values. */
-    def =:=(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Dynamic[_] if this.data.getClass == that.data.getClass && this.context == that.context ⇒ (that canEqual this)
-      case _ ⇒ false
-    })
 
     /** Needed for correct definition of equals for general classes. */
     def canEqual(that: Any): Boolean = that.isInstanceOf[Dynamic[_]]
     override def hashCode() = lazyHashCode
-    override protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](data, context))
+    protected lazy val lazyHashCode = data.##
     override def toString() = "Dynamic[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
       DSLType.convertToString[T](get()).getOrElse(get()))
   }
   /**
-   * Static value implementation
+   * Static value implementation.
+   *
+   * @param data initial value
    */
-  class Static[T <: AnyRef with java.io.Serializable](
-    /** Initial value. */
-    protected val data: T,
-    /** Value context information. */
-    val context: Context)(implicit m: Manifest[T]) extends Value[T] {
+  class Static[T <: AnyRef with java.io.Serializable](protected val data: T)(implicit m: Manifest[T]) extends Value[T] {
     assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
     /** Commit complex property (if needed) while saving. */
     def commit(element: Element, transport: Transport, elementDirectoryURI: URI) =
       DSLType.commit[T](this, element, transport, elementDirectoryURI)
-    /** Copy constructor */
-    def copy(context: Context = this.context): this.type = (new Static(data, context)).asInstanceOf[this.type]
     /** Get value. */
     def get() = data
-    /** Class equality with context but without values. */
-    def =:=(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Static[_] if this.data.getClass == that.data.getClass && this.context == that.context ⇒ (that canEqual this)
-      case _ ⇒ false
-    })
     /** Needed for correct definition of equals for general classes. */
     def canEqual(that: Any): Boolean = that.isInstanceOf[Static[_]]
     override def hashCode() = lazyHashCode
-    override protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](data, context))
+    protected lazy val lazyHashCode = data.##
     override def toString() = "Static[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
       DSLType.convertToString[T](get()).getOrElse(get()))
   }

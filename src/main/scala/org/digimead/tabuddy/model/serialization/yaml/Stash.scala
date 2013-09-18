@@ -44,8 +44,6 @@ object Stash extends Loggable {
   val tag = new Tag(Tag.PREFIX + "stash")
   /** Value is static by default. */
   val defaultStatic = true
-  /** Value context is empty by default. */
-  val defaultContext = Value.Context()
 
   /** Convert Stash to string. */
   def dump(arg: EStash.Like): String = YAML.dump(arg).trim
@@ -93,18 +91,18 @@ object Stash extends Loggable {
         val properties = for ((id, properties) ← list.groupBy(_.id).toSeq) yield {
           val values: Seq[(scala.Symbol, Value[_ <: AnyRef with java.io.Serializable])] =
             for (property ← properties.toSeq) yield if (DSLType.symbols(property.typeSymbol)) {
-              val (static, context) = optional.flatMap(_.values.get(id)).flatMap(_.get(property.typeSymbol)) match {
-                case Some((isStatic, context)) ⇒
-                  (isStatic, context)
+              val static = optional.flatMap(_.values.get(id)).flatMap(_.get(property.typeSymbol)) match {
+                case Some(isStatic) ⇒
+                  isStatic
                 case None ⇒
                   log.error(s"Unable to find optional information for value ${id} → ${property.typeSymbol}.")
-                  (defaultStatic, defaultContext)
+                  defaultStatic
               }
               (DSLType.convertFromString(property.typeSymbol, property.data) match {
                 case Some(data) if static ⇒
-                  property.typeSymbol -> new Value.Static(data, context)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
+                  property.typeSymbol -> new Value.Static(data)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
                 case Some(data) ⇒
-                  property.typeSymbol -> new Value.Dynamic(() ⇒ data, context)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
+                  property.typeSymbol -> new Value.Dynamic(() ⇒ data)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
                 case None ⇒
                   throw new YAMLException(s"Unable to unpack value '${property.id}=${property.data}.")
               }): (scala.Symbol, Value[_ <: AnyRef with java.io.Serializable])

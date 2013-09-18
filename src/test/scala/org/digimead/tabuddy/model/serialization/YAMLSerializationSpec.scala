@@ -131,9 +131,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
       val stash = model.eStash.copy(modification = Element.timestamp(2, 2))
       val optional = yaml.Optional.getOptional(stash)
       optional.values should contain key ('AAAKey)
-      optional.values('AAAKey)('String).isInstanceOf[Tuple2[_, _]] should be(true)
       optional.values should contain key ('BBBKey)
-      optional.values('BBBKey)('String).isInstanceOf[Tuple2[_, _]] should be(true)
       Serialization.stash.set(optional)
       val data = yaml.Stash.dump(stash)
       data should be("class: org.digimead.tabuddy.model.Model$Stash\ncreated: 1ms.1ns\nmodification: 2ms.2ns\n" +
@@ -156,19 +154,19 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
       val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1))
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").
-        eSet('other, Some(new Value.Static(123: Integer, new Value.Context(None, None)))).eRelative
+        eSet('other, Some(new Value.Static(123: Integer))).eRelative
       model.copy(model.eStash.copy(property = model.eStash.property +
         ('other -> (model.eStash.property('other) +
-          ('String -> new Value.Static("321", new Value.Context(None, None)))))))
+          ('String -> new Value.Static("321"))))))
       val stash = model.eStash.copy(modification = Element.timestamp(2, 2))
       val optional = yaml.Optional.getOptional(stash)
       val data = yaml.Optional.dump(optional)
       val u = model.eUniqueId
       data should be("values:\n" +
-        s"  AAAKey:\n    String:\n    - true\n    - null\n    - $u\n" +
-        s"  BBBKey:\n    String:\n    - true\n    - null\n    - $u\n" +
-        s"  other:\n    Integer:\n    - true\n    - null\n    - $u\n" +
-        "    String:\n    - true\n    - null\n    - null")
+        s"  AAAKey:\n    String:\n    - true\n" +
+        s"  BBBKey:\n    String:\n    - true\n" +
+        s"  other:\n    Integer:\n    - true\n" +
+        "    String:\n    - true")
       optional should not be (null)
       yaml.Optional.load(data) should be(optional)
     }
@@ -196,7 +194,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         }.eRelative
         graph.node.safeRead(_.iteratorRecursive().size) should be(5)
         model.eNode.safeRead(_.size) should be(1)
-        model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123", Value.Context(model))))))
+        model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123")))))
         log.___glance("Model dump:\n" + model.eDump(false))
 
         // serialize

@@ -93,86 +93,6 @@ object Model extends Loggable {
     type StashType <: Model.Stash.Like
     type ElementType <: Like
 
-    /**
-     * Add context information to context map.
-     */
-    @log
-    def contextAdd(box: URI, valueContext: Value.Context): Unit = {
-      log.info(s"Add new context ${valueContext} to ${box}.")
-      eStash.contextMap.get(box) match {
-        case Some(valueMap) ⇒
-          eStash.contextMap(box) = (valueMap :+ valueContext).sortBy(_.line)
-        case None ⇒
-          eStash.contextMap(box) = Seq(valueContext)
-      }
-    }
-    /**
-     * Delete context information from context map if any.
-     */
-    @log
-    def contextDel(box: URI, valueContext: Value.Context) = {
-      log.info(s"Delete context ${valueContext} from ${box}.")
-      eStash.contextMap.get(box) match {
-        case Some(valueMap) ⇒
-          eStash.contextMap(box) = (valueMap :+ valueContext).sortBy(_.line)
-        case None ⇒
-          eStash.contextMap(box) = Seq(valueContext)
-      }
-    }
-    /**
-     * Get context information by file/line
-     */
-    @log
-    def contextGet(file: URI, line: Int): Option[Value.Context] = {
-      None
-    }
-    /**
-     * Create context information from document map for element
-     */
-    @log
-    def contextBuildFromDocument(element: Element, line: Int): Option[Value.Context] = {
-      /*val map = eStash.documentMap.value
-      if (line < 1) return None
-      if (map.isEmpty) return None
-      for (i ← 0 until map.size) yield {
-        map(i).line match {
-          case Some(mapLine) if mapLine > line ⇒
-            if (i == 0) {
-              log.fatal("incorrect shift for buildContextFromDocument want: %s, i: %d, map: %s".format(line, i, map.mkString("\n")))
-              return None
-            } else
-              return Some(Context(element.eReference, map(i - 1).file, Some(line - (map.head.line.getOrElse(0) - 1)), map(i - 1).digest))
-          case _ ⇒
-        }
-      }
-      Some(Context(element.eReference, map.last.file, Some(line - (map.head.line.getOrElse(0) - 1)), map.last.digest))*/
-      None
-    }
-    /**
-     * Create context information from the specific container
-     */
-    def contextForChild(container: Element, t: Option[StackTraceElement]): Value.Context = t match {
-      case Some(stack) if stack.getFileName() == "(inline)" && eStash.documentMap.value.nonEmpty ⇒
-        // loaded as runtime Scala code && documentMap defined
-        //Context(container.eReference, None, Some(stack.getLineNumber()), None)
-        null
-      case _ ⇒
-        // everything other - virtual context
-        //Context(container)
-        null
-    }
-    /**
-     * Set current thread local context information
-     * for document parser, for example
-     */
-    @log
-    def contextSet(documentMap: Seq[Value.Context]) {
-      if (documentMap.nonEmpty)
-        log.debugWhere("set local document context [%s]".format(documentMap.mkString(", ")))
-      else
-        log.debugWhere("reset local document context")
-      eStash.documentMap.value = documentMap
-    }
     /** Dump the model content. */
     override def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
       def dumpProperties() = {
@@ -228,23 +148,6 @@ object Model extends Loggable {
       type Stash <: Model.Like
       /** Scope type. */
       type ScopeType <: Model.Scope
-      /** Map of all sorted contexts by line number per file */
-      val contextMap = new mutable.HashMap[URI, Seq[Value.Context]] with mutable.SynchronizedMap[URI, Seq[Value.Context]]
-      /**
-       * Thread local context, empty - REPL, non empty - document
-       * for example, after include preprocessor:
-       * line 3, File A, digest File A
-       * line 100, File B, digest File B
-       * line 150, File C, digest File C
-       * line 300, File A, digest File A
-       *
-       * so line 1 .. 2 - runtime header
-       * line 3 .. 99 - file A
-       * line 100 .. 149 - file B (include)
-       * line 150 .. 299 - file C (include)
-       * line 300 .. end - file A
-       */
-      @transient val documentMap = new DynamicVariable[Seq[Value.Context]](Seq())
 
       override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Stash.Like]
     }

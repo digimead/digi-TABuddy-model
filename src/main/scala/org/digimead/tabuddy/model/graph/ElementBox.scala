@@ -67,9 +67,6 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
       case initial @ Left(baseURIForLazyLoading) ⇒ Left(baseURIForLazyLoading)
       case Right(explicitElement) ⇒ Right(explicitElement.get)
     }, node, serialization, unmodified)
-
-  /** Current box context */
-  def context(): ElementBox.Context
   /** Copy current element box. */
   def copy(coordinate: Coordinate = this.coordinate,
     node: Node[A] = this.node,
@@ -112,31 +109,12 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   override def hashCode() = java.util.Arrays.hashCode(Array[Int](lazyHashCode))
   protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.coordinate, this.elementUniqueId,
     this.node, this.serialization))
-  override def toString = s"graph.Box[${context}:${coordinate}/${node.elementType};${node.id}]"
+  override def toString = s"graph.Box[${coordinate}/${node.elementType};${node.id}]"
 }
 
 object ElementBox extends Loggable {
   implicit def box2interface(g: ElementBox.type): Interface = DI.implementation
 
-  /** Element box context information */
-  class Context(
-    /** Context file. */
-    val file: Option[URI],
-    /** Context file digest. */
-    val digest: Option[String]) extends Equals {
-
-    /** Copy constructor. */
-    def copy(file: Option[URI] = this.file, digest: Option[String] = this.digest) = new Context(file, digest)
-
-    override def canEqual(that: Any) = that.isInstanceOf[Context]
-    override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Context if this.## == that.## ⇒ that canEqual this
-      case _ ⇒ false
-    })
-    override def hashCode() = lazyHashCode
-    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](file, digest))
-    override def toString() = "Context[%s:%s]".format(digest.getOrElse("-"), file.getOrElse("-"))
-  }
   /**
    *  Element box companion interface
    */
@@ -248,13 +226,6 @@ object ElementBox extends Loggable {
     /** Unmodified element object. */
     @volatile protected var unmodifiedCache: Option[A] = None
 
-    /** Current box context. */
-    def context(): ElementBox.Context = new ElementBox.Context(None, None)
-    /** Get modification timestamp of unmodified element. */
-    /*
-     * Hard element box is always contains the initial data.
-     * The simplest way is just to overwrite it. Returns 0 timestamp.
-     */
     def get(): A = getModified getOrElse getUnmodified
     def getModified(): Option[A] = modifiedCache
     def getUnmodified(): A = unmodifiedCache getOrElse load()

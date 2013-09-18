@@ -75,8 +75,6 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
    */
   def eAs[A <: Element]()(implicit m: Manifest[A]): Option[A] =
     if (m.runtimeClass.isAssignableFrom(getClass)) Some(this.asInstanceOf[A]) else None
-  /** Get element context. */
-  def eContext(): ElementBox.Context = eBox.context
   /** Get list of axes(tags). */
   def eCoordinate() = eBox.coordinate
   /** Copy constructor. */
@@ -209,7 +207,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
           eStash.property.get(id) match {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
-              val newValue = value.copy(context = Value.Context(this))
+              val newValue = value
               previousValue match {
                 case Some(previous) ⇒
                   val undoF = () ⇒ {}
@@ -222,7 +220,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
                 asInstanceOf[ElementType#StashType])
             case None ⇒
-              val newValue = value.copy(context = Value.Context(this))
+              val newValue = value
               val undoF = () ⇒ {}
               //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               None

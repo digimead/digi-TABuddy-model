@@ -211,8 +211,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           rA1.name = rA2.name
           val a = rA1.eGet[String]('name).get
           val b = rA2.eGet[String]('name).get
-          a.context should not be (b.context)
-          a should not be (b)
+          a should be (b)
           rA1.compare(rA2) should be(0) // rA1 modified after, but rA1 == rA2
           model1.name = "333"
           model1.compare(model2) should be(1) // model1 modified after model2

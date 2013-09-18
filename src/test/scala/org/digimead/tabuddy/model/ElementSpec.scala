@@ -118,7 +118,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       myModel should not be null
       // 100000 iterations x 10 threads x 3 elements = 3000000 elements
       // 3000000 is about 4.5GB mem
-      // 300000/10Th processed within 6000ms - 10000ms = ~30000-50000 eCopy(write) operations per second on notebook/home pc
+      // 300000/10Th processed within 3000ms = ~100000 operations per second on notebook/home pc
       // ~?/1Th eCopy(write) ops in single thread
       // ~?/10Th eCopy(write) ops in multi thread
       multithread(1000, 10) { i ⇒
@@ -149,7 +149,6 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val myModel = graph.model
       multithread(1000, 10) { i ⇒
         val r1 = graph.model.withRecord('a) { r ⇒ r }
-        val rctx = r1.eContext
         val rcoord = r1.eCoordinate
         val rid = r1.eId
         val runique = r1.eNodeId
@@ -181,13 +180,8 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val myModel = graph.model
       val r1 = myModel.withRecord('a) { r ⇒ r }
-      //r1.eBox.context.origin should not be (null)
-      //r1.eBox.context.unique should not be (null)
-      //myModel.e(r1.eBox.context) should be(Some(myModel.eNode))
       myModel.e(r1.eReference) should be(Some(r1: Element))
       myModel.e(myModel.eReference) should be(Some(myModel))
-      //r1.eBox.context.origin.name should be(r1.eReference.origin.name)
-      //r1.eBox.context.unique should be(myModel.eReference.unique)
     }
     it("should have proper copy constructor") {
       import TestDSL._
@@ -218,19 +212,16 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       record3.name should be("level3")
       save = save.eSet[Integer]('test, 123)
       val saveValue = save.eGet[Integer]('test).get
-      //saveValue.context.unique should be(save.eReference.unique)
       val copy = save.eCopy(save.eNode, ('a, 1))
       copy.eId.name should be("level2")
       copy.name should be("level2a")
       copy.eNode.safeRead(_.head.getRootElementBox.get.asInstanceOf[Record].name) should be("level3")
       val copyValue = copy.eGet[Integer]('test).get
-      //copyValue.context.unique should be(copy.eReference.unique)
       record.eReference.model should be(copy.eReference.model)
       record.eReference.node should not be (copy.eReference.node)
       val newRecord = record.eSet('test, Some(copyValue))
       val recordValue = newRecord.eGet[Integer]('test).get
       recordValue.get should be(copyValue.get)
-      //recordValue.context.unique should be(record.eReference.unique)
       myModel.e(save.eReference) should be('nonEmpty)
       record.eNode.safeWrite(_ -= save.eNode)
       myModel.e(save.eReference) should be(None)

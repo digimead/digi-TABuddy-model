@@ -45,16 +45,10 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
       val model = graph.model
       val container = model.record('test).eRelative
-      new Value.Static("123", Value.Context(container)) =:= new Value.Static("123", Value.Context(container)) should be(true)
-      new Value.Static("123", Value.Context(container)) == new Value.Static("123", Value.Context(container)) should be(true)
-//      new Value.Static("123", Value.Context(container)) =:= new Value.Static("123", Value.Context(container.eReference, None, Some(0), None)) should be(false)
-//      new Value.Static("123", Value.Context(container)) == new Value.Static("123", Value.Context(container.eReference, None, Some(0), None)) should be(true)
-      new Value.Static("123", Value.Context(container)) =:= new Value.Static(Int.box(123), Value.Context(container)) should be(false)
-      new Value.Static("123", Value.Context(container)) =:= new Value.Dynamic(() ⇒ "123", Value.Context(container)) should be(false)
-      new Value.Static("123", Value.Context(container)) == new Value.Dynamic(() ⇒ "123", Value.Context(container)) should be(false)
-      new Value.Static("123", Value.Context(container)) == new Value.Dynamic(() ⇒ "123", Value.Context(container)) should be(false)
-      new Value.Static("123", Value.Context(container)) === new Value.Dynamic(() ⇒ "123", Value.Context(container)) should be(true)
-      new Value.Static("123", Value.Context(container)) === new Value.Dynamic(() ⇒ Int.box(123), Value.Context(container)) should be(false)
+      new Value.Static("123") == new Value.Static("123") should be(true)
+      new Value.Static("123") == new Value.Dynamic(() ⇒ "123") should be(false)
+      new Value.Static("123") === new Value.Dynamic(() ⇒ "123") should be(true)
+      new Value.Static("123") === new Value.Dynamic(() ⇒ Int.box(123)) should be(false)
     }
     it("should should be affected by implicit conversions") {
       import TestDSL._
@@ -63,13 +57,9 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val rootWorkspace = model.record('test).eRelative
       implicit val container = rootWorkspace.absolute
       // x2value: convert T -> Option[Value[T]]
-      val context = Value.Context(rootWorkspace)
       var test: Option[Value[String]] = None
       test = "123"
-//      test.get.context.unique should not be (UUID.fromString("00000000-0000-0000-0000-000000000000"))
-//      test.get.context.unique should be(rootWorkspace.eReference.unique)
-      test.get =:= new Value.Static("123", test.get.context) should be(true)
-      test.get == new Value.Static("123", test.get.context) should be(true)
+      test.get == new Value.Static("123") should be(true)
       // value2x: convert Value[T] -> T
       val a: String = test.get
       a should be("123")
@@ -80,12 +70,9 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val model = graph.model
       val rootWorkspace = model.record('test).eRelative
       // x2value: convert T -> Option[Value[T]]
-      val context = Value.Context(rootWorkspace)
       var test: Option[Value[String]] = None
       test = "123"
-//      test.get.context.unique should be(UUID.fromString("00000000-0000-0000-0000-000000000000"))
-      test.get =:= new Value.Static("123", test.get.context) should be(true)
-      test.get == new Value.Static("123", test.get.context) should be(true)
+      test.get == new Value.Static("123") should be(true)
       // value2x: convert Value[T] -> T
       val a: String = test.get
       a should be("123")
@@ -120,29 +107,9 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val value1 = Value.static("A")
       val value2 = Value.static(record1, "A")
       val value3 = Value.dinamic(() ⇒ "B")
-      val value4 = Value.dinamic(record1, () ⇒ "B")
+      val value4 = Value.dinamic(() ⇒ "B")
       value1.get should be(value2.get)
       value3.get should be(value4.get)
-      value1.context should be(Value.Context())
-      value3.context should be(Value.Context())
-      value2.context should not be (Value.Context())
-      value4.context should not be (Value.Context())
-//      value2.context.unique should be(record1.eNodeId)
-//      value2.context.origin.name should be(record1.eOrigin.name)
-//      value4.context.unique should be(record1.eNodeId)
-//      value4.context.origin.name should be(record1.eOrigin.name)
-    }
-  }
-  describe("A Value.Context") {
-    it("should have a proper equality") {
-      import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
-      val model = graph.model
-      val rootWorkspace = model.record('test)
-//      Value.Context(rootWorkspace.eReference, None, None, None) should be(Context(rootWorkspace.eReference, None, None, None))
-//      Value.Context(rootWorkspace.eReference, Some(null), None, None) should not be (Context(rootWorkspace.eReference, None, None, None))
-//      Value.Context(rootWorkspace.eReference, None, Some(0), None) should not be (Context(rootWorkspace.eReference, None, None, None))
-//      Value.Context(rootWorkspace.eReference, None, None, Some(null)) should not be (Context(rootWorkspace.eReference, None, None, None))
     }
   }
 
