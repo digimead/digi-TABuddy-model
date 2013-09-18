@@ -18,18 +18,37 @@
 
 package org.digimead.tabuddy.model.serialization
 
+import java.net.URI
+
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.ElementBox
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.serialization.transport.Transport
 
 class StubSerialization extends Mechanism with Loggable {
   /** Identifier of the serialization mechanism. */
   val identifier = StubSerialization.Identifier
 
-  /** Load element. */
-  def load[A <: Element](elementBox: ElementBox[A], from: Array[Byte])(implicit m: Manifest[A]): A = ???
-  /** Save element. */
-  def save(element: Element): Array[Byte] = ???
+  /**
+   * Load element.
+   *
+   * @param elementBox box of the loaded element
+   * @param storageURI storage URI
+   * @param transport serialization transport
+   *
+   * @return element
+   */
+  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = ???
+  /**
+   * Save element.
+   *
+   * @param element element to save
+   * @param transport serialization transport
+   * @param storageURI storage URI
+   * @param ancestorsNSelf sequence of ancestors
+   */
+  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) = ???
 }
 
 object StubSerialization {

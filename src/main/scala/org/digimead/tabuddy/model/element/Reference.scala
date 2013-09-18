@@ -24,8 +24,9 @@ import java.util.UUID
  * Element reference points to particular unique element.
  */
 // origin - exclusive attribute of Graph
-// unique - exclusive attribute of Node
+// model - model unique id
+// node - node unique id
 // coordinate - exclusive attribute of ElementBox
-case class Reference(origin: Symbol, unique: UUID, coordinate: Coordinate) {
-  override def toString() = "[%s://%s at %s]".format(origin.name, unique, coordinate)
+case class Reference(origin: Symbol, model: UUID, node: UUID, coordinate: Coordinate) {
+  override def toString() = "[%s://%s at %s]".format(origin.name, node, coordinate)
 }

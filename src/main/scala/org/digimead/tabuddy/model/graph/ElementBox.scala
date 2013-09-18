@@ -23,6 +23,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 import org.digimead.digi.lib.api.DependencyInjection
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
@@ -67,8 +68,6 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
       case Right(explicitElement) ⇒ Right(explicitElement.get)
     }, node, serialization, unmodified)
 
-  /** Get reference of this element. */
-  def eReference(): Reference = Reference(node.graph.origin, node.unique, coordinate)
   /** Current box context */
   def context(): ElementBox.Context
   /** Copy current element box. */
@@ -95,11 +94,13 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   def load(): A
   /** Get modification timestamp. */
   def modification: Element.Timestamp = getModified.map(_.modification) getOrElse unmodified
-  /** Save element. */
-  def save(): Array[Byte] = Serialization.perIdentifier.get(serialization) match {
-    case Some(serialization) ⇒ serialization.save(get)
-    case None ⇒ throw new IllegalStateException(s"Serialization for ${serialization} not found.")
-  }
+  /**
+   * Save element.
+   *
+   * @param ancestorsNSelf sequence of modified(if needed) ancestors
+   * @param storageURI explicit storage URI
+   */
+  def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]] = Seq(), storageURI: Option[URI] = None)
   /** Set element. */
   def set(arg: Option[A])
 
@@ -114,7 +115,7 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   override def toString = s"graph.Box[${context}:${coordinate}/${node.elementType};${node.id}]"
 }
 
-object ElementBox {
+object ElementBox extends Loggable {
   implicit def box2interface(g: ElementBox.type): Interface = DI.implementation
 
   /** Element box context information */
@@ -265,16 +266,53 @@ object ElementBox {
           element
         case Left(baseURIForLazyLoading) ⇒
           // Base URI that is passed instead of element.
-          val element = Serialization.perScheme.get(baseURIForLazyLoading.getScheme()) match {
-            case Some(transport) ⇒
-              transport.acquireElement(this, baseURIForLazyLoading)
+          val element = Serialization.perIdentifier.get(serialization) match {
+            case Some(mechanism) ⇒
+              Serialization.perScheme.get(baseURIForLazyLoading.getScheme()) match {
+                case Some(transport) ⇒
+                  mechanism.load(this, baseURIForLazyLoading, transport)
+                case None ⇒
+                  throw new IllegalArgumentException(s"Transport for the specified scheme '${baseURIForLazyLoading.getScheme()}' not found.")
+              }
             case None ⇒
-              throw new IllegalArgumentException(s"Transport for the specified scheme '${baseURIForLazyLoading.getScheme()}' not found.")
+              throw new IllegalArgumentException(s"Serialization for the specified ${serialization} not found.")
           }
           unmodifiedCache = Some(element)
           element
       }
     }
+    // get modified timestamp or get unmodified timestamp or get unmodified if not loaded
+    override def modification: Element.Timestamp = modifiedCache.map(_.modification) orElse
+      unmodifiedCache.map(_.modification) getOrElse unmodified
+    def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]] = Seq(), storageURI: Option[URI] = None) =
+      synchronized {
+        getModified match {
+          case Some(element) =>
+            Serialization.perIdentifier.get(serialization) match {
+              case Some(mechanism) ⇒
+                val storages = storageURI match {
+                  case Some(storage) => Seq(storage)
+                  case None => node.graph.storages
+                }
+                val ancestors = if (ancestorsNSelf.nonEmpty) ancestorsNSelf else node.safeRead(node ⇒ node.ancestors.reverse :+ node)
+                storages.foreach { storageURI =>
+                  Serialization.perScheme.get(storageURI.getScheme()) match {
+                    case Some(transport) ⇒
+                      mechanism.save(ancestors, element, storageURI, transport)
+                    case None ⇒
+                      throw new IllegalArgumentException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
+                  }
+                }
+                unmodifiedCache = Some(element)
+                modifiedCache = None
+              case None ⇒
+                throw new IllegalStateException(s"Serialization mechanism for ${serialization} not found.")
+            }
+          case None =>
+            log.debug(s"Skip saveing ${this}: not modified.")
+        }
+      }
+
     def set(arg: Option[A]) = {
       modifiedCache = arg
       arg match {

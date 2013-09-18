@@ -20,34 +20,32 @@ package org.digimead.tabuddy.model.serialization.yaml
 
 import scala.collection.JavaConverters._
 
-import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
-import org.digimead.tabuddy.model.element.{ Coordinate ⇒ ECoordinate }
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.representer.Represent
 
-object Coordinate extends Loggable {
-  val tag = new Tag(Tag.PREFIX + "coord")
+object Property {
+  val tag = new Tag(Tag.PREFIX + "property")
 
-  /** Convert Coordinate to string. */
-  def dump(arg: ECoordinate): String = YAML.dump(arg).trim
-  /** Convert string to Coordinate. */
-  def load(arg: String): ECoordinate = YAML.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate]
+  /** Convert Stash to string. */
+  def dump(arg: Wrapper): String = YAML.dump(arg).trim
+  /** Convert string to Stash. */
+  def load(arg: String): Wrapper = YAML.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper]
 
   trait Constructor {
     this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Coordinate.tag, new ConstructCoordinate())
-    getYAMLConstructors.put(new Tag(classOf[ECoordinate]), new ConstructCoordinate())
+    getYAMLConstructors.put(Property.tag, new ConstructProperty())
+    getYAMLConstructors.put(new Tag(classOf[Wrapper]), new ConstructProperty())
 
-    private class ConstructCoordinate extends ConstructSequence {
+    private class ConstructProperty extends ConstructSequence {
       override def construct(node: Node): AnyRef = node match {
         case snode: SequenceNode ⇒
-          snode.getValue().iterator().asScala.foreach(setTagSafe(_, Axis.tag))
-          ECoordinate(constructSequence(snode).asInstanceOf[java.util.ArrayList[EAxis[_ <: AnyRef with java.io.Serializable]]].asScala: _*)
+          setTagSafe(snode.getValue().get(0), Symbol.tag)
+          setTagSafe(snode.getValue().get(1), Symbol.tag)
+          val seq = constructSequence(snode).asInstanceOf[java.util.ArrayList[AnyRef]]
+          Wrapper(seq.get(1).asInstanceOf[scala.Symbol], seq.get(2).asInstanceOf[String], seq.get(0).asInstanceOf[scala.Symbol])
         case node ⇒
           throw new YAMLException(s"Unexpected Coordinate node: ${node}.")
       }
@@ -55,10 +53,14 @@ object Coordinate extends Loggable {
   }
   trait Representer {
     this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[ECoordinate], new RepresentCoordinate())
+    getMultiRepresenters.put(classOf[Wrapper], new RepresentProperty())
 
-    class RepresentCoordinate extends Represent {
-      def representData(data: AnyRef): Node = representSequence(Tag.SEQ, data.asInstanceOf[ECoordinate].coordinate.asJava, null)
+    class RepresentProperty extends Represent {
+      def representData(data: AnyRef): Node = {
+        val wrapper = data.asInstanceOf[Wrapper]
+        representSequence(Tag.SEQ, Seq(wrapper.id, wrapper.typeSymbol, wrapper.data).asJava, true)
+      }
     }
   }
+  case class Wrapper(val typeSymbol: Symbol, val data: String, val id: Symbol)
 }

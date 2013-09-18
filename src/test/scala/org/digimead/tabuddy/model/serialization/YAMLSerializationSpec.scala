@@ -88,7 +88,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
     it("should convert Axis") {
       val axis = Axis('a, 1: java.lang.Integer)
       val data = yaml.Axis.dump(axis)
-      data should be("id: a\nvalue: '1'\ntype: Integer")
+      data should be("id: a\ntype: Integer\nvalue: '1'")
       yaml.Axis.load(data) should be(axis)
 
       val axis2 = Axis('b, null.asInstanceOf[java.lang.Integer])
@@ -98,18 +98,81 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
     it("should convert Coordinate") {
       val coordinate = Coordinate(Axis('a, 1: java.lang.Integer), Axis('b, 2: java.lang.Integer))
       val data = yaml.Coordinate.dump(coordinate)
-      data should be("- id: a\n  value: '1'\n  type: Integer\n- id: b\n  value: '2'\n  type: Integer")
+      data should be("- id: a\n  type: Integer\n  value: '1'\n- id: b\n  type: Integer\n  value: '2'")
       yaml.Coordinate.load(data) should be(coordinate)
     }
     it("should convert Reference") {
-      val uuid = UUID.fromString("50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac")
+      val modelId = UUID.fromString("9a1f98f0-1f9f-11e3-8224-0800200c9a66")
+      val nodeId = UUID.fromString("50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac")
       val coordinate = Coordinate(Axis('a, 1: java.lang.Integer), Axis('b, 2: java.lang.Integer))
-      val reference = Reference('test, uuid, coordinate)
+      val reference = Reference('test, modelId, nodeId, coordinate)
       val data = yaml.Reference.dump(reference)
-      data should be("unique: 50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac\ncoordinate:\n- id: a\n  value: '1'\n  type: Integer\n- id: b\n  value: '2'\n  type: Integer\norigin: test")
+      data should be("coordinate:\n- id: a\n  type: Integer\n  value: '1'\n- id: b\n  type: Integer\n" +
+        "  value: '2'\nmodel: 9a1f98f0-1f9f-11e3-8224-0800200c9a66\nnode: 50c5c3fa-7fd6-4845-8f66-6516cbe3e5ac\norigin: test")
       yaml.Reference.load(data) should be(reference)
     }
-    ignore("should provide serialization mechanism for graph") {
+    it("should convert Property") {
+      val wrapper = yaml.Property.Wrapper('abcd, "qwer", 'zxcv)
+      val data = yaml.Property.dump(wrapper)
+      data should be("[zxcv, abcd, qwer]")
+      yaml.Property.load(data) should be(wrapper)
+    }
+    it("should convert Scope") {
+      val scope = new Model.Scope('extra)
+      val data = yaml.Scope.dump(scope)
+      data should be("[extra, org.digimead.tabuddy.model.Model$Scope]")
+      yaml.Scope.load(data) should be(scope)
+    }
+    it("should convert Stash") {
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1))
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val stash = model.eStash.copy(modification = Element.timestamp(2, 2))
+      val optional = yaml.Optional.getOptional(stash)
+      optional.values should contain key ('AAAKey)
+      optional.values('AAAKey)('String).isInstanceOf[Tuple2[_, _]] should be(true)
+      optional.values should contain key ('BBBKey)
+      optional.values('BBBKey)('String).isInstanceOf[Tuple2[_, _]] should be(true)
+      Serialization.stash.set(optional)
+      val data = yaml.Stash.dump(stash)
+      data should be("class: org.digimead.tabuddy.model.Model$Stash\ncreated: 1ms.1ns\nmodification: 2ms.2ns\n" +
+        "properties:\n- [AAAKey, String, AAA]\n- [BBBKey, String, BBB]\nscope: [Model, org.digimead.tabuddy.model.Model$Scope]")
+      val stashˈ = yaml.Stash.load(data)
+      stashˈ.getClass should be(stash.getClass)
+      stashˈ.created should be(stash.created)
+      stashˈ.created.## should be(stash.created.##)
+      stashˈ.modification should be(stash.modification)
+      stashˈ.modification.## should be(stash.modification.##)
+      stashˈ.scope should be(stash.scope)
+      stashˈ.scope.## should be(stash.scope.##)
+      stashˈ.property should be(stash.property)
+      stashˈ.property.## should be(stash.property.##)
+      stashˈ.## should be(stash.##)
+      stashˈ should be(stash)
+    }
+    it("should convert Optional") {
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1))
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").
+        eSet('other, Some(new Value.Static(123: Integer, new Value.Context(None, None)))).eRelative
+      model.copy(model.eStash.copy(property = model.eStash.property +
+        ('other -> (model.eStash.property('other) +
+          ('String -> new Value.Static("321", new Value.Context(None, None)))))))
+      val stash = model.eStash.copy(modification = Element.timestamp(2, 2))
+      val optional = yaml.Optional.getOptional(stash)
+      val data = yaml.Optional.dump(optional)
+      val u = model.eUniqueId
+      data should be("values:\n" +
+        s"  AAAKey:\n    String:\n    - true\n    - null\n    - $u\n" +
+        s"  BBBKey:\n    String:\n    - true\n    - null\n    - $u\n" +
+        s"  other:\n    Integer:\n    - true\n    - null\n    - $u\n" +
+        "    String:\n    - true\n    - null\n    - null")
+      optional should not be (null)
+      yaml.Optional.load(data) should be(optional)
+    }
+    it("should provide serialization mechanism for graph") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -192,7 +255,10 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
             node2.children should be(node.children)
             node2.modification should be(node.modification)
             node2.projectionElementBoxes should be(node.projectionElementBoxes)
-            node2.rootElementBox should be(node.rootElementBox)
+            node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
+            node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
+            node2.rootElementBox.modification should be(node.rootElementBox.modification)
+            node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
 
             node2.graph should be(graph2)
             node2.parentNodeReference.get should be(None)
@@ -211,7 +277,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
             element should not be (null)
             element2 should not be (null)
-            node.rootElementBox.getModified should not be (None)
+            node.rootElementBox.getModified should be(None)
             node2.rootElementBox.getModified should be(None)
             element.ne(element2) should be(true)
             element2 should be(element)
@@ -223,7 +289,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
             graph2.node.safeRead(_.iteratorRecursive().toSeq) should have size (5)
             // container always point to current active model
             graph2.model.eId.name should be(graph.model.eId.name)
-            graph2.model.eObjectId should be(graph.model.eObjectId)
+            graph2.model.eUniqueId should be(graph.model.eUniqueId)
             graph2.model.eNodeId should be(graph.model.eNodeId)
             graph2.model.modification should be(graph.model.modification)
             graph2.model.eModel should be(graph2.model)
@@ -285,7 +351,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         } should be(true)
       }
     }
-    ignore("should correctly serialize elements") {
+    it("should correctly serialize elements") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -324,7 +390,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.model.e(record_level3.eReference).map(_.asInstanceOf[Record].name) should be(Some("789"))
         val newModification = graph.node.modification
         newModification should be > (oldModification)
-        newModification should be >= (record_level3.eRelative.modification)
+        newModification should be(record_level3.eRelative.modification)
         (model & RecordLocation('root)).eNode.modification should be(newModification)
         (model & RecordLocation('root) & RecordLocation('level2)).eNode.modification should be(newModification)
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modification should be(newModification)
@@ -342,7 +408,8 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         record_level3_rel.eNode.safeRead(_.children) should be('empty)
 
         record_level3_rel.eReference should be(record_level3.eReference)
-        record_level3_rel.eReference.unique.hashCode() should be(record_level3.eReference.unique.hashCode())
+        record_level3_rel.eReference.model.hashCode() should be(record_level3.eReference.model.hashCode())
+        record_level3_rel.eReference.node.hashCode() should be(record_level3.eReference.node.hashCode())
         record_level3_rel.eReference.origin.hashCode() should be(record_level3.eReference.origin.hashCode())
         record_level3_rel.eReference.coordinate.hashCode() should be(record_level3.eReference.coordinate.hashCode())
         record_level3_rel.eReference.hashCode() should be(record_level3.eReference.hashCode())
@@ -366,7 +433,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         } should be(true)
       }
     }
-    ignore("should filter elements on save/load") {
+    it("should filter elements on save/load") {
       withTempFolder { folder ⇒
         import TestDSL._
 

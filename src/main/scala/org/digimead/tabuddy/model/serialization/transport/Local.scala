@@ -50,7 +50,7 @@ class Local extends Transport with Loggable {
   val descriptorResourceNameTemplate = descriptorResourceName + "-%s." + YAMLSerialization.Identifier.extension
 
   /** Load element with the specific UUID for the specific container. */
-  def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A = {
+  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI = {
     val serializationMechanism = Serialization.perIdentifier.get(elementBox.serialization) match {
       case Some(mechanism) ⇒
         mechanism
@@ -58,11 +58,8 @@ class Local extends Transport with Loggable {
         throw new IllegalArgumentException(s"Serialization for the specified ${elementBox.serialization} not found.")
     }
     val storageDirectory = new File(storageURI)
-    val elementDirectory = getElementDirectory(storageDirectory, elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node), elementBox, false)
-    val element = new File(elementDirectory, "element." + elementBox.serialization.extension).toURI
-    log.debug(s"Acquire ${elementBox} from ${element}.")
-    val elementBinary = read(element)
-    serializationMechanism.load(elementBox, elementBinary)
+    val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, elementBox, false).toURI
+    new URI((elementDirectory +: part).mkString("/"))
   }
   /** Load element box descriptor with the specific UUID for the specific container. */
   def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modification: Element.Timestamp, storageURI: URI): Array[Byte] = {
@@ -108,14 +105,6 @@ class Local extends Transport with Loggable {
   def delete(uri: URI) = if (new File(uri).delete())
     throw new IOException(s"Unable to delete ${uri}.")
   /** Save element to the specific URI. */
-  def freezeElement(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, elementContent: Array[Byte]) {
-    val storageDirectory = new File(storageURI)
-    val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, element.eBox, true)
-    val elementURI = elementDirectory.toURI.resolve(elementResourceName + "." + element.eBox.serialization.extension)
-    log.debug(s"Freeze ${element} to ${elementURI}.")
-    write(elementContent, elementURI)
-  }
-  /** Save element to the specific URI. */
   def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, elementBox, true)
@@ -153,7 +142,12 @@ class Local extends Transport with Loggable {
   def squeeze() {}
   /** Write resource. */
   def write(content: Array[Byte], uri: URI) {
-    val bos = new BufferedOutputStream(new FileOutputStream(new File(uri)))
+    val contentFile = new File(uri)
+    val contentDirectory = contentFile.getParentFile()
+    if (!contentDirectory.isDirectory())
+      if (!contentDirectory.mkdirs())
+        throw new IOException(s"Unable to create ${contentDirectory}.")
+    val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
     try { bos.write(content) }
     finally { try { bos.close() } catch { case e: IOException ⇒ } }
   }
@@ -169,13 +163,9 @@ class Local extends Transport with Loggable {
     val graphDirectory = new File(base, elementBox.node.graph.origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val elementDirectory = new File(modelDirectory, relativePart)
-    if (!elementDirectory.exists())
-      if (create) {
-        if (!elementDirectory.mkdirs())
-          throw new IOException(s"Unable to create ${elementDirectory}.")
-      } else {
-        throw new IOException(s"Directory ${elementDirectory} not exists.")
-      }
+    if (!elementDirectory.exists() && create)
+      if (!elementDirectory.mkdirs())
+        throw new IOException(s"Unable to create ${elementDirectory}.")
     elementDirectory
   }
   /** Get or create graph directory. */
@@ -189,13 +179,9 @@ class Local extends Transport with Loggable {
         throw new IOException(s"Directory ${graphDirectory} not exists.")
       }
     val modelDirectory = new File(base, modelDirectoryName)
-    if (!modelDirectory.exists())
-      if (create) {
-        if (!modelDirectory.mkdirs())
-          throw new IOException(s"Unable to create ${modelDirectory}.")
-      } else {
-        throw new IOException(s"Directory ${modelDirectory} not exists.")
-      }
+    if (!modelDirectory.exists() && create)
+      if (!modelDirectory.mkdirs())
+        throw new IOException(s"Unable to create ${modelDirectory}.")
     graphDirectory
   }
   /** Get or create node directory. */
@@ -206,13 +192,9 @@ class Local extends Transport with Loggable {
     val graphDirectory = new File(base, nodes.head.graph.origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val nodeDirectory = new File(modelDirectory, relativePart)
-    if (!nodeDirectory.exists())
-      if (create) {
-        if (!nodeDirectory.mkdirs())
-          throw new IOException(s"Unable to create ${nodeDirectory}.")
-      } else {
-        throw new IOException(s"Directory ${nodeDirectory} not exists.")
-      }
+    if (!nodeDirectory.exists() && create)
+      if (!nodeDirectory.mkdirs())
+        throw new IOException(s"Unable to create ${nodeDirectory}.")
     nodeDirectory
   }
 }

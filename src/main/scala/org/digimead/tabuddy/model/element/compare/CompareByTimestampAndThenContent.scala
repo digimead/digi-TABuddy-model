@@ -58,9 +58,9 @@ object CompareByTimestampAndThenContent extends Compare {
             } else {
               val e1Values = e1Data(valuesId)
               val e2Values = e2Data(valuesId)
-              e1Values == e2Values && {
+              e1Values.keySet == e2Values.keySet && {
                 // 6. compare values
-                e1Values.keys.forall(typeSymbolId ⇒ e1Values(typeSymbolId) == e2Values(typeSymbolId))
+                e1Values.keys.forall(typeSymbolId ⇒ e1Values(typeSymbolId) === e2Values(typeSymbolId))
               }
             }
           }

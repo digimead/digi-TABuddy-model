@@ -80,7 +80,10 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         new File(folder, "john1") should not be ('exists)
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
         graph.stored should be('empty)
+        val before = model.eBox.modification
         Serialization.freeze(graph)
+        val after = model.eBox.modification
+        after should be(before)
         graph.stored should have size (1)
         graph.stored.head should be(graph.modification)
 
@@ -154,7 +157,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
 
             element should not be (null)
             element2 should not be (null)
-            node.rootElementBox.getModified should not be (None)
+            node.rootElementBox.getModified should be (None)
             node2.rootElementBox.getModified should be(None)
             element.ne(element2) should be(true)
             element2 should be(element)
@@ -166,7 +169,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             graph2.node.safeRead(_.iteratorRecursive().toSeq) should have size (5)
             // container always point to current active model
             graph2.model.eId.name should be(graph.model.eId.name)
-            graph2.model.eObjectId should be(graph.model.eObjectId)
+            graph2.model.eUniqueId should be(graph.model.eUniqueId)
             graph2.model.eNodeId should be(graph.model.eNodeId)
             graph2.model.modification should be(graph.model.modification)
             graph2.model.eModel should be(graph2.model)
@@ -285,7 +288,8 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         record_level3_rel.eNode.safeRead(_.children) should be('empty)
 
         record_level3_rel.eReference should be(record_level3.eReference)
-        record_level3_rel.eReference.unique.hashCode() should be(record_level3.eReference.unique.hashCode())
+        record_level3_rel.eReference.node.hashCode() should be(record_level3.eReference.node.hashCode())
+        record_level3_rel.eReference.model.hashCode() should be(record_level3.eReference.model.hashCode())
         record_level3_rel.eReference.origin.hashCode() should be(record_level3.eReference.origin.hashCode())
         record_level3_rel.eReference.coordinate.hashCode() should be(record_level3.eReference.coordinate.hashCode())
         record_level3_rel.eReference.hashCode() should be(record_level3.eReference.hashCode())

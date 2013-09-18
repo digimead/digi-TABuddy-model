@@ -272,7 +272,7 @@ class Serialization extends Serialization.Interface with Loggable {
     yaml.YAML.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]])
   /** Create YAML element descriptor. */
   protected def elementDescriptorToYAML(elementBox: ElementBox[_ <: Element]): Array[Byte] = {
-    val descriptorMap = new java.util.HashMap[String, AnyRef]()
+    val descriptorMap = new java.util.TreeMap[String, AnyRef]()
     descriptorMap.put("coordinate", elementBox.coordinate)
     descriptorMap.put("class", elementBox.node.elementType.runtimeClass.getName)
     descriptorMap.put("element_unique_id", elementBox.elementUniqueId)
@@ -284,19 +284,20 @@ class Serialization extends Serialization.Interface with Loggable {
   protected def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI,
     transport: Transport, ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]]) {
     log.debug(s"Freeze ${elementBox}.")
-    transport.freezeElementBox(ancestorsNSelf, elementBox, storageURI, elementDescriptorToYAML(elementBox))
-    // save element
+    // save element (update modification time)
     elementBox.getModified match {
       case Some(modified) ⇒
         if (modified ne elementBox.get)
           throw new IllegalStateException("Element and modified element are different.")
-        transport.freezeElement(ancestorsNSelf, modified, storageURI, elementBox.save)
+        elementBox.save(ancestorsNSelf, Some(storageURI))
         elementBox.get.eStash.property.foreach {
           case (valueId, perTypeMap) ⇒ perTypeMap.foreach { case (typeSymbolId, value) ⇒ value.commit(modified, transport, storageURI) }
         }
       case None ⇒
         log.debug("Skip unmodified element.")
     }
+    // freeze element box
+    transport.freezeElementBox(ancestorsNSelf, elementBox, storageURI, elementDescriptorToYAML(elementBox))
   }
   /** Internal method that saves the node descriptor. */
   protected def freezeNode(node: Node.ThreadUnsafe[_ <: Element], storageURI: URI, transport: Transport,
@@ -316,7 +317,7 @@ class Serialization extends Serialization.Interface with Loggable {
   /** Create YAML graph descriptor. */
   protected def graphDescriptorToYAML(model: Node.ThreadUnsafe[_ <: Model.Like]): Array[Byte] = {
     val storages = model.graph.storages.map(_.toString).asJava
-    val descriptorMap = new java.util.HashMap[String, AnyRef]()
+    val descriptorMap = new java.util.TreeMap[String, AnyRef]()
     descriptorMap.put("created", model.graph.created)
     descriptorMap.put("model_id", model.id)
     descriptorMap.put("model_type", model.elementType.runtimeClass.getName())
@@ -338,7 +339,7 @@ class Serialization extends Serialization.Interface with Loggable {
       val childˈ = fTransform(child.asInstanceOf[Node.ThreadUnsafe[Element]])
       Array[AnyRef](childˈ.id, childˈ.modification)
     }).asJava
-    val descriptorMap = new java.util.HashMap[String, AnyRef]()
+    val descriptorMap = new java.util.TreeMap[String, AnyRef]()
     descriptorMap.put("children", children)
     descriptorMap.put("class", elementType.runtimeClass.getName)
     descriptorMap.put("elements", elements)
@@ -436,9 +437,9 @@ object Serialization {
 
         private class ConstructElementDescriptor extends CustomConstruct {
           protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
-            "coordinate" -> { case n: YAMLNode ⇒ n.setTag(yaml.Coordinate.tag) },
-            "element_unique_id" -> { case n: YAMLNode ⇒ n.setTag(yaml.UUID.tag) },
-            "modification" -> { case n: YAMLNode ⇒ n.setTag(yaml.Timestamp.tag) })
+            "coordinate" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Coordinate.tag) },
+            "element_unique_id" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.UUID.tag) },
+            "modification" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) })
           def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
             Element(getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: TAElement]],
               map("coordinate").asInstanceOf[Coordinate],
@@ -470,21 +471,21 @@ object Serialization {
               case n: SequenceNode ⇒ n.getValue().asScala.foreach {
                 case n: SequenceNode ⇒
                   val values = n.getValue()
-                  values.get(0).setTag(yaml.Symbol.tag)
-                  values.get(1).setTag(yaml.Timestamp.tag)
+                  setTagSafe(values.get(0), yaml.Symbol.tag)
+                  setTagSafe(values.get(1), yaml.Timestamp.tag)
               }
             },
             "elements" -> {
               case n: SequenceNode ⇒ n.getValue().asScala.foreach {
                 case n: SequenceNode ⇒
                   val values = n.getValue()
-                  values.get(0).setTag(yaml.UUID.tag)
-                  values.get(1).setTag(yaml.Timestamp.tag)
+                  setTagSafe(values.get(0), yaml.UUID.tag)
+                  setTagSafe(values.get(1), yaml.Timestamp.tag)
               }
             },
-            "id" -> { case n: YAMLNode ⇒ n.setTag(yaml.Symbol.tag) },
-            "modification" -> { case n: YAMLNode ⇒ n.setTag(yaml.Timestamp.tag) },
-            "unique" -> { case n: YAMLNode ⇒ n.setTag(yaml.UUID.tag) })
+            "id" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Symbol.tag) },
+            "modification" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) },
+            "unique" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.UUID.tag) })
           def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
             Node(map("children").asInstanceOf[Iterable[java.util.ArrayList[AnyRef]]].toSeq.map(i ⇒ (i.get(0).asInstanceOf[Symbol], i.get(1).asInstanceOf[TAElement.Timestamp])),
               getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: TAElement]],
@@ -512,11 +513,11 @@ object Serialization {
 
         private class ConstructGraphDescriptor extends CustomConstruct {
           protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
-            "created" -> { case n: YAMLNode ⇒ n.setTag(yaml.Timestamp.tag) },
-            "model_id" -> { case n: YAMLNode ⇒ n.setTag(yaml.Symbol.tag) },
-            "modification" -> { case n: YAMLNode ⇒ n.setTag(yaml.Timestamp.tag) },
-            "origin" -> { case n: YAMLNode ⇒ n.setTag(yaml.Symbol.tag) },
-            "stored" -> { case n: SequenceNode ⇒ n.getValue().asScala.foreach(_.setTag(yaml.Timestamp.tag)) })
+            "created" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) },
+            "model_id" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Symbol.tag) },
+            "modification" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) },
+            "origin" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Symbol.tag) },
+            "stored" -> { case n: SequenceNode ⇒ n.getValue().asScala.foreach(setTagSafe(_, yaml.Timestamp.tag)) })
           def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
             Graph(map("created").asInstanceOf[TAElement.Timestamp],
               map("model_id").asInstanceOf[Symbol],

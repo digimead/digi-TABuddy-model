@@ -99,8 +99,7 @@ object Graph {
       apply[A](origin, origin, scope, serialization, unique)
     /** Create a new graph. */
     def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
-      unique: UUID)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
-      val timestamp = Element.timestamp()
+      unique: UUID, timestamp: Element.Timestamp = Element.timestamp())(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val modelNode = Node.model[A](id, unique, timestamp)
       val modelGraph = new Graph[A](timestamp, modelNode, origin)
       modelNode.safeWrite { node ⇒

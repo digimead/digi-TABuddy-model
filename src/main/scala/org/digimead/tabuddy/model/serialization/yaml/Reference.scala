@@ -41,10 +41,10 @@ import org.yaml.snakeyaml.representer.Represent
 object Reference extends Loggable {
   val tag = new Tag(Tag.PREFIX + "ref")
 
-  /** Convert string to Reference. */
-  def load(arg: String): EReference = YAML.loadAs(arg, classOf[EReference]).asInstanceOf[EReference]
   /** Convert Reference to string. */
   def dump(arg: EReference): String = YAML.dump(arg).trim
+  /** Convert string to Reference. */
+  def load(arg: String): EReference = YAML.loadAs(arg, classOf[EReference]).asInstanceOf[EReference]
 
   trait Constructor {
     this: YAML.Constructor ⇒
@@ -53,11 +53,13 @@ object Reference extends Loggable {
 
     private class ConstructReference extends CustomConstruct {
       protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]](
-        "coordinate" -> { case n: Node ⇒ n.setTag(Coordinate.tag) },
-        "origin" -> { case n: Node ⇒ n.setTag(Symbol.tag) },
-        "unique" -> { case n: Node ⇒ n.setTag(UUID.tag) })
+        "coordinate" -> { case n: Node ⇒ setTagSafe(n, Coordinate.tag) },
+        "origin" -> { case n: Node ⇒ setTagSafe(n, Symbol.tag) },
+        "model" -> { case n: Node ⇒ setTagSafe(n, UUID.tag) },
+        "node" -> { case n: Node ⇒ setTagSafe(n, UUID.tag) })
       def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
-        EReference(map("origin").asInstanceOf[scala.Symbol], map("unique").asInstanceOf[JUUID], map("coordinate").asInstanceOf[ECoordinate])
+        EReference(map("origin").asInstanceOf[scala.Symbol], map("model").asInstanceOf[JUUID],
+          map("node").asInstanceOf[JUUID], map("coordinate").asInstanceOf[ECoordinate])
     }
   }
   trait Representer {
@@ -67,10 +69,11 @@ object Reference extends Loggable {
     class RepresentReference extends Represent {
       def representData(data: AnyRef): Node = {
         val reference = data.asInstanceOf[EReference]
-        val map = new java.util.HashMap[String, AnyRef]()
+        val map = new java.util.TreeMap[String, AnyRef]()
         map.put("coordinate", reference.coordinate)
         map.put("origin", reference.origin)
-        map.put("unique", reference.unique)
+        map.put("model", reference.model)
+        map.put("node", reference.node)
         representMapping(Tag.MAP, map, null)
       }
     }

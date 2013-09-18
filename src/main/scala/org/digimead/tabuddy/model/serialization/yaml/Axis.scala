@@ -37,11 +37,11 @@ import org.yaml.snakeyaml.representer.Represent
 object Axis extends Loggable {
   val tag = new Tag(Tag.PREFIX + "axis")
 
+  /** Convert Axis to string. */
+  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAML.dump(arg).trim
   /** Convert string to Axis. */
   def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] =
     YAML.loadAs(arg, classOf[EAxis[_ <: AnyRef with java.io.Serializable]]).asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
-  /** Convert Axis to string. */
-  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAML.dump(arg).trim
 
   trait Constructor {
     this: YAML.Constructor ⇒
@@ -50,8 +50,8 @@ object Axis extends Loggable {
 
     private class ConstructCoordinate extends CustomConstruct {
       protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]](
-        "id" -> { case n: Node ⇒ n.setTag(Symbol.tag) },
-        "type" -> { case n: Node ⇒ n.setTag(Symbol.tag) })
+        "id" -> { case n: Node ⇒ setTagSafe(n, Symbol.tag) },
+        "type" -> { case n: Node ⇒ setTagSafe(n, Symbol.tag) })
       def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
         val id = map("id").asInstanceOf[scala.Symbol]
         val typeSymbol = map("type").asInstanceOf[scala.Symbol]
@@ -70,7 +70,7 @@ object Axis extends Loggable {
     class RepresentAxis extends Represent {
       def representData(data: AnyRef): Node = {
         val arg = data.asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
-        val map = new java.util.HashMap[String, AnyRef]()
+        val map = new java.util.TreeMap[String, AnyRef]()
         DSLType.classSymbolMap.get(arg.m.runtimeClass) match {
           case Some(typeSymbol) ⇒
             DSLType.convertToString(typeSymbol, arg.value) match {

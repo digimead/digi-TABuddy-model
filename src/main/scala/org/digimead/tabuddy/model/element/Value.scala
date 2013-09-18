@@ -33,7 +33,7 @@ import org.digimead.tabuddy.model.serialization.transport.Transport
 /**
  * Trait that provide general interface for Value implementation
  */
-sealed trait Value[T] extends AnyRef with java.io.Serializable {
+trait Value[T] extends Equals with java.io.Serializable {
   /** Value context information */
   val context: Value.Context
 
@@ -43,15 +43,21 @@ sealed trait Value[T] extends AnyRef with java.io.Serializable {
   def copy(context: Value.Context = this.context): this.type
   /** Get value. */
   def get(): T
+  /** Value equality. */
+  def ===(that: Any): Boolean = that match {
+    case that: Value[_] ⇒ this.get == that.get
+    case _ ⇒ false
+  }
   /** Class equality with context but without values. */
-  def ===(that: Any): Boolean
+  def =:=(that: Any): Boolean
   /** get() equality. */
   override def equals(that: Any): Boolean =
     (this eq that.asInstanceOf[Object]) || (that match {
-      case that: Value[_] ⇒ this.get == that.get
+      case that: Value[_] ⇒ this.get == that.get && this.## == that.##
       case _ ⇒ false
     })
-  override def hashCode() = context.hashCode
+  override def hashCode() = lazyHashCode
+  protected lazy val lazyHashCode = context.hashCode
   /** Needed for correct definition of equals for general classes. */
   def canEqual(that: Any): Boolean
 }
@@ -94,7 +100,7 @@ object Value extends Loggable {
     else {
       val stack = new Throwable().getStackTrace()
       if (stack.size < 1)
-        new Static(x, new Value.Context(Some(container.eObjectId), None))
+        new Static(x, new Value.Context(Some(container.eUniqueId), None))
       else
         new Static(x, container.eModel.contextForChild(container, Some(stack(1))))
     }
@@ -114,7 +120,7 @@ object Value extends Loggable {
     else {
       val stack = new Throwable().getStackTrace()
       if (stack.size < 1)
-        new Dynamic(x, new Value.Context(Some(container.eObjectId), None))
+        new Dynamic(x, new Value.Context(Some(container.eUniqueId), None))
       else
         new Dynamic(x, container.eModel.contextForChild(container, Some(stack(1))))
     }
@@ -142,7 +148,7 @@ object Value extends Loggable {
     /** Create empty context for unbound value. */
     def apply() = new Value.Context(None, None)
     /** Create context for element. */
-    def apply(element: Element) = new Value.Context(Some(element.eObjectId), None)
+    def apply(element: Element) = new Value.Context(Some(element.eUniqueId), None)
     /** Create context for element box. */
     def apply(box: ElementBox[_ <: Element]) = new Value.Context(Some(box.elementUniqueId), None)
   }
@@ -164,22 +170,15 @@ object Value extends Loggable {
     /** Get value. */
     def get() = data()
     /** Class equality with context but without values. */
-    def ===(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
+    def =:=(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
       case that: Dynamic[_] if this.data.getClass == that.data.getClass && this.context == that.context ⇒ (that canEqual this)
       case _ ⇒ false
     })
-    override def hashCode() = {
-      /*
-       * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
-       * RISC machine (because 31 is the difference of two powers of two). P(33) is
-       * similarly cheap to calculate, but it's performance is marginally worse, and
-       * 33 is composite, which makes me a bit nervous.
-       */
-      val p = 31
-      p * (p + data.hashCode()) + context.hashCode
-    }
+
     /** Needed for correct definition of equals for general classes. */
     def canEqual(that: Any): Boolean = that.isInstanceOf[Dynamic[_]]
+    override def hashCode() = lazyHashCode
+    override protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](data, context))
     override def toString() = "Dynamic[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
       DSLType.convertToString[T](get()).getOrElse(get()))
   }
@@ -201,22 +200,14 @@ object Value extends Loggable {
     /** Get value. */
     def get() = data
     /** Class equality with context but without values. */
-    def ===(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
+    def =:=(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
       case that: Static[_] if this.data.getClass == that.data.getClass && this.context == that.context ⇒ (that canEqual this)
       case _ ⇒ false
     })
-    override def hashCode() = {
-      /*
-       * Of the remaining four, I'd probably select P(31), as it's the cheapest to calculate on a
-       * RISC machine (because 31 is the difference of two powers of two). P(33) is
-       * similarly cheap to calculate, but it's performance is marginally worse, and
-       * 33 is composite, which makes me a bit nervous.
-       */
-      val p = 31
-      p * (p + data.hashCode()) + context.hashCode
-    }
     /** Needed for correct definition of equals for general classes. */
     def canEqual(that: Any): Boolean = that.isInstanceOf[Static[_]]
+    override def hashCode() = lazyHashCode
+    override protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](data, context))
     override def toString() = "Static[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
       DSLType.convertToString[T](get()).getOrElse(get()))
   }

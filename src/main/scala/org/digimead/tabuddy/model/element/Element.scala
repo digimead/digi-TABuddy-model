@@ -159,13 +159,13 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   /** Get element node. */
   def eNode(): Node[ElementType] = eBox.node
   /** Get identifier which uniquely identify this element. */
-  def eObjectId(): UUID = eBox.elementUniqueId
+  def eUniqueId(): UUID = eBox.elementUniqueId
   /** Get graph owner identifier. */
   def eOrigin(): Symbol = eBox.node.graph.origin
   /** Get a container. */
   def eParent(): Option[Node[_ <: Element]] = eNode.getParent
   /** Get reference of this element */
-  def eReference() = Reference(eOrigin, eNodeId, eCoordinate)
+  def eReference() = Reference(eOrigin, eNode.graph.node.unique, eNodeId, eCoordinate)
   /** Remove the specific property's value */
   def eRemove[A <: AnyRef with java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): ElementType = {
     Element.log.trace(s"Remove $id from $eId.")

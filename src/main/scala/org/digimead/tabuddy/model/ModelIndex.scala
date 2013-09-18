@@ -39,17 +39,17 @@ trait ModelIndex {
   //@transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
 
   /** Get element for unique id at the specific coordinate. */
-  def e(unique: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =
-    e(Reference(eOrigin, unique, Coordinate(coordinate: _*)))
+  def e(nodeId: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =
+    e(Reference(eOrigin, eNode.graph.node.unique, nodeId, Coordinate(coordinate: _*)))
   /** Get element for unique id at the specific coordinate. */
-  def e(unique: UUID, coordinate: Coordinate): Option[Element] =
-    e(Reference(eOrigin, unique, coordinate))
+  def e(nodeId: UUID, coordinate: Coordinate): Option[Element] =
+    e(Reference(eOrigin, eNode.graph.node.unique, nodeId, coordinate))
   /** Get element for the reference from the current graph. */
   def e(reference: Reference): Option[Element] = {
     if (reference.origin != eNode.graph.origin)
       throw new IllegalArgumentException(s"""Unable to process reference from graph "${reference.origin}" within "${eNode.graph.origin}" one.""")
-    e(reference.unique).flatMap { _.getProjection(reference.coordinate).map(_.get) }
+    e(reference.node).flatMap { _.getProjection(reference.coordinate).map(_.get) }
   }
   /** Get node for the unique id from the current graph. */
-  def e(unique: UUID): Option[Node[ _<: Element]] = eNode.graph.nodes.get(unique)
+  def e(nodeId: UUID): Option[Node[_ <: Element]] = eNode.graph.nodes.get(nodeId)
 }

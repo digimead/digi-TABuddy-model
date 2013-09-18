@@ -40,9 +40,11 @@ trait Transport {
   val descriptorResourceName = "descriptor"
   /** Model directory name. */
   val modelDirectoryName = "model"
+  /** Element resource name. */
+  val optionalResourceName = "optional"
 
-  /** Load element with the specific UUID for the specific container. */
-  def acquireElement[A <: Element](elementBox: ElementBox[A], storageURI: URI)(implicit m: Manifest[A]): A
+  /** Get element location with the specific UUID for the specific container. */
+  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI
   /** Load element box descriptor with the specific UUID for the specific container. */
   def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modification: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
@@ -53,8 +55,6 @@ trait Transport {
   def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modification: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Delete resource. */
   def delete(uri: URI)
-  /** Save element to the specific URI. */
-  def freezeElement(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, elementContent: Array[Byte])
   /** Save element box to the specific URI. */
   def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte])
   /** Save graph to the specific URI. */

@@ -70,11 +70,15 @@ object YAML {
     protected def getYAMLConstructors =
       this.yamlConstructors
 
+    /** Set new tag to node if not null. */
+    def setTagSafe(node: Node, tag: Tag) = if (node.getTag() != Tag.NULL)
+      node.setTag(tag)
+
     abstract class CustomConstruct extends ConstructMapping {
       /** Map with explicit type per key. */
       protected val keyTypes: immutable.HashMap[String, PartialFunction[Node, Unit]]
 
-      override protected def createEmptyJavaBean(node: MappingNode): AnyRef = null // skip a bean creation
+      override protected def createEmptyJavaBean(node: MappingNode): AnyRef = null
       override def constructJavaBean2ndStep(node: MappingNode, obj: AnyRef): AnyRef = {
         var map = mutable.HashMap[String, AnyRef]()
         flattenMapping(node)
@@ -104,37 +108,65 @@ object YAML {
   trait DefaultConstructor
     extends Axis.Constructor
     with Coordinate.Constructor
+    with Optional.Constructor
+    with Property.Constructor
     with Reference.Constructor
+    with Scope.Constructor
     with Serialization.Descriptor.Element.Constructor
     with Serialization.Descriptor.Graph.Constructor
     with Serialization.Descriptor.Node.Constructor
+    with Stash.Constructor
     with Symbol.Constructor
     with Timestamp.Constructor
     with UUID.Constructor {
     this: Constructor ⇒
   }
+  /** Default representer base trait. */
+  trait DefaultRepresenter
+    extends Axis.Representer
+    with Coordinate.Representer
+    with Optional.Representer
+    with Property.Representer
+    with Reference.Representer
+    with Scope.Representer
+    with Stash.Representer
+    with Symbol.Representer
+    with Timestamp.Representer
+    with UUID.Representer {
+    this: Representer ⇒
+  }
   /** Base YAML representer. */
   class Representer extends YAMLRepresenter {
     // Workaround for java.lang.IllegalAccessError
     protected def getMultiRepresenters = this.multiRepresenters
-    protected override def representMapping(tag: Tag, mapping: java.util.Map[_, AnyRef], flowStyle: java.lang.Boolean): Node =
+    protected override def representMapping(tag: Tag, mapping: java.util.Map[_, AnyRef], flowStyle: java.lang.Boolean): Node = {
+      // workaround for proper null representation
+      this.objectToRepresent = new Object
       super.representMapping(tag, mapping, flowStyle)
-    protected override def representScalar(tag: Tag, value: String): Node =
+    }
+    protected override def representScalar(tag: Tag, value: String): Node = {
+      // workaround for proper null representation
+      this.objectToRepresent = new Object
       super.representScalar(tag, value)
-    protected override def representScalar(tag: Tag, value: String, style: Character): Node =
+    }
+    protected override def representScalar(tag: Tag, value: String, style: Character): Node = {
+      // workaround for proper null representation
+      this.objectToRepresent = new Object
       super.representScalar(tag, value, style)
-    protected override def representSequence(tag: Tag, sequence: java.lang.Iterable[_], flowStyle: java.lang.Boolean): Node =
+    }
+    protected override def representSequence(tag: Tag, sequence: java.lang.Iterable[_], flowStyle: java.lang.Boolean): Node = {
+      // workaround for proper null representation
+      this.objectToRepresent = new Object
       super.representSequence(tag, sequence, flowStyle)
+    }
   }
   /**
    * Dependency injection routines.
    */
   private object DI extends DependencyInjection.PersistentInjectable {
     /** YAML constructor. */
-    val constructor = injectOptional[Constructor] getOrElse
-      new Constructor with DefaultConstructor
+    val constructor = injectOptional[Constructor] getOrElse new Constructor with DefaultConstructor
     /** YAML representer. */
-    val representer = injectOptional[Representer] getOrElse
-      new Representer with Timestamp.Representer with Axis.Representer with Coordinate.Representer with Reference.Representer with UUID.Representer with Symbol.Representer
+    val representer = injectOptional[Representer] getOrElse new Representer with DefaultRepresenter
   }
 }

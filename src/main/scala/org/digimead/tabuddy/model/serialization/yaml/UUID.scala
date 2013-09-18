@@ -32,10 +32,10 @@ import org.yaml.snakeyaml.representer.Represent
 object UUID {
   val tag = new Tag(Tag.PREFIX + "uuid")
 
-  /** Convert string to UUID. */
-  def load(arg: String): JUUID = YAML.loadAs(arg, classOf[JUUID]).asInstanceOf[JUUID]
   /** Convert UUID to string. */
   def dump(arg: JUUID): String = YAML.dump(arg).trim
+  /** Convert string to UUID. */
+  def load(arg: String): JUUID = YAML.loadAs(arg, classOf[JUUID]).asInstanceOf[JUUID]
 
   trait Constructor {
     this: YAML.Constructor ⇒
@@ -43,7 +43,12 @@ object UUID {
     getYAMLConstructors.put(new Tag(classOf[JUUID]), new ConstructUUID())
 
     private class ConstructUUID extends AbstractConstruct {
-      override def construct(node: Node): AnyRef = JUUID.fromString(node.asInstanceOf[ScalarNode].getValue())
+      override def construct(node: Node): AnyRef = {
+        val value = node.asInstanceOf[ScalarNode].getValue()
+        if (value == null)
+          return null
+        JUUID.fromString(value)
+      }
     }
   }
   trait Representer {

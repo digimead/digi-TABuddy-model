@@ -23,6 +23,7 @@ import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.ScalarNode
 import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.error.YAMLException
 
 /**
  * YAML de/serialization helper for scala.Symbol.
@@ -30,10 +31,10 @@ import org.yaml.snakeyaml.representer.Represent
 object Symbol {
   val tag = new Tag(Tag.PREFIX + "sym")
 
-  /** Convert string to Symbol. */
-  def load(arg: String): scala.Symbol = YAML.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
   /** Convert Symbol to string. */
   def dump(arg: scala.Symbol): String = YAML.dump(arg).trim
+  /** Convert string to Symbol. */
+  def load(arg: String): scala.Symbol = YAML.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
 
   trait Constructor {
     this: YAML.Constructor ⇒
@@ -41,7 +42,12 @@ object Symbol {
     getYAMLConstructors.put(new Tag(classOf[scala.Symbol]), new ConstructSymbol())
 
     private class ConstructSymbol extends AbstractConstruct {
-      override def construct(node: Node): AnyRef = Symbol.synchronized { scala.Symbol(node.asInstanceOf[ScalarNode].getValue()) }
+      override def construct(node: Node): AnyRef = Symbol.synchronized {
+        val value = node.asInstanceOf[ScalarNode].getValue()
+        if (value == null)
+          throw new YAMLException("Unable to construct symbol from null.")
+        scala.Symbol(value)
+      }
     }
   }
   trait Representer {

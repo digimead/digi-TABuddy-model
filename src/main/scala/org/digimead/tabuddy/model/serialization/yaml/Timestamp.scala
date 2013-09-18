@@ -33,10 +33,10 @@ import org.yaml.snakeyaml.representer.Represent
 object Timestamp {
   val tag = new Tag(Tag.PREFIX + "ts")
 
-  /** Convert string to Element.Timestamp. */
-  def load(arg: String): Element.Timestamp = YAML.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
   /** Convert Element.Timestamp to string. */
   def dump(arg: Element.Timestamp): String = YAML.dump(arg).trim
+  /** Convert string to Element.Timestamp. */
+  def load(arg: String): Element.Timestamp = YAML.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
 
   trait Constructor {
     this: YAML.Constructor ⇒
@@ -45,11 +45,12 @@ object Timestamp {
 
     private class ConstructTimestamp extends AbstractConstruct {
       override def construct(node: Node): AnyRef = {
-        val scalar = node.asInstanceOf[ScalarNode]
-        val nodeValue = scalar.getValue()
-        val left = nodeValue.takeWhile(_ != '.')
+        val value = node.asInstanceOf[ScalarNode].getValue()
+        if (value == null)
+          return null
+        val left = value.takeWhile(_ != '.')
         Element.timestamp(java.lang.Long.parseLong(left.substring(0, left.size - 2), 16),
-          java.lang.Long.parseLong(nodeValue.substring(left.size + 1, nodeValue.size - 2), 16))
+          java.lang.Long.parseLong(value.substring(left.size + 1, value.size - 2), 16))
       }
     }
   }

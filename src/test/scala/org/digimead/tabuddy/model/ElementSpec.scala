@@ -100,7 +100,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val curtom_rA1 = new Record(rA1.eStash)(rAB2.eBox) // different eBox
       curtom_rA1.canEqual(rA1.absolute) should be(true)
       curtom_rA1.eStash should be(rA1.eStash)
-      curtom_rA1 should not be(rA1.absolute)
+      curtom_rA1 should not be (rA1.absolute)
 
       val rLeaf2_orig = rLeaf2.absolute
       rLeaf2.name should be("123")
@@ -139,9 +139,9 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val oldCreated = rootX.eStash.created
       val newCreated = Element.timestamp()
       oldCreated should not be (newCreated)
-      rootX.eStash.created should be (oldCreated)
+      rootX.eStash.created should be(oldCreated)
       rootX.copy(rootX.eStash.copy(created = newCreated))
-      rootX.eStash.created should be (newCreated)
+      rootX.eStash.created should be(newCreated)
     }
     it("should have proper constraints") {
       import TestDSL._
@@ -225,7 +225,8 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       copy.eNode.safeRead(_.head.getRootElementBox.get.asInstanceOf[Record].name) should be("level3")
       val copyValue = copy.eGet[Integer]('test).get
       //copyValue.context.unique should be(copy.eReference.unique)
-      record.eReference.unique should not be (copy.eReference.unique)
+      record.eReference.model should be(copy.eReference.model)
+      record.eReference.node should not be (copy.eReference.node)
       val newRecord = record.eSet('test, Some(copyValue))
       val recordValue = newRecord.eGet[Integer]('test).get
       recordValue.get should be(copyValue.get)

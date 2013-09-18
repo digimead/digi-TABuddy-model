@@ -71,9 +71,9 @@ object Stash {
       scope: Element.Scope = this.scope): StashType = {
       assert(scope == this.scope, "Incorrect scope %s, must be %s".format(scope, this.scope))
       val newStashCtor = this.getClass.getConstructors.find(_.getParameterTypes() match {
-        case Array(createdArg, modifiedArg, dataArg, scopeArg) ⇒
+        case Array(createdArg, modificationArg, dataArg, scopeArg) ⇒
           scopeArg.isAssignableFrom(scope.getClass) && createdArg.isAssignableFrom(created.getClass()) &&
-            modifiedArg.isAssignableFrom(modification.getClass()) && dataArg.isAssignableFrom(property.getClass())
+            modificationArg.isAssignableFrom(modification.getClass()) && dataArg.isAssignableFrom(property.getClass())
         case _ ⇒ false
       }) getOrElse {
         throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")
@@ -84,7 +84,7 @@ object Stash {
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Stash.Like]
     override def equals(that: Any): Boolean = that match {
-      case that: Element ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
+      case that: Like ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
       case _ ⇒ false
     }
     override def hashCode() = lazyHashCode
