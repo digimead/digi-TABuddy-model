@@ -134,7 +134,7 @@ object Model extends Loggable {
    * Any concrete model's stash may be represent as this trait.
    */
   class Stash(val created: Element.Timestamp,
-    val modification: Element.Timestamp,
+    val modified: Element.Timestamp,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
     val scope: Model.Scope) extends Stash.Like {
     /** Stash type. */

@@ -18,6 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
+import java.io.InputStream
 import java.net.URI
 import java.util.UUID
 
@@ -26,7 +27,6 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Node
 
 /**
@@ -46,13 +46,13 @@ trait Transport {
   /** Get element location with the specific UUID for the specific container. */
   def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modification: Element.Timestamp, storageURI: URI): Array[Byte]
+  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
   def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte]
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, modification: Element.Timestamp, storageURI: URI): Array[Byte]
+  def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modification: Element.Timestamp, storageURI: URI): Array[Byte]
+  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element box to the specific URI. */
@@ -63,6 +63,8 @@ trait Transport {
   def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte])
   /** Save custom value to the specific URI. */
   def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte])
+  /** Open stream. */
+  def open(uri: URI): InputStream
   /** Read resource. */
   def read(uri: URI): Array[Byte]
   /** Squeeze model. */

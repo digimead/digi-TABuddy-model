@@ -87,7 +87,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val rAB1 = (rA1 & RecordLocation('rAB)).eRelative
       val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).eRelative
       // graph 2
-      val graph2 = graph1.copy('john2)
+      val graph2 = graph1.copy(origin = 'john2)
       val model2 = graph2.model.eRelative
       val rA2 = (model2 & RecordLocation('rA)).eRelative
       val rAB2 = (rA2 & RecordLocation('rAB)).eRelative

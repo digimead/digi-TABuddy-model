@@ -50,33 +50,36 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   @volatile var stored = Seq[Element.Timestamp]()
 
   /** Copy graph. */
-  def copy(origin: Symbol, id: Symbol = node.id, unique: UUID = node.unique): Graph[A] = node.freezeWrite { sourceModelNode ⇒
-    val timestamp = Element.timestamp()
+  def copy(created: Element.Timestamp = created, id: Symbol = node.id, modified: Element.Timestamp = node.modified, origin: Symbol = this.origin, unique: UUID = node.unique): Graph[A] = node.freezeRead { sourceModelNode ⇒
     /*
      * Create graph and model node
      */
-    val targetModelNode = Node.model[A](id, unique, timestamp)
-    val graph = new Graph[A](timestamp, targetModelNode, origin)
+    val targetModelNode = Node.model[A](id, unique, modified)
+    val graph = new Graph[A](created, targetModelNode, origin)
     targetModelNode.safeWrite { targetNode ⇒
-      targetModelNode.initializeModelNode(graph, timestamp)
+      targetModelNode.initializeModelNode(graph, modified)
       val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode)
       val projectionElementBoxes: Seq[(Coordinate, ElementBox[A])] = sourceModelNode.projectionElementBoxes.map {
         case (coordinate, box) ⇒ coordinate -> box.copy(node = targetNode)
       }.toSeq
-      targetNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
       if (graph.modelType != graph.node.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
       /*
        * Copy model children
        */
-      sourceModelNode.children.foreach(_.copy(targetNode, true))
+      targetNode.updateState(
+        children = sourceModelNode.children.map(_.copy(targetNode, true)),
+        modified = null, // modification is already assigned
+        rootElementBox = rootElementBox,
+        projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
+      graph.nodes ++= targetNode.children.map(n ⇒ n.unique -> n)
     }
     graph
   }
   /** Get graph model. */
   def model(): A = node.getRootElementBox.get
   /** Get modification timestamp. */
-  def modification: Element.Timestamp = node.modification
+  def modified: Element.Timestamp = node.modified
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Graph[_]]
   override def equals(other: Any) = other match {
@@ -85,7 +88,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   }
   override def hashCode() = lazyHashCode
   protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.created, this.node, this.origin, this.modelType))
-  override def toString() = s"Graph[${origin}]#${modification}"
+  override def toString() = s"Graph[${origin}]#${modified}"
 }
 
 object Graph {

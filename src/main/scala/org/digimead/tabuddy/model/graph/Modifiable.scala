@@ -26,12 +26,12 @@ import org.digimead.tabuddy.model.element.Element
 object Modifiable {
   trait Read {
     /** Get modification timestamp. */
-    def modification: Element.Timestamp
+    def modified: Element.Timestamp
   }
   trait Write extends Read {
     /** Set modification timestamp. */
-    def modification_=(arg: Element.Timestamp)
+    def modified_=(arg: Element.Timestamp)
     /** Update modification timestamp only if argument is greater than current value or generate new timestamp. */
-    def modificationUpdate(arg: Element.Timestamp)
+    def updateModification(arg: Element.Timestamp)
   }
 }

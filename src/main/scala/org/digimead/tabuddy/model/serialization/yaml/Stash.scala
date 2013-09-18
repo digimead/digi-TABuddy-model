@@ -58,24 +58,24 @@ object Stash extends Loggable {
     private class ConstructStash extends CustomConstruct {
       protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]](
         "created" -> { case n: Node ⇒ setTagSafe(n, Timestamp.tag) },
-        "modification" -> { case n: Node ⇒ setTagSafe(n, Timestamp.tag) },
+        "modified" -> { case n: Node ⇒ setTagSafe(n, Timestamp.tag) },
         "properties" -> { case n: SequenceNode ⇒ n.getValue().asScala.foreach(setTagSafe(_, Property.tag)) },
         "scope" -> { case n: Node ⇒ setTagSafe(n, Scope.tag) })
       def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
         val created = map("created").asInstanceOf[EElement.Timestamp]
-        val modification = map("modification").asInstanceOf[EElement.Timestamp]
+        val modified = map("modified").asInstanceOf[EElement.Timestamp]
         val property = unpackProperties(map("properties").asInstanceOf[Iterable[Property.Wrapper]])
         val scope = map("scope").asInstanceOf[EElement.Scope]
         val stashClass = getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: EStash.Like]]
         val newStashCtor = stashClass.getConstructors.find(_.getParameterTypes() match {
-          case Array(createdArg, modificationArg, dataArg, scopeArg) ⇒
+          case Array(createdArg, modifiedArg, dataArg, scopeArg) ⇒
             scopeArg.isAssignableFrom(scope.getClass) && createdArg.isAssignableFrom(created.getClass()) &&
-              modificationArg.isAssignableFrom(modification.getClass()) && dataArg.isAssignableFrom(property.getClass())
+              modifiedArg.isAssignableFrom(modified.getClass()) && dataArg.isAssignableFrom(property.getClass())
           case _ ⇒ false
         }) getOrElse {
           throw new NoSuchMethodException(s"Unable to find proper constructor for stash ${this.getClass()}.")
         }
-        newStashCtor.newInstance(created, modification, property, scope).asInstanceOf[AnyRef]
+        newStashCtor.newInstance(created, modified, property, scope).asInstanceOf[AnyRef]
       }
 
       /** Convert Iterable[Property.Wrapper] to Stash.Data. */
@@ -138,7 +138,7 @@ object Stash extends Loggable {
         val map = new java.util.TreeMap[String, AnyRef]()
         map.put("class", stash.getClass().getName)
         map.put("created", stash.created)
-        map.put("modification", stash.modification)
+        map.put("modified", stash.modified)
         map.put("properties", properties.sortBy(_.id.name).asJava)
         map.put("scope", stash.scope)
         representMapping(Tag.MAP, map, null)

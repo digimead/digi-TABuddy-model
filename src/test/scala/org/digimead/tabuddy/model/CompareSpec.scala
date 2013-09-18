@@ -84,7 +84,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eNodeId) should not be (myModel2.eNodeId)
           (myModel1.eOrigin.name) should not be (myModel2.eOrigin.name)
           (myModel1.eStash.created) should not be (myModel2.eStash.created)
-          (myModel1.eStash.modification) should not be (myModel2.eStash.modification)
+          (myModel1.eStash.modified) should not be (myModel2.eStash.modified)
           (myModel1.eStash.property) should not be (myModel2.eStash.property)
           // Copy
           myModel2 = myModel1.eCopy(graph2.node)
@@ -92,7 +92,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eNodeId) should not be (myModel2.eNodeId)
           (myModel1.eOrigin.name) should not be (myModel2.eOrigin.name)
           (myModel1.eStash.created) should be(myModel2.eStash.created)
-          (myModel1.eStash.modification) should be(myModel2.eStash.modification)
+          (myModel1.eStash.modified) should be(myModel2.eStash.modified)
           (myModel1.eStash.scope) should be(myModel2.eStash.scope)
           (myModel1.eStash.property) should be(myModel2.eStash.property)
 
@@ -149,7 +149,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         val rB1 = (rA1 & RecordLocation('rB)).eRelative
         val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eRelative
 
-        val graph2 = graph1.copy('john2)
+        val graph2 = graph1.copy(origin = 'john2)
         graph1.model.eStash.created should be(graph2.model.eStash.created)
         val model2 = graph2.model.eRelative
         val rA2 = (model2 & RecordLocation('rA)).eRelative
@@ -172,9 +172,9 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           rA1.compare(rB2) should not be (0)
           rB1.compare(rLeaf2) should not be (0)
           // modify timestamp
-          rA2.copy(rA2.eStash.copy(modification = Element.timestamp()))
-          rB2.copy(rB2.eStash.copy(modification = Element.timestamp()))
-          rLeaf2.copy(rLeaf2.eStash.copy(modification = Element.timestamp()))
+          rA2.copy(rA2.eStash.copy(modified = Element.timestamp()))
+          rB2.copy(rB2.eStash.copy(modified = Element.timestamp()))
+          rLeaf2.copy(rLeaf2.eStash.copy(modified = Element.timestamp()))
           rA1.compare(rA2) should be(0)
           rB1.compare(rB2) should be(0)
           rLeaf1.compare(rLeaf2) should be(0)

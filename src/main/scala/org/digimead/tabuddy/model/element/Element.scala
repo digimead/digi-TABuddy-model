@@ -112,14 +112,14 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
         // asInstanceOf[ElementType#StashType] is simplify type between
         // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
         if (target.rootElementBox == null && coordinate != Coordinate.root) {
-          val root = ElementBox(Coordinate.root, stash.created, target, stash.modification, stash.scope, serialization)(Manifest.classType(getClass), stash.getClass)
+          val root = ElementBox(Coordinate.root, stash.created, target, stash.modified, stash.scope, serialization)(Manifest.classType(getClass), stash.getClass)
           val projection = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
           target.updateState(target.state.copy(projectionElementBoxes = target.state.projectionElementBoxes + (coordinate -> projection),
-            rootElementBox = root), stash.modification)
+            rootElementBox = root), stash.modified)
           projection
         } else {
           val box = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
-          target.updateElementBox(coordinate, box, stash.modification)
+          target.updateElementBox(coordinate, box, stash.modified)
           box
         }
       }.get
@@ -158,7 +158,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   def eNode(): Node[ElementType] = eBox.node
   /** Get identifier which uniquely identify this element. */
   def eUniqueId(): UUID = eBox.elementUniqueId
-  /** Get graph owner identifier. */
+  /** Get graph origin identifier. */
   def eOrigin(): Symbol = eBox.node.graph.origin
   /** Get a container. */
   def eParent(): Option[Node[_ <: Element]] = eNode.getParent
@@ -216,7 +216,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
                   val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               }
-              eCopy(eBox, eStash.copy(modification = Element.timestamp(),
+              eCopy(eBox, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
                 asInstanceOf[ElementType#StashType])
             case None ⇒
@@ -224,7 +224,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
               val undoF = () ⇒ {}
               //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
               None
-              eCopy(eBox, eStash.copy(modification = Element.timestamp(), property = eStash.property.updated(id,
+              eCopy(eBox, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
                 asInstanceOf[ElementType#StashType])
           }
@@ -237,7 +237,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
                 val undoF = () ⇒ {}
                 //Element.Event.publish(Element.Event.ValueRemove(this, previous, eModified)(undoF))
               }
-              eCopy(eBox, eStash.copy(modification = Element.timestamp(),
+              eCopy(eBox, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])
             case None ⇒
               Element.this.asInstanceOf[ElementType]
@@ -251,7 +251,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   /** Get node/element unique id. */
   def eNodeId(): UUID = eBox.node.unique
   /** Get modification timestamp. */
-  def modification = eStash.modification
+  def modified = eStash.modified
 
   /** Built in serialization helper. */
   protected def readObjectHelper() = {
@@ -332,7 +332,6 @@ object Element extends Loggable {
     val stash = stashCtor.newInstance(created, modified, property, scope).asInstanceOf[A#StashType]
     apply[A](box, stash)
   }
-
   /** Create new timestamp object */
   def timestamp(ms: Long = System.currentTimeMillis(), ns: java.lang.Long = null) =
     if (ns == null) Timestamp(ms, System.nanoTime() - nanoBase) else Timestamp(ms, ns)

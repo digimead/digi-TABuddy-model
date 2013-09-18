@@ -128,20 +128,20 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
       val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1))
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val stash = model.eStash.copy(modification = Element.timestamp(2, 2))
+      val stash = model.eStash.copy(modified = Element.timestamp(2, 2))
       val optional = yaml.Optional.getOptional(stash)
       optional.values should contain key ('AAAKey)
       optional.values should contain key ('BBBKey)
       Serialization.stash.set(optional)
       val data = yaml.Stash.dump(stash)
-      data should be("class: org.digimead.tabuddy.model.Model$Stash\ncreated: 1ms.1ns\nmodification: 2ms.2ns\n" +
+      data should be("class: org.digimead.tabuddy.model.Model$Stash\ncreated: 1ms.1ns\nmodified: 2ms.2ns\n" +
         "properties:\n- [AAAKey, String, AAA]\n- [BBBKey, String, BBB]\nscope: [Model, org.digimead.tabuddy.model.Model$Scope]")
       val stashˈ = yaml.Stash.load(data)
       stashˈ.getClass should be(stash.getClass)
       stashˈ.created should be(stash.created)
       stashˈ.created.## should be(stash.created.##)
-      stashˈ.modification should be(stash.modification)
-      stashˈ.modification.## should be(stash.modification.##)
+      stashˈ.modified should be(stash.modified)
+      stashˈ.modified.## should be(stash.modified.##)
       stashˈ.scope should be(stash.scope)
       stashˈ.scope.## should be(stash.scope.##)
       stashˈ.property should be(stash.property)
@@ -158,7 +158,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
       model.copy(model.eStash.copy(property = model.eStash.property +
         ('other -> (model.eStash.property('other) +
           ('String -> new Value.Static("321"))))))
-      val stash = model.eStash.copy(modification = Element.timestamp(2, 2))
+      val stash = model.eStash.copy(modified = Element.timestamp(2, 2))
       val optional = yaml.Optional.getOptional(stash)
       val data = yaml.Optional.dump(optional)
       val u = model.eUniqueId
@@ -203,34 +203,34 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.stored should be('empty)
         Serialization.freeze(graph)
         graph.stored should have size (1)
-        graph.stored.head should be(graph.modification)
+        graph.stored.head should be(graph.modified)
 
         new File(folder, "john1") should be('directory)
         new File(folder, "john1").length() should be > (0L)
         new File(folder, "john1/descriptor.yaml") should be('file)
         new File(folder, "john1/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modification))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modification))).length() should be > (0L)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modified))) should be('file)
+        new File(folder, "john1/model/e john1 {0609C486}/descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modified))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modified))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modified))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modified))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modified))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modified))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modified))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modified))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modified))).length() should be > (0L)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))) should be('file)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modified))) should be('file)
         new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/descriptor-%s.yaml".
-          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modification))).length() should be > (0L)
+          format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modified))).length() should be > (0L)
         //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
         //val str = testTxtSource.getLines.mkString("\n")
         //testTxtSource.close()
@@ -243,7 +243,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph2.origin.name should be(graph.origin.name)
         graph2.created should be(graph.created)
         graph2.modelType should be(graph.modelType)
-        graph2.modification should be(graph.modification)
+        graph2.modified should be(graph.modified)
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
             /* compare node */
@@ -251,11 +251,11 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
             node2.id.name should be(node.id.name)
             node2.unique should be(node.unique)
             node2.children should be(node.children)
-            node2.modification should be(node.modification)
+            node2.modified should be(node.modified)
             node2.projectionElementBoxes should be(node.projectionElementBoxes)
             node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
             node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
-            node2.rootElementBox.modification should be(node.rootElementBox.modification)
+            node2.rootElementBox.modified should be(node.rootElementBox.modified)
             node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
 
             node2.graph should be(graph2)
@@ -265,7 +265,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
             /* compare root element box */
             node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
             node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
-            node2.rootElementBox.modification should be(node.rootElementBox.modification)
+            node2.rootElementBox.modified should be(node.rootElementBox.modified)
             node2.rootElementBox.node should be(node.rootElementBox.node)
             node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
 
@@ -289,7 +289,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
             graph2.model.eId.name should be(graph.model.eId.name)
             graph2.model.eUniqueId should be(graph.model.eUniqueId)
             graph2.model.eNodeId should be(graph.model.eNodeId)
-            graph2.model.modification should be(graph.model.modification)
+            graph2.model.modified should be(graph.model.modified)
             graph2.model.eModel should be(graph2.model)
             graph2.model.eModel should be(graph.model)
             graph2.model.eStash.property should be(graph.model.eStash.property)
@@ -302,14 +302,14 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
           }
         }
 
-        val graphModification = graph.modification
+        val graphModification = graph.modified
         val baseLevel = graph.model | RecordLocation('baseLevel) eRelative ()
         baseLevel.name = "321"
-        graph.modification should be > (graphModification)
+        graph.modified should be > (graphModification)
 
         Serialization.freeze(graph)
         graph.stored should have size (2)
-        graph.stored.last should be(graph.modification)
+        graph.stored.last should be(graph.modified)
         graph.stored.head should be(graphModification)
 
         val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
@@ -326,12 +326,12 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph2.node.safeRead { node ⇒
           graph1x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
           }
         } should be(true)
         graph.node.safeRead { node ⇒
           graph2x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
           }
         } should be(true)
         graph1x.node.safeRead { node ⇒
@@ -340,9 +340,9 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
               case (a, b) ⇒
                 a.ne(b) && {
                   if (a.id == 'john1 || a.id == 'baseLevel)
-                    a.modification != b.modification
+                    a.modified != b.modified
                   else
-                    a.modification == b.modification
+                    a.modified == b.modified
                 }
             }
           }
@@ -377,21 +377,21 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
           }
         } should be(true)
 
-        val oldModification = graph.node.modification
+        val oldModification = graph.node.modified
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).name should be("456")
         record_level3.eRelative.name = "789"
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).name should be("789")
         graph.model.e(record_level3.eReference).map(_.asInstanceOf[Record].name) should be(Some("789"))
-        val newModification = graph.node.modification
+        val newModification = graph.node.modified
         newModification should be > (oldModification)
-        newModification should be(record_level3.eRelative.modification)
-        (model & RecordLocation('root)).eNode.modification should be(newModification)
-        (model & RecordLocation('root) & RecordLocation('level2)).eNode.modification should be(newModification)
-        (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modification should be(newModification)
+        newModification should be(record_level3.eRelative.modified)
+        (model & RecordLocation('root)).eNode.modified should be(newModification)
+        (model & RecordLocation('root) & RecordLocation('level2)).eNode.modified should be(newModification)
+        (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modified should be(newModification)
 
         val record_level3_rel = graph2.model.e(record_level3.eReference).flatMap(_.eAs[Record]).get.eRelative
         val record_level2_node = record_level3_rel.eNode.getParent.get
@@ -426,7 +426,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.node.safeRead { node ⇒
           graph3.node.safeRead { node3 ⇒
-            node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modification == b.modification }
+            node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
           }
         } should be(true)
       }
@@ -457,7 +457,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         // save
 
         val fFilterSave1 = (node: Node.ThreadUnsafe[Element]) ⇒
-          Node(node.id, node.unique, node.state.copy(children = Seq()), node.modification)(node.elementType)
+          Node(node.id, node.unique, node.state.copy(children = Seq()), node.modified)(node.elementType)
         Serialization.freeze(graph, fFilterSave1)
         graph.stored should have size (1)
 
@@ -465,7 +465,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph2.node.safeRead(_.children) should be('empty)
         graph2.node.safeRead(_.iteratorRecursive().size) should be(0)
 
-        graph2.modification should be(graph.modification)
+        graph2.modified should be(graph.modified)
 
         @volatile var x = 0
         val fFilterSave2 = (node: Node.ThreadUnsafe[Element]) ⇒ {
@@ -477,13 +477,13 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))
         graph3.node.safeRead(_.iteratorRecursive().size) should be(5)
-        graph3.modification should be(Element.timestamp(0, 0))
-        graph3.node.modification should be(Element.timestamp(0, 0))
-        graph3.node.safeRead(_.iteratorRecursive().forall(_.modification == Element.timestamp(0, 0))) should be(true)
+        graph3.modified should be(Element.timestamp(0, 0))
+        graph3.node.modified should be(Element.timestamp(0, 0))
+        graph3.node.safeRead(_.iteratorRecursive().forall(_.modified == Element.timestamp(0, 0))) should be(true)
         x should be(11) // model + all elements + children
 
         val fFilterSave3 = (node: Node.ThreadUnsafe[Element]) ⇒
-          Node(Symbol("x" + node.id.name), node.unique, node.state, node.modification)(node.elementType)
+          Node(Symbol("x" + node.id.name), node.unique, node.state, node.modified)(node.elementType)
         Serialization.freeze(graph, fFilterSave3)
         graph.stored should have size (2)
 
@@ -491,7 +491,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.node.safeRead { node ⇒
           graph4.node.safeRead { node4 ⇒
             node.iteratorRecursive().corresponds(node4.iteratorRecursive()) { (a, b) ⇒
-              a.ne(b) && a.modification == b.modification && ("x" + a.id.name) == b.id.name
+              a.ne(b) && a.modified == b.modified && ("x" + a.id.name) == b.id.name
             }
           }
         } should be(true)

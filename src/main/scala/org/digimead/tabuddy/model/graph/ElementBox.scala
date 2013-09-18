@@ -72,12 +72,11 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
     node: Node[A] = this.node,
     serialization: Serialization.Identifier = this.serialization): ElementBox[A] = {
     val element = get()
-    val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-    val elementBox = ElementBox[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference),
-      element.modification)(elementType = node.elementType, node = node, serialization = serialization)
-    val elementCopy = element.eCopy(elementBox.asInstanceOf[ElementBox[element.ElementType]],
-      element.eStash.asInstanceOf[element.ElementType#StashType]).asInstanceOf[A]
-    elementElementForwardReference.set(elementCopy)
+    val elementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
+    val elementBox = ElementBox[A](coordinate, UUID.randomUUID(), Right(elementForwardReference),
+      element.modified)(elementType = node.elementType, node = node, serialization = serialization)
+    val elementCopy = Element[A](elementBox, element.eStash.asInstanceOf[A#StashType])(node.elementType)
+    elementForwardReference.set(elementCopy)
     elementBox.get
     elementBox
   }
@@ -90,7 +89,7 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   /** (Re)Load element. */
   def load(): A
   /** Get modification timestamp. */
-  def modification: Element.Timestamp = getModified.map(_.modification) getOrElse unmodified
+  def modified: Element.Timestamp = getModified.map(_.modified) getOrElse unmodified
   /**
    * Save element.
    *
@@ -167,7 +166,7 @@ object ElementBox extends Loggable {
       serialization: Serialization.Identifier, stash: A#StashType)(implicit m: Manifest[A]): ElementBox[A] = {
       // create root or projection element box
       val elementElementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-      val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), stash.modification)(m, elementNode, serialization)
+      val elementBox = apply[A](coordinate, UUID.randomUUID(), Right(elementElementForwardReference), stash.modified)(m, elementNode, serialization)
       // create element.
       val element = Element.apply[A](elementBox, stash)
       elementElementForwardReference.set(element)
@@ -253,20 +252,20 @@ object ElementBox extends Loggable {
       }
     }
     // get modified timestamp or get unmodified timestamp or get unmodified if not loaded
-    override def modification: Element.Timestamp = modifiedCache.map(_.modification) orElse
-      unmodifiedCache.map(_.modification) getOrElse unmodified
+    override def modified: Element.Timestamp = modifiedCache.map(_.modified) orElse
+      unmodifiedCache.map(_.modified) getOrElse unmodified
     def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]] = Seq(), storageURI: Option[URI] = None) =
       synchronized {
         getModified match {
-          case Some(element) =>
+          case Some(element) ⇒
             Serialization.perIdentifier.get(serialization) match {
               case Some(mechanism) ⇒
                 val storages = storageURI match {
-                  case Some(storage) => Seq(storage)
-                  case None => node.graph.storages
+                  case Some(storage) ⇒ Seq(storage)
+                  case None ⇒ node.graph.storages
                 }
                 val ancestors = if (ancestorsNSelf.nonEmpty) ancestorsNSelf else node.safeRead(node ⇒ node.ancestors.reverse :+ node)
-                storages.foreach { storageURI =>
+                storages.foreach { storageURI ⇒
                   Serialization.perScheme.get(storageURI.getScheme()) match {
                     case Some(transport) ⇒
                       mechanism.save(ancestors, element, storageURI, transport)
@@ -279,7 +278,7 @@ object ElementBox extends Loggable {
               case None ⇒
                 throw new IllegalStateException(s"Serialization mechanism for ${serialization} not found.")
             }
-          case None =>
+          case None ⇒
             log.debug(s"Skip saveing ${this}: not modified.")
         }
       }
@@ -287,8 +286,8 @@ object ElementBox extends Loggable {
     def set(arg: Option[A]) = {
       modifiedCache = arg
       arg match {
-        case Some(element) ⇒ node.modificationUpdate(element.modification)
-        case None ⇒ node.modificationUpdate(unmodified)
+        case Some(element) ⇒ node.updateModification(element.modified)
+        case None ⇒ node.updateModification(unmodified)
       }
     }
 

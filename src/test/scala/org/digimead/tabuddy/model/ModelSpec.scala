@@ -57,7 +57,7 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val rB1 = (rA1 & RecordLocation('rB)).eRelative
       val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eRelative
 
-      val graphCopy = graph.copy('john2)
+      val graphCopy = graph.copy(origin = 'john2)
       graphCopy.nodes.size should be(graph.nodes.size)
       graphCopy.nodes.values.toSeq.sortBy(_.unique) should be(graph.nodes.values.toSeq.sortBy(_.unique))
       graphCopy.nodes.values.toSeq.sortBy(_.unique).corresponds(graph.nodes.values.toSeq.sortBy(_.unique))(_.unique == _.unique) should be(true)

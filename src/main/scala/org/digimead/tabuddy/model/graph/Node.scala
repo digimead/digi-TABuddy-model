@@ -48,24 +48,34 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
   protected val rwl = new ReentrantReadWriteLock()
   /** Node state information. Implementation MUST be volatile. */
   protected var internalState: NodeState[A]
-  /** Node modification time. Implementation MUST be volatile. */
-  protected var modificationTimestamp: Element.Timestamp
+  /** Node modified time. Implementation MUST be volatile. */
+  protected var modifiedTimestamp: Element.Timestamp
   /** Element system id. */
   val unique: UUID
 
   /** Copy this node and attach it to target. */
-  def copy[B <: Element](target: Node.ThreadUnsafe[B], recursive: Boolean): Node[A] = safeWrite { currentNode ⇒
+  def copy[B <: Element](target: Node.ThreadUnsafe[B], recursive: Boolean = true, modified: Element.Timestamp = this.modified): Node[A] = safeRead { currentNode ⇒
     implicit val m = elementType
-    val copyNode = target.createChild[A](id, unique).safeWrite { copyNode ⇒
-      val rootElementBox = internalState.rootElementBox.copy(node = copyNode)
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[A])] = internalState.projectionElementBoxes.map {
-        case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
-      }.toSeq
-      copyNode.updateState(rootElementBox = rootElementBox, projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
-      copyNode
-    }
-    if (recursive)
-      currentNode.iterator.foreach { _.copy(copyNode, recursive) }
+    val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
+      graph = target.graph,
+      parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
+      projectionElementBoxes = immutable.HashMap(),
+      rootElementBox = null), modified)
+    val rootElementBox = internalState.rootElementBox.copy(node = copyNode)
+      assert(copyNode.modified == modified)
+    val projectionElementBoxes: Seq[(Coordinate, ElementBox[A])] = internalState.projectionElementBoxes.map {
+      case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
+    }.toSeq
+    val children = if (recursive)
+      currentNode.iterator.map { _.copy(copyNode, recursive) }.toSeq
+    else
+      internalState.children
+    copyNode.updateState(
+      children = children,
+      modified = null, // modification is already assigned
+      rootElementBox = rootElementBox,
+      projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
+    copyNode.graph.nodes ++= copyNode.children.map(n ⇒ n.unique -> n)
     copyNode
   }
   /**
@@ -122,17 +132,12 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     try { internalState.rootElementBox }
     finally { rwl.readLock().unlock() }
   }
-  /** Get modification timestamp. */
-  def modification: Element.Timestamp = modificationTimestamp
-  /** Set modification timestamp. */
-  def modification_=(arg: Element.Timestamp) = {
-    modificationTimestamp = arg
-    internalState.parentNodeReference.get.foreach(_.modificationUpdate(arg))
-  }
-  /** Update modification timestamp only if argument is greater than current value. */
-  def modificationUpdate(arg: Element.Timestamp) = {
-    if (modificationTimestamp < arg) modificationTimestamp = arg else modificationTimestamp = Element.timestamp()
-    internalState.parentNodeReference.get.foreach(_.modificationUpdate(arg))
+  /** Get modified timestamp. */
+  def modified: Element.Timestamp = modifiedTimestamp
+  /** Set modified timestamp. */
+  def modified_=(arg: Element.Timestamp) = {
+    modifiedTimestamp = arg
+    internalState.parentNodeReference.get.foreach(_.updateModification(arg))
   }
   /**
    * Explicitly convert this trait to ThreadUnsafe.
@@ -154,6 +159,11 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
   }
   /** Get internal state, */
   def state = internalState
+  /** Update modified timestamp only if argument is greater than current value. */
+  def updateModification(arg: Element.Timestamp) = {
+    if (modifiedTimestamp < arg) modifiedTimestamp = arg else modifiedTimestamp = Element.timestamp()
+    internalState.parentNodeReference.get.foreach(_.updateModification(arg))
+  }
 
   override def toString = s"graph.Node[${unique}(${id})]"
 }
@@ -180,11 +190,11 @@ object Node extends Loggable {
    */
   trait Interface {
     /** Create common element node. */
-    def apply[A <: Element: Manifest](id: Symbol, unique: UUID, state: NodeState[A], modificationTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] =
-      new ThreadUnsafe[A](id, unique, state, modificationTimestamp)
+    def apply[A <: Element: Manifest](id: Symbol, unique: UUID, state: NodeState[A], modifiedTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] =
+      new ThreadUnsafe[A](id, unique, state, modifiedTimestamp)
     /** Create model node. */
-    def model[A <: Element: Manifest](id: Symbol, unique: UUID, modificationTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] with ModelNodeInitializer =
-      new ThreadUnsafe[A](id, unique, null, modificationTimestamp) with ModelNodeInitializer
+    def model[A <: Element: Manifest](id: Symbol, unique: UUID, modifiedTimestamp: Element.Timestamp): Node.ThreadUnsafe[A] with ModelNodeInitializer =
+      new ThreadUnsafe[A](id, unique, null, modifiedTimestamp) with ModelNodeInitializer
     /** Dump the node structure. */
     def dump(node: Node[_ <: Element], brief: Boolean, padding: Int = 2): String = node.safeRead { node ⇒
       val pad = " " * padding
@@ -213,7 +223,7 @@ object Node extends Loggable {
   trait ModelNodeInitializer {
     this: Node[_ <: Element] ⇒
     /** Initialize model node. */
-    def initializeModelNode[A <: Model.Like](graph: Graph[A], modification: Element.Timestamp) = {
+    def initializeModelNode[A <: Model.Like](graph: Graph[A], modified: Element.Timestamp) = {
       rwl.writeLock().lock()
       try {
         assert(internalState == null)
@@ -223,6 +233,7 @@ object Node extends Loggable {
           projectionElementBoxes = immutable.HashMap(),
           rootElementBox = null)
         graph.nodes += this.unique -> this
+        modifiedTimestamp = modified
       } finally { rwl.writeLock().unlock() }
     }
   }
@@ -230,7 +241,7 @@ object Node extends Loggable {
    * Thread unsafe node representation.
    */
   class ThreadUnsafe[A <: Element](val id: Symbol, val unique: UUID, @volatile protected var internalState: NodeState[A],
-    @volatile protected var modificationTimestamp: Element.Timestamp)(implicit val elementType: Manifest[A])
+    @volatile protected var modifiedTimestamp: Element.Timestamp)(implicit val elementType: Manifest[A])
     extends Node[A] with mutable.Set[Node[_ <: Element]] with mutable.SetLike[Node[_ <: Element], ThreadUnsafe[_ <: Element]] {
 
     /** Adds a single element to the set. */
@@ -263,7 +274,7 @@ object Node extends Loggable {
           graph.nodes += elem.unique -> elem
           node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
         }
-        modification = Element.timestamp()
+        modified = Element.timestamp()
         /* notify */
         //val undoF = () => { super.remove(node); {} }
         //Element.Event.publish(Element.Event.ChildInclude(parentNode.get, node.get, parentNode.get.eModified)(undoF))
@@ -295,7 +306,7 @@ object Node extends Loggable {
       //Element.Event.publish(Element.Event.ChildrenReset(parentNode.get, parentNode.get.eModified)(undoF))
     }
     /** Clone this node. */
-    override def clone(): Node.ThreadUnsafe[A] = new Node.ThreadUnsafe[A](id, unique, internalState, this.modificationTimestamp)(elementType)
+    override def clone(): Node.ThreadUnsafe[A] = new Node.ThreadUnsafe[A](id, unique, internalState, this.modifiedTimestamp)(elementType)
     /** Tests whether this set contains a given node as a children. */
     def contains(elem: Node[_ <: Element]): Boolean = internalState.children.contains(elem)
     /** Create new children node. */
@@ -355,32 +366,32 @@ object Node extends Loggable {
     /** The number of children. */
     override def size: Int = internalState.children.size
     /** Update state of the current node. */
-    def updateState(state: NodeState[A], modification: Element.Timestamp): Node.ThreadUnsafe[A] = {
+    def updateState(state: NodeState[A], modified: Element.Timestamp): Node.ThreadUnsafe[A] = {
       internalState = state
-      if (modification != null)
-        this.modification = modification
+      if (modified != null)
+        this.modified = modified
       this
     }
     /** Update state of the current node. */
     def updateState(children: Seq[Node[_ <: Element]] = this.internalState.children,
       graph: Graph[_ <: Model.Like] = this.internalState.graph,
-      modification: Element.Timestamp = Element.timestamp(),
+      modified: Element.Timestamp = Element.timestamp(),
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.internalState.parentNodeReference,
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionElementBoxes,
       rootElementBox: ElementBox[A] = this.internalState.rootElementBox): Node.ThreadUnsafe[A] = {
       internalState = new State[A](children, graph, parentNodeReference, projectionElementBoxes, rootElementBox)
-      if (modification != null)
-        this.modification = modification
+      if (modified != null)
+        this.modified = modified
       this
     }
     /** Update element box at the specific coordinates. */
-    def updateElementBox(coordinate: Coordinate, box: ElementBox[A], modification: Element.Timestamp = Element.timestamp()): Node.ThreadUnsafe[A] = {
+    def updateElementBox(coordinate: Coordinate, box: ElementBox[A], modified: Element.Timestamp = Element.timestamp()): Node.ThreadUnsafe[A] = {
       if (coordinate == Coordinate.root)
         internalState = internalState.copy(rootElementBox = box)
       else
         internalState = internalState.copy(projectionElementBoxes = internalState.projectionElementBoxes + (coordinate -> box))
-      if (modification != null)
-        this.modification = modification
+      if (modified != null)
+        this.modified = modified
       this
     }
 
