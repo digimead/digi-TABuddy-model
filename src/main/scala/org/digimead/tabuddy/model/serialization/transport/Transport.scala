@@ -53,6 +53,11 @@ trait Transport {
   def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
   def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
+  /** Append path to URI. */
+  def append(uri: URI, part: String*): URI = if (uri.toString().endsWith("/"))
+    new URI(uri + part.mkString("/"))
+  else
+    new URI(uri + "/" + part.mkString("/"))
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element box to the specific URI. */
@@ -69,6 +74,8 @@ trait Transport {
   def read(uri: URI): Array[Byte]
   /** Squeeze model. */
   def squeeze()
+  /** Write resource. */
+  def write(content: InputStream, uri: URI)
   /** Write resource. */
   def write(content: Array[Byte], uri: URI)
 }

@@ -46,8 +46,8 @@ class YAMLSerialization extends Mechanism with Loggable {
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, storageURI)
-    val elementURI = new URI(elementContainerURI + "/" + transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
-    val optionalURI = new URI(elementContainerURI + "/" + transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
+    val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     val elementContent = transport.read(elementURI)
     val optionalContent = transport.read(optionalURI)
     val optional = yaml.YAML.loadAs(new String(optionalContent, io.Codec.UTF8.charSet), classOf[yaml.Optional]).asInstanceOf[yaml.Optional]
@@ -66,8 +66,8 @@ class YAMLSerialization extends Mechanism with Loggable {
   def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) {
     log.debug(s"Save ${element.eBox} to ${storageURI}.")
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, storageURI)
-    val elementURI = new URI(elementContainerURI + "/" + transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
-    val optionalURI = new URI(elementContainerURI + "/" + transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
+    val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     val optional = yaml.Optional.getOptional(element.eStash)
     transport.write(yaml.YAML.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), elementURI)
     transport.write(yaml.YAML.dump(optional).getBytes(io.Codec.UTF8.charSet), optionalURI)

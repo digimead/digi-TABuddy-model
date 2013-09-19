@@ -94,7 +94,7 @@ class ReferenceSpec extends FunSpec with StorageHelper with ShouldMatchers with 
         copy should be(graph)
         graph.node.safeRead { node ⇒
           copy.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a == b }
           }
         } should be(true)
         copy.modified should be(graph.modified)
@@ -104,6 +104,10 @@ class ReferenceSpec extends FunSpec with StorageHelper with ShouldMatchers with 
         Reference.resolve(record_0.eReference, timestamp2) should not be ('empty)
         Reference.resolve(record_0.eReference, timestamp3) should not be ('empty)
         Reference.resolve(record_0.eReference, timestamp4) should not be ('empty)
+        Reference.resolve(record_0.eReference, timestamp1).flatMap(_.eAs[Record].flatMap(_.name)).map(_.get) should be(Some("record_0"))
+        Reference.resolve(record_0.eReference, timestamp2).flatMap(_.eAs[Record].flatMap(_.name)).map(_.get) should be(Some("record_0"))
+        Reference.resolve(record_0.eReference, timestamp3).flatMap(_.eAs[Record].flatMap(_.name)).map(_.get) should be(Some("111"))
+        Reference.resolve(record_0.eReference, timestamp4).flatMap(_.eAs[Record].flatMap(_.name)).map(_.get) should be(Some("222"))
       }
     }
   }

@@ -69,9 +69,9 @@ object Reference {
     }
     /** Resolve the reference against the specific timestamp. */
     // Heavy weight operation.
-    def resolve(reference: Reference, timestamp: Element.Timestamp): Option[_ <: Element] = {
+    def resolve(reference: Reference, modelModificationTimestamp: Element.Timestamp): Option[_ <: Element] = {
       registry.get(reference.origin, reference.model).flatMap { seq ⇒
-        seq.find(_.node.modified == timestamp).flatMap(_.nodes.get(reference.node).
+        seq.find(_.node.modified == modelModificationTimestamp).flatMap(_.nodes.get(reference.node).
           flatMap(_.getProjection(reference.coordinate): Option[ElementBox[_ <: Element]]))
       }.map(_.get)
     }

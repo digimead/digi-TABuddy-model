@@ -293,7 +293,10 @@ class Serialization extends Serialization.Interface with Loggable {
           throw new IllegalStateException("Element and modified element are different.")
         elementBox.save(ancestorsNSelf, Some(storageURI))
         elementBox.get.eStash.property.foreach {
-          case (valueId, perTypeMap) ⇒ perTypeMap.foreach { case (typeSymbolId, value) ⇒ value.commit(modified, transport, storageURI) }
+          case (valueId, perTypeMap) ⇒ perTypeMap.foreach {
+            case (typeSymbolId, value) ⇒
+              value.commit(modified, transport, transport.acquireElementLocation(ancestorsNSelf, modified.eBox, storageURI))
+          }
         }
       case None ⇒
         log.debug("Skip unmodified element.")

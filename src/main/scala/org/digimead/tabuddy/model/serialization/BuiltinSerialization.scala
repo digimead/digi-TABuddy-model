@@ -51,7 +51,7 @@ class BuiltinSerialization extends Mechanism with Loggable {
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, storageURI)
-    val elementURI = new URI(elementContainerURI + "/" + transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
     val elementContent = transport.read(elementURI)
     Serialization.stash.set(elementBox)
     val bais = new ByteArrayInputStream(elementContent)
@@ -70,7 +70,7 @@ class BuiltinSerialization extends Mechanism with Loggable {
    */
   def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) {
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, storageURI)
-    val elementURI = new URI(elementContainerURI + "/" + transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
     log.debug(s"Save ${element.eBox} to ${elementURI}.")
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)

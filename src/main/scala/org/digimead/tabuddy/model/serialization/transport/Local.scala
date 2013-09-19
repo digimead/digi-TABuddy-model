@@ -59,7 +59,7 @@ class Local extends Transport with Loggable {
     }
     val storageDirectory = new File(storageURI)
     val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, elementBox, false).toURI
-    new URI((elementDirectory +: part).mkString("/"))
+    append(elementDirectory, part: _*)
   }
   /** Load element box descriptor with the specific UUID for the specific container. */
   def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, storageURI: URI): Array[Byte] = {
@@ -142,6 +142,22 @@ class Local extends Transport with Loggable {
   }
   /** Squeeze model. */
   def squeeze() {}
+  /** Write resource. */
+  def write(content: InputStream, uri: URI) {
+    val contentFile = new File(uri)
+    val contentDirectory = contentFile.getParentFile()
+    if (!contentDirectory.isDirectory())
+      if (!contentDirectory.mkdirs())
+        throw new IOException(s"Unable to create ${contentDirectory}.")
+    val bis = new BufferedInputStream(content)
+    val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
+    val buffer = new Array[Byte](4096)
+    try { Stream.continually(bis.read(buffer)).takeWhile(_ != -1).foreach(_ ⇒ bos.write(buffer)) }
+    finally {
+      try { bis.close() } catch { case e: IOException ⇒ }
+      try { bos.close() } catch { case e: IOException ⇒ }
+    }
+  }
   /** Write resource. */
   def write(content: Array[Byte], uri: URI) {
     val contentFile = new File(uri)
