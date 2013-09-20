@@ -102,7 +102,10 @@ object Stash extends Loggable {
                 case Some(data) if static ⇒
                   property.typeSymbol -> new Value.Static(data)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
                 case Some(data) ⇒
-                  property.typeSymbol -> new Value.Dynamic(() ⇒ data)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
+                  if (data.isInstanceOf[Value[_ <: AnyRef with java.io.Serializable]])
+                    property.typeSymbol -> data.asInstanceOf[Value[_ <: AnyRef with java.io.Serializable]]
+                  else
+                    property.typeSymbol -> new Value.Dynamic(() ⇒ data)(Manifest.classType(DSLType.symbolClassMap(property.typeSymbol)))
                 case None ⇒
                   throw new YAMLException(s"Unable to unpack value '${property.id}=${property.data}.")
               }): (scala.Symbol, Value[_ <: AnyRef with java.io.Serializable])

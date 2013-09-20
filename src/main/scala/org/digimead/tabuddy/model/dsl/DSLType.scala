@@ -36,7 +36,7 @@ trait DSLType {
   protected val typeClassSymbolMap: immutable.HashMap[Class[_], Symbol]
   /** The map of symbol -> class */
   protected lazy val typeSymbolClassMap: immutable.HashMap[Symbol, Class[_]] =
-    immutable.HashMap[Symbol, Class[_]](typeClassSymbolMap.map(t => (t._2, t._1)).toSeq: _*)
+    immutable.HashMap[Symbol, Class[_]](typeClassSymbolMap.map(t ⇒ (t._2, t._1)).toSeq: _*)
 
   /**
    * Commit complex type (if needed) while saving
@@ -91,41 +91,41 @@ object DSLType extends Loggable {
      */
     def commit[T](value: Value[T], element: Element, transport: Transport,
       elementDirectoryURI: URI)(implicit m: Manifest[T]): Unit =
-      classSymbolMap.get(m.runtimeClass).map(symbolType => commit(symbolType, value, element, transport, elementDirectoryURI))
+      classSymbolMap.get(m.runtimeClass).map(symbolType ⇒ commit(symbolType, value, element, transport, elementDirectoryURI))
     /**
      * Commit complex type (if needed) while saving
      */
     def commit(typeSymbol: Symbol, value: AnyRef with java.io.Serializable,
       element: Element, transport: Transport, elementDirectoryURI: URI): Unit =
-      symbolConverterMap.get(typeSymbol).foreach(converter => converter.commit(typeSymbol, value, element, transport, elementDirectoryURI))
+      symbolConverterMap.get(typeSymbol).foreach(converter ⇒ converter.commit(typeSymbol, value, element, transport, elementDirectoryURI))
     /**
      * Convert value from string
      */
     def convertFromString[T <: AnyRef with java.io.Serializable](valueData: String)(implicit m: Manifest[T]): Option[T] =
-      classSymbolMap.get(m.runtimeClass).flatMap(symbolType => convertFromString(symbolType, valueData).asInstanceOf[Option[T]])
+      classSymbolMap.get(m.runtimeClass).flatMap(symbolType ⇒ convertFromString(symbolType, valueData).asInstanceOf[Option[T]])
     /**
      * Convert value from string
      */
     def convertFromString(typeSymbol: Symbol, valueData: String): Option[_ <: AnyRef with java.io.Serializable] =
       symbolConverterMap.get(typeSymbol) match {
-        case Some(converter) =>
+        case Some(converter) ⇒
           Some(converter.convertFromString(typeSymbol, valueData))
-        case None =>
+        case None ⇒
           None
       }
     /**
      * Convert value to string
      */
     def convertToString[T <: AnyRef with java.io.Serializable](valueData: T)(implicit m: Manifest[T]): Option[String] =
-      classSymbolMap.get(m.runtimeClass).flatMap(symbolType => convertToString(symbolType, valueData))
+      classSymbolMap.get(m.runtimeClass).flatMap(symbolType ⇒ convertToString(symbolType, valueData))
     /**
      * Convert value to string
      */
     def convertToString(typeSymbol: Symbol, valueData: AnyRef with java.io.Serializable): Option[String] =
       symbolConverterMap.get(typeSymbol) match {
-        case Some(converter) =>
+        case Some(converter) ⇒
           Some(converter.convertToString(typeSymbol, valueData))
-        case None =>
+        case None ⇒
           None
       }
     /** Get type symbols */
@@ -133,24 +133,24 @@ object DSLType extends Loggable {
       DSLType.types.map(_.getTypes).flatten
     /** Get type classes */
     protected def getClasses(): Seq[Class[_]] =
-      DSLType.types.map(_.getTypes).flatten.map(symbol =>
+      DSLType.types.map(_.getTypes).flatten.map(symbol ⇒
         DSLType.types.flatMap(_.getTypeClass(symbol))).flatten
     /** Get symbol -> class map */
     protected def getSymbolClassMap(): immutable.HashMap[Symbol, Class[_ <: AnyRef with java.io.Serializable]] = {
-      val tuples: Seq[(Symbol, Class[_ <: AnyRef with java.io.Serializable])] = getSymbols().map(symbol => {
+      val tuples: Seq[(Symbol, Class[_ <: AnyRef with java.io.Serializable])] = getSymbols().map(symbol ⇒ {
         val maybeClazz = DSLType.types.find(_.getTypes.contains(symbol)).flatMap(_.getTypeClass(symbol))
-        maybeClazz.map(clazz => (symbol, clazz.asInstanceOf[Class[_ <: AnyRef with java.io.Serializable]]))
+        maybeClazz.map(clazz ⇒ (symbol, clazz.asInstanceOf[Class[_ <: AnyRef with java.io.Serializable]]))
       }).flatten
       immutable.HashMap[Symbol, Class[_ <: AnyRef with java.io.Serializable]](tuples: _*)
     }
     /** Get class -> symbol map */
     protected def getClassSymbolMap(): immutable.HashMap[Class[_], Symbol] =
-      immutable.HashMap[Class[_], Symbol](getSymbolClassMap().map(t => (t._2, t._1)).toSeq: _*)
+      immutable.HashMap[Class[_], Symbol](getSymbolClassMap().map(t ⇒ (t._2, t._1)).toSeq: _*)
     /** Get symbol -> converter map */
     protected def getSymbolConverterMap(): immutable.HashMap[Symbol, DSLType] = {
-      val tuples: Seq[(Symbol, DSLType)] = getSymbols().map(symbol => {
+      val tuples: Seq[(Symbol, DSLType)] = getSymbols().map(symbol ⇒ {
         val maybeConverter = DSLType.types.find(_.getTypes.contains(symbol))
-        maybeConverter.map(converter => (symbol, converter))
+        maybeConverter.map(converter ⇒ (symbol, converter))
       }).flatten
       immutable.HashMap[Symbol, DSLType](tuples: _*)
     }
@@ -170,13 +170,13 @@ object DSLType extends Loggable {
      */
     lazy val dsltypes = {
       val types = bindingModule.bindings.filter {
-        case (key, value) => classOf[DSLType].isAssignableFrom(key.m.runtimeClass)
+        case (key, value) ⇒ classOf[DSLType].isAssignableFrom(key.m.runtimeClass)
       }.map {
-        case (key, value) =>
+        case (key, value) ⇒
           key.name match {
-            case Some(name) if name.startsWith("DSLType.") =>
+            case Some(name) if name.startsWith("DSLType.") ⇒
               log.debug(s"'${name}' loaded.")
-            case _ =>
+            case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' DSL type skipped.")
           }
           bindingModule.injectOptional(key).asInstanceOf[Option[DSLType]]
