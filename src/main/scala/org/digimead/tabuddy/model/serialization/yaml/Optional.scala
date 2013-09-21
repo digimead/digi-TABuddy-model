@@ -32,7 +32,7 @@ import org.yaml.snakeyaml.nodes.MappingNode
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 /** Container for optional information: Value Id -> Type Id -> (Static/Dynamic) */
 case class Optional(values: immutable.HashMap[scala.Symbol, immutable.HashMap[scala.Symbol, (Boolean)]])
@@ -61,51 +61,45 @@ object Optional {
   /** Convert string to Optional. */
   def load(arg: String): Optional = YAML.loadAs(arg, classOf[Optional]).asInstanceOf[Optional]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Optional.tag, new ConstructOptional())
-    getYAMLConstructors.put(new Tag(classOf[Optional]), new ConstructOptional())
+  class Construct extends YAML.constructor.CustomConstruct {
+    YAML.constructor.getYAMLConstructors.put(Optional.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[Optional]), this)
 
-    private class ConstructOptional extends CustomConstruct {
-      protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]]()
-      def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
-        val valuesSeq = map("values").asInstanceOf[mutable.Map[String, java.util.LinkedHashMap[String, java.util.List[AnyRef]]]].toSeq.map {
-          case (valueId, perTypeMapYAML) ⇒
-            val perTypeSeq = perTypeMapYAML.asScala.toSeq.map {
-              case (typeId, info) ⇒
-                val isStatic = info.get(0).asInstanceOf[java.lang.Boolean].booleanValue()
-                Symbol.load(typeId) -> isStatic
-            }
-            Symbol.load(valueId) -> immutable.HashMap(perTypeSeq: _*)
-        }
-        Optional(immutable.HashMap(valuesSeq: _*))
+    protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]]()
+    def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
+      val valuesSeq = map("values").asInstanceOf[mutable.Map[String, java.util.LinkedHashMap[String, java.util.List[AnyRef]]]].toSeq.map {
+        case (valueId, perTypeMapYAML) ⇒
+          val perTypeSeq = perTypeMapYAML.asScala.toSeq.map {
+            case (typeId, info) ⇒
+              val isStatic = info.get(0).asInstanceOf[java.lang.Boolean].booleanValue()
+              Symbol.load(typeId) -> isStatic
+          }
+          Symbol.load(valueId) -> immutable.HashMap(perTypeSeq: _*)
       }
+      Optional(immutable.HashMap(valuesSeq: _*))
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[Optional], new RepresentOptional())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[Optional], this)
 
-    class RepresentOptional extends Represent {
-      def representData(data: AnyRef): Node = {
-        val optional = data.asInstanceOf[Optional]
-        val valuesMap = new java.util.TreeMap[String, java.util.TreeMap[String, Array[AnyRef]]]()
-        optional.values.foreach {
-          case (id, perTypeMap) ⇒
-            val perTypeMapYAML = Option(valuesMap.get(id.name)).getOrElse {
-              val perTypeMap = new java.util.TreeMap[String, Array[AnyRef]]()
-              valuesMap.put(Symbol.dump(id), perTypeMap)
-              perTypeMap
-            }
-            perTypeMap.foreach {
-              case (typeId, isStatic) ⇒
-                perTypeMapYAML.put(Symbol.dump(typeId), Array[AnyRef](isStatic: java.lang.Boolean))
-            }
-        }
-        val map = new java.util.TreeMap[String, AnyRef]()
-        map.put("values", valuesMap)
-        representMapping(Tag.MAP, map, null)
+    def representData(data: AnyRef): Node = {
+      val optional = data.asInstanceOf[Optional]
+      val valuesMap = new java.util.TreeMap[String, java.util.TreeMap[String, Array[AnyRef]]]()
+      optional.values.foreach {
+        case (id, perTypeMap) ⇒
+          val perTypeMapYAML = Option(valuesMap.get(id.name)).getOrElse {
+            val perTypeMap = new java.util.TreeMap[String, Array[AnyRef]]()
+            valuesMap.put(Symbol.dump(id), perTypeMap)
+            perTypeMap
+          }
+          perTypeMap.foreach {
+            case (typeId, isStatic) ⇒
+              perTypeMapYAML.put(Symbol.dump(typeId), Array[AnyRef](isStatic: java.lang.Boolean))
+          }
       }
+      val map = new java.util.TreeMap[String, AnyRef]()
+      map.put("values", valuesMap)
+      YAML.representer.representMapping(Tag.MAP, map, null)
     }
   }
 }

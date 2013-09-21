@@ -26,9 +26,9 @@ import org.digimead.tabuddy.model.Model
 import com.escalatesoft.subcut.inject.NewBindingModule
 
 package object model {
-  lazy val default = new NewBindingModule(module => {
-    module.bind[Symbol] identifiedBy "Model.Origin" toSingle { 'nobody }
-    //module.bind[Model] toProvider { new Model(new Model.Stash('Default, UUID.randomUUID())) }
-  }) ~ org.digimead.tabuddy.model.dsl.default
-  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.Model$DI$")
+  lazy val default = new NewBindingModule(module ⇒ {
+  }) ~
+    org.digimead.tabuddy.model.dsl.default ~
+    org.digimead.tabuddy.model.serialization.default ~
+    org.digimead.tabuddy.model.serialization.yaml.default
 }

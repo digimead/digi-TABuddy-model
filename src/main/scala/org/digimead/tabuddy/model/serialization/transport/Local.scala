@@ -48,6 +48,8 @@ class Local extends Transport with Loggable {
   val descriptorResourceSimple = descriptorResourceName + "." + YAMLSerialization.Identifier.extension
   /** Descriptor resource template. */
   val descriptorResourceNameTemplate = descriptorResourceName + "-%s." + YAMLSerialization.Identifier.extension
+  /** Transport scheme. */
+  val scheme: String = "file"
 
   /** Load element with the specific UUID for the specific container. */
   def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI = {

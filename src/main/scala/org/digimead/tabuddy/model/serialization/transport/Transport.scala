@@ -30,7 +30,7 @@ import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Node
 
 /**
- * Serialization transport that provides implementation for the specific URI scheme
+ * Serialization transport that provides implementation for the specific URI scheme.
  */
 trait Transport {
   this: Loggable ⇒
@@ -42,6 +42,8 @@ trait Transport {
   val modelDirectoryName = "model"
   /** Element resource name. */
   val optionalResourceName = "optional"
+  /** Transport scheme. */
+  val scheme: String
 
   /** Get element location with the specific UUID for the specific container. */
   def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI

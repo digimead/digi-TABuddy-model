@@ -24,7 +24,7 @@ import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 object Property {
   val tag = new Tag(Tag.PREFIX + "property")
@@ -34,32 +34,26 @@ object Property {
   /** Convert string to Stash. */
   def load(arg: String): Wrapper = YAML.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Property.tag, new ConstructProperty())
-    getYAMLConstructors.put(new Tag(classOf[Wrapper]), new ConstructProperty())
+  class Construct extends YAML.constructor.ConstructSequence {
+    YAML.constructor.getYAMLConstructors.put(Property.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[Wrapper]), this)
 
-    private class ConstructProperty extends ConstructSequence {
-      override def construct(node: Node): AnyRef = node match {
-        case snode: SequenceNode ⇒
-          setTagSafe(snode.getValue().get(0), Symbol.tag)
-          setTagSafe(snode.getValue().get(1), Symbol.tag)
-          val seq = constructSequence(snode).asInstanceOf[java.util.ArrayList[AnyRef]]
-          Wrapper(seq.get(1).asInstanceOf[scala.Symbol], seq.get(2).asInstanceOf[String], seq.get(0).asInstanceOf[scala.Symbol])
-        case node ⇒
-          throw new YAMLException(s"Unexpected Coordinate node: ${node}.")
-      }
+    override def construct(node: Node): AnyRef = node match {
+      case snode: SequenceNode ⇒
+        YAML.constructor.setTagSafe(snode.getValue().get(0), Symbol.tag)
+        YAML.constructor.setTagSafe(snode.getValue().get(1), Symbol.tag)
+        val seq = YAML.constructor.constructSequence(snode).asInstanceOf[java.util.ArrayList[AnyRef]]
+        Wrapper(seq.get(1).asInstanceOf[scala.Symbol], seq.get(2).asInstanceOf[String], seq.get(0).asInstanceOf[scala.Symbol])
+      case node ⇒
+        throw new YAMLException(s"Unexpected Coordinate node: ${node}.")
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[Wrapper], new RepresentProperty())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[Wrapper], this)
 
-    class RepresentProperty extends Represent {
-      def representData(data: AnyRef): Node = {
-        val wrapper = data.asInstanceOf[Wrapper]
-        representSequence(Tag.SEQ, Seq(wrapper.id, wrapper.typeSymbol, wrapper.data).asJava, true)
-      }
+    def representData(data: AnyRef): Node = {
+      val wrapper = data.asInstanceOf[Wrapper]
+      YAML.representer.representSequence(Tag.SEQ, Seq(wrapper.id, wrapper.typeSymbol, wrapper.data).asJava, true)
     }
   }
   case class Wrapper(val typeSymbol: Symbol, val data: String, val id: Symbol)

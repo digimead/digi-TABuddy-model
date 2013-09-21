@@ -29,7 +29,7 @@ import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 /**
  * YAML de/serialization helper for Axis.
@@ -43,49 +43,43 @@ object Axis extends Loggable {
   def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] =
     YAML.loadAs(arg, classOf[EAxis[_ <: AnyRef with java.io.Serializable]]).asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Axis.tag, new ConstructCoordinate())
-    getYAMLConstructors.put(new Tag(classOf[EAxis[_ <: AnyRef with java.io.Serializable]]), new ConstructCoordinate())
+  class Construct extends YAML.constructor.CustomConstruct {
+    YAML.constructor.getYAMLConstructors.put(Axis.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[EAxis[_ <: AnyRef with java.io.Serializable]]), this)
 
-    private class ConstructCoordinate extends CustomConstruct {
-      protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]](
-        "id" -> { case n: Node ⇒ setTagSafe(n, Symbol.tag) },
-        "type" -> { case n: Node ⇒ setTagSafe(n, Symbol.tag) })
-      def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
-        val id = map("id").asInstanceOf[scala.Symbol]
-        val typeSymbol = map("type").asInstanceOf[scala.Symbol]
-        val value = map("value").asInstanceOf[String]
-        DSLType.convertFromString(typeSymbol, value) match {
-          case Some(deserializedValue) ⇒ EAxis(id, deserializedValue)(Manifest.classType(DSLType.symbolClassMap(typeSymbol)))
-          case None ⇒ throw new YAMLException(s"Unable to unpack axis from ${map}. Incorrect value '${value}'.")
-        }
+    protected val keyTypes = immutable.HashMap[String, PartialFunction[Node, Unit]](
+      "id" -> { case n: Node ⇒ YAML.constructor.setTagSafe(n, Symbol.tag) },
+      "type" -> { case n: Node ⇒ YAML.constructor.setTagSafe(n, Symbol.tag) })
+    def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef = {
+      val id = map("id").asInstanceOf[scala.Symbol]
+      val typeSymbol = map("type").asInstanceOf[scala.Symbol]
+      val value = map("value").asInstanceOf[String]
+      DSLType.convertFromString(typeSymbol, value) match {
+        case Some(deserializedValue) ⇒ EAxis(id, deserializedValue)(Manifest.classType(DSLType.symbolClassMap(typeSymbol)))
+        case None ⇒ throw new YAMLException(s"Unable to unpack axis from ${map}. Incorrect value '${value}'.")
       }
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[EAxis[_ <: AnyRef with java.io.Serializable]], new RepresentAxis())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[EAxis[_ <: AnyRef with java.io.Serializable]], this)
 
-    class RepresentAxis extends Represent {
-      def representData(data: AnyRef): Node = {
-        val arg = data.asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
-        val map = new java.util.TreeMap[String, AnyRef]()
-        DSLType.classSymbolMap.get(arg.m.runtimeClass) match {
-          case Some(typeSymbol) ⇒
-            DSLType.convertToString(typeSymbol, arg.value) match {
-              case Some(valueData) ⇒
-                map.put("id", arg.id)
-                map.put("type", typeSymbol)
-                map.put("value", valueData)
-              case None ⇒
-                throw new YAMLException(s"Unable to convert axis value ${arg.value}.")
-            }
-          case None ⇒
-            throw new YAMLException(s"Unable to convert axis with class ${arg.m.runtimeClass}: suitable type symbol not found.")
-        }
-        representMapping(Tag.MAP, map, null)
+    def representData(data: AnyRef): Node = {
+      val arg = data.asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
+      val map = new java.util.TreeMap[String, AnyRef]()
+      DSLType.classSymbolMap.get(arg.m.runtimeClass) match {
+        case Some(typeSymbol) ⇒
+          DSLType.convertToString(typeSymbol, arg.value) match {
+            case Some(valueData) ⇒
+              map.put("id", arg.id)
+              map.put("type", typeSymbol)
+              map.put("value", valueData)
+            case None ⇒
+              throw new YAMLException(s"Unable to convert axis value ${arg.value}.")
+          }
+        case None ⇒
+          throw new YAMLException(s"Unable to convert axis with class ${arg.m.runtimeClass}: suitable type symbol not found.")
       }
+      YAML.representer.representMapping(Tag.MAP, map, null)
     }
   }
 }

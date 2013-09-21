@@ -22,7 +22,7 @@ import org.yaml.snakeyaml.constructor.AbstractConstruct
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.ScalarNode
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 import org.yaml.snakeyaml.error.YAMLException
 
 /**
@@ -36,26 +36,21 @@ object Symbol {
   /** Convert string to Symbol. */
   def load(arg: String): scala.Symbol = YAML.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Symbol.tag, new ConstructSymbol())
-    getYAMLConstructors.put(new Tag(classOf[scala.Symbol]), new ConstructSymbol())
+  class Construct extends AbstractConstruct {
+    YAML.constructor.getYAMLConstructors.put(Symbol.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[scala.Symbol]), this)
 
-    private class ConstructSymbol extends AbstractConstruct {
-      override def construct(node: Node): AnyRef = Symbol.synchronized {
-        val value = node.asInstanceOf[ScalarNode].getValue()
-        if (value == null)
-          throw new YAMLException("Unable to construct symbol from null.")
-        scala.Symbol(value)
-      }
+    override def construct(node: Node): AnyRef = Symbol.synchronized {
+      val value = node.asInstanceOf[ScalarNode].getValue()
+      if (value == null)
+        throw new YAMLException("Unable to construct symbol from null.")
+      scala.Symbol(value)
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[scala.Symbol], new RepresentSymbol())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[scala.Symbol], this)
 
-    class RepresentSymbol extends Represent {
-      def representData(data: AnyRef): Node = representScalar(Tag.STR, data.asInstanceOf[scala.Symbol].name, null)
-    }
+    def representData(data: AnyRef): Node =
+      YAML.representer.representScalar(Tag.STR, data.asInstanceOf[scala.Symbol].name, null)
   }
 }

@@ -25,7 +25,7 @@ import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 object Scope {
   val tag = new Tag(Tag.PREFIX + "scope")
@@ -35,33 +35,27 @@ object Scope {
   /** Convert string to Scope. */
   def load(arg: String): EElement.Scope = YAML.loadAs(arg, classOf[EElement.Scope]).asInstanceOf[EElement.Scope]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Scope.tag, new ConstructScope())
-    getYAMLConstructors.put(new Tag(classOf[EElement.Scope]), new ConstructScope())
+  class Construct extends YAML.constructor.ConstructSequence {
+    YAML.constructor.getYAMLConstructors.put(Scope.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[EElement.Scope]), this)
 
-    private class ConstructScope extends ConstructSequence {
-      override def construct(node: Node): AnyRef = node match {
-        case snode: SequenceNode ⇒
-          setTagSafe(snode.getValue().get(0), Symbol.tag)
-          val seq = constructSequence(snode).asInstanceOf[java.util.ArrayList[AnyRef]]
-          val modificator = seq.get(0).asInstanceOf[scala.Symbol]
-          val scopeClass = getClass.getClassLoader().loadClass(seq.get(1).asInstanceOf[String]).asInstanceOf[Class[_ <: EElement.Scope]]
-          scopeClass.getConstructor(classOf[Symbol]).newInstance(modificator)
-        case node ⇒
-          throw new YAMLException(s"Unexpected Scope node: ${node}.")
-      }
+    override def construct(node: Node): AnyRef = node match {
+      case snode: SequenceNode ⇒
+        YAML.constructor.setTagSafe(snode.getValue().get(0), Symbol.tag)
+        val seq = YAML.constructor.constructSequence(snode).asInstanceOf[java.util.ArrayList[AnyRef]]
+        val modificator = seq.get(0).asInstanceOf[scala.Symbol]
+        val scopeClass = getClass.getClassLoader().loadClass(seq.get(1).asInstanceOf[String]).asInstanceOf[Class[_ <: EElement.Scope]]
+        scopeClass.getConstructor(classOf[Symbol]).newInstance(modificator)
+      case node ⇒
+        throw new YAMLException(s"Unexpected Scope node: ${node}.")
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[EElement.Scope], new RepresentScope())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[EElement.Scope], this)
 
-    class RepresentScope extends Represent {
-      def representData(data: AnyRef): Node = {
-        val scope = data.asInstanceOf[EElement.Scope]
-        representSequence(Tag.SEQ, Seq(scope.modificator, scope.getClass().getName).asJava, true)
-      }
+    def representData(data: AnyRef): Node = {
+      val scope = data.asInstanceOf[EElement.Scope]
+      YAML.representer.representSequence(Tag.SEQ, Seq(scope.modificator, scope.getClass().getName).asJava, true)
     }
   }
 }

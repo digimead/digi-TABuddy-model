@@ -25,7 +25,7 @@ import org.yaml.snakeyaml.constructor.AbstractConstruct
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.ScalarNode
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 /**
  * YAML de/serialization helper for Element.Timestamp.
@@ -38,29 +38,23 @@ object Timestamp {
   /** Convert string to Element.Timestamp. */
   def load(arg: String): Element.Timestamp = YAML.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(Timestamp.tag, new ConstructTimestamp())
-    getYAMLConstructors.put(new Tag(classOf[Element.Timestamp]), new ConstructTimestamp())
+  class Construct extends AbstractConstruct {
+    YAML.constructor.getYAMLConstructors.put(Timestamp.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[Element.Timestamp]), this)
 
-    private class ConstructTimestamp extends AbstractConstruct {
-      override def construct(node: Node): AnyRef = {
-        val value = node.asInstanceOf[ScalarNode].getValue()
-        if (value == null)
-          return null
-        val left = value.takeWhile(_ != '.')
-        Element.timestamp(java.lang.Long.parseLong(left.substring(0, left.size - 2), 16),
-          java.lang.Long.parseLong(value.substring(left.size + 1, value.size - 2), 16))
-      }
+    override def construct(node: Node): AnyRef = {
+      val value = node.asInstanceOf[ScalarNode].getValue()
+      if (value == null)
+        return null
+      val left = value.takeWhile(_ != '.')
+      Element.timestamp(java.lang.Long.parseLong(left.substring(0, left.size - 2), 16),
+        java.lang.Long.parseLong(value.substring(left.size + 1, value.size - 2), 16))
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[Element.Timestamp], new RepresentTimestamp())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[Element.Timestamp], this)
 
-    class RepresentTimestamp extends Represent {
-      def representData(data: AnyRef): Node = representScalar(Tag.STR,
-        "%Xms.%Xns".format(data.asInstanceOf[Element.Timestamp].milliseconds, data.asInstanceOf[Element.Timestamp].nanoShift), null)
-    }
+    def representData(data: AnyRef): Node = YAML.representer.representScalar(Tag.STR,
+      "%Xms.%Xns".format(data.asInstanceOf[Element.Timestamp].milliseconds, data.asInstanceOf[Element.Timestamp].nanoShift), null)
   }
 }

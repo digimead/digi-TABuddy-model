@@ -66,8 +66,6 @@ object Model extends Loggable {
   /** Assert that A is not generic. */
   def assertNonGeneric[A](implicit m: Manifest[A]): Unit = if (m.runtimeClass == classOf[java.lang.Object])
     throw new IllegalArgumentException(s"Generic type '${m}' assertion failed.")
-  /** The local origin that is alias of a user or a system or an anything other */
-  def defaultOrigin() = DI.defaultOrigin
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
@@ -151,12 +149,5 @@ object Model extends Loggable {
 
       override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Stash.Like]
     }
-  }
-  /**
-   * Dependency injection routines.
-   */
-  private object DI extends DependencyInjection.PersistentInjectable {
-    /** The local origin that is alias of a user or a system or an anything other. */
-    lazy val defaultOrigin = inject[Symbol]("Model.Origin")
   }
 }

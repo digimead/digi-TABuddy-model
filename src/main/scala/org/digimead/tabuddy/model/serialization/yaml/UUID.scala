@@ -24,7 +24,7 @@ import org.yaml.snakeyaml.constructor.AbstractConstruct
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.ScalarNode
 import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 /**
  * YAML de/serialization helper for java.util.UUID.
@@ -37,26 +37,21 @@ object UUID {
   /** Convert string to UUID. */
   def load(arg: String): JUUID = YAML.loadAs(arg, classOf[JUUID]).asInstanceOf[JUUID]
 
-  trait Constructor {
-    this: YAML.Constructor ⇒
-    getYAMLConstructors.put(UUID.tag, new ConstructUUID())
-    getYAMLConstructors.put(new Tag(classOf[JUUID]), new ConstructUUID())
+  class Construct extends AbstractConstruct {
+    YAML.constructor.getYAMLConstructors.put(UUID.tag, this)
+    YAML.constructor.getYAMLConstructors.put(new Tag(classOf[JUUID]), this)
 
-    private class ConstructUUID extends AbstractConstruct {
-      override def construct(node: Node): AnyRef = {
-        val value = node.asInstanceOf[ScalarNode].getValue()
-        if (value == null)
-          return null
-        JUUID.fromString(value)
-      }
+    override def construct(node: Node): AnyRef = {
+      val value = node.asInstanceOf[ScalarNode].getValue()
+      if (value == null)
+        return null
+      JUUID.fromString(value)
     }
   }
-  trait Representer {
-    this: YAML.Representer ⇒
-    getMultiRepresenters.put(classOf[JUUID], new RepresentUUID())
+  class Represent extends YAMLRepresent {
+    YAML.representer.getMultiRepresenters.put(classOf[JUUID], this)
 
-    class RepresentUUID extends Represent {
-      def representData(data: AnyRef): Node = representScalar(Tag.STR, data.asInstanceOf[JUUID].toString(), null)
-    }
+    def representData(data: AnyRef): Node =
+      YAML.representer.representScalar(Tag.STR, data.asInstanceOf[JUUID].toString(), null)
   }
 }

@@ -355,7 +355,7 @@ class Serialization extends Serialization.Interface with Loggable {
   }
 }
 
-object Serialization {
+object Serialization extends Loggable {
   /** Transformation that is applied to acquiring nodes. */
   /* (parent node, child node descriptor) => transformed child node descriptor */
   type AcquireTransformation = Function2[Option[Node[Element]], Descriptor.Node[Element], Descriptor.Node[Element]]
@@ -403,26 +403,23 @@ object Serialization {
       assert(serializationIdentifier != null, s"Broken descriptor ${this}.")
     }
     object Element {
-      trait Constructor {
-        this: YAML.Constructor ⇒
-        getYAMLConstructors.put(new Tag(classOf[Element[_ <: TAElement]]), new ConstructElementDescriptor())
+      class Construct extends YAML.constructor.CustomConstruct {
+        YAML.constructor.getYAMLConstructors.put(new Tag(classOf[Element[_ <: TAElement]]), this)
 
-        private class ConstructElementDescriptor extends CustomConstruct {
-          protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
-            "coordinate" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Coordinate.tag) },
-            "element_unique_id" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.UUID.tag) },
-            "modified" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) })
-          def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
-            Element(getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: TAElement]],
-              map("coordinate").asInstanceOf[Coordinate],
-              map("element_unique_id").asInstanceOf[UUID],
-              map("modified").asInstanceOf[TAElement.Timestamp],
-              {
-                val value = map("serialization_identifier").asInstanceOf[String]
-                Serialization.perIdentifier.keys.find(_.extension == value) getOrElse
-                  { throw new IllegalStateException(s"Unable to find serialization mechanism for '${value}'.") }
-              })
-        }
+        protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
+          "coordinate" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Coordinate.tag) },
+          "element_unique_id" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.UUID.tag) },
+          "modified" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Timestamp.tag) })
+        def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
+          Element(getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: TAElement]],
+            map("coordinate").asInstanceOf[Coordinate],
+            map("element_unique_id").asInstanceOf[UUID],
+            map("modified").asInstanceOf[TAElement.Timestamp],
+            {
+              val value = map("serialization_identifier").asInstanceOf[String]
+              Serialization.perIdentifier.keys.find(_.extension == value) getOrElse
+                { throw new IllegalStateException(s"Unable to find serialization mechanism for '${value}'.") }
+            })
       }
     }
     case class Node[A <: TAElement](val children: Seq[(Symbol, TAElement.Timestamp)], val clazz: Class[A],
@@ -433,39 +430,36 @@ object Serialization {
       assert(unique != null, s"Broken descriptor ${this}.")
     }
     object Node {
-      trait Constructor {
-        this: YAML.Constructor ⇒
-        getYAMLConstructors.put(new Tag(classOf[Node[_ <: TAElement]]), new ConstructNodeDescriptor())
+      class Construct extends YAML.constructor.CustomConstruct {
+        YAML.constructor.getYAMLConstructors.put(new Tag(classOf[Node[_ <: TAElement]]), this)
 
-        private class ConstructNodeDescriptor extends CustomConstruct {
-          protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
-            "children" -> {
-              case n: SequenceNode ⇒ n.getValue().asScala.foreach {
-                case n: SequenceNode ⇒
-                  val values = n.getValue()
-                  setTagSafe(values.get(0), yaml.Symbol.tag)
-                  setTagSafe(values.get(1), yaml.Timestamp.tag)
-              }
-            },
-            "elements" -> {
-              case n: SequenceNode ⇒ n.getValue().asScala.foreach {
-                case n: SequenceNode ⇒
-                  val values = n.getValue()
-                  setTagSafe(values.get(0), yaml.UUID.tag)
-                  setTagSafe(values.get(1), yaml.Timestamp.tag)
-              }
-            },
-            "id" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Symbol.tag) },
-            "modified" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) },
-            "unique" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.UUID.tag) })
-          def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
-            Node(map("children").asInstanceOf[Iterable[java.util.ArrayList[AnyRef]]].toSeq.map(i ⇒ (i.get(0).asInstanceOf[Symbol], i.get(1).asInstanceOf[TAElement.Timestamp])),
-              getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: TAElement]],
-              map("elements").asInstanceOf[Iterable[java.util.ArrayList[AnyRef]]].toSeq.map(i ⇒ (i.get(0).asInstanceOf[UUID], i.get(1).asInstanceOf[TAElement.Timestamp])),
-              map("id").asInstanceOf[Symbol],
-              map("modified").asInstanceOf[TAElement.Timestamp],
-              map("unique").asInstanceOf[UUID])
-        }
+        protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
+          "children" -> {
+            case n: SequenceNode ⇒ n.getValue().asScala.foreach {
+              case n: SequenceNode ⇒
+                val values = n.getValue()
+                YAML.constructor.setTagSafe(values.get(0), yaml.Symbol.tag)
+                YAML.constructor.setTagSafe(values.get(1), yaml.Timestamp.tag)
+            }
+          },
+          "elements" -> {
+            case n: SequenceNode ⇒ n.getValue().asScala.foreach {
+              case n: SequenceNode ⇒
+                val values = n.getValue()
+                YAML.constructor.setTagSafe(values.get(0), yaml.UUID.tag)
+                YAML.constructor.setTagSafe(values.get(1), yaml.Timestamp.tag)
+            }
+          },
+          "id" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Symbol.tag) },
+          "modified" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Timestamp.tag) },
+          "unique" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.UUID.tag) })
+        def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
+          Node(map("children").asInstanceOf[Iterable[java.util.ArrayList[AnyRef]]].toSeq.map(i ⇒ (i.get(0).asInstanceOf[Symbol], i.get(1).asInstanceOf[TAElement.Timestamp])),
+            getClass.getClassLoader().loadClass(map("class").asInstanceOf[String]).asInstanceOf[Class[_ <: TAElement]],
+            map("elements").asInstanceOf[Iterable[java.util.ArrayList[AnyRef]]].toSeq.map(i ⇒ (i.get(0).asInstanceOf[UUID], i.get(1).asInstanceOf[TAElement.Timestamp])),
+            map("id").asInstanceOf[Symbol],
+            map("modified").asInstanceOf[TAElement.Timestamp],
+            map("unique").asInstanceOf[UUID])
       }
     }
     case class Graph[A <: Model.Like](val created: TAElement.Timestamp, val modelId: Symbol, val modelType: Class[A],
@@ -479,26 +473,23 @@ object Serialization {
       assert(stored.nonEmpty)
     }
     object Graph {
-      trait Constructor {
-        this: YAML.Constructor ⇒
-        getYAMLConstructors.put(new Tag(classOf[Graph[_ <: Model.Like]]), new ConstructGraphDescriptor())
+      class Construct extends YAML.constructor.CustomConstruct {
+        YAML.constructor.getYAMLConstructors.put(new Tag(classOf[Graph[_ <: Model.Like]]), this)
 
-        private class ConstructGraphDescriptor extends CustomConstruct {
-          protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
-            "created" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) },
-            "model_id" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Symbol.tag) },
-            "modified" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Timestamp.tag) },
-            "origin" -> { case n: YAMLNode ⇒ setTagSafe(n, yaml.Symbol.tag) },
-            "stored" -> { case n: SequenceNode ⇒ n.getValue().asScala.foreach(setTagSafe(_, yaml.Timestamp.tag)) })
-          def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
-            Graph(map("created").asInstanceOf[TAElement.Timestamp],
-              map("model_id").asInstanceOf[Symbol],
-              getClass.getClassLoader().loadClass(map("model_type").asInstanceOf[String]).asInstanceOf[Class[_ <: Model.Like]],
-              map("modified").asInstanceOf[TAElement.Timestamp],
-              map("origin").asInstanceOf[Symbol],
-              map("storages").asInstanceOf[Iterable[String]].map(new URI(_)).toSeq,
-              map("stored").asInstanceOf[Iterable[TAElement.Timestamp]].toSeq)
-        }
+        protected val keyTypes = immutable.HashMap[String, PartialFunction[YAMLNode, Unit]](
+          "created" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Timestamp.tag) },
+          "model_id" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Symbol.tag) },
+          "modified" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Timestamp.tag) },
+          "origin" -> { case n: YAMLNode ⇒ YAML.constructor.setTagSafe(n, yaml.Symbol.tag) },
+          "stored" -> { case n: SequenceNode ⇒ n.getValue().asScala.foreach(YAML.constructor.setTagSafe(_, yaml.Timestamp.tag)) })
+        def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef =
+          Graph(map("created").asInstanceOf[TAElement.Timestamp],
+            map("model_id").asInstanceOf[Symbol],
+            getClass.getClassLoader().loadClass(map("model_type").asInstanceOf[String]).asInstanceOf[Class[_ <: Model.Like]],
+            map("modified").asInstanceOf[TAElement.Timestamp],
+            map("origin").asInstanceOf[Symbol],
+            map("storages").asInstanceOf[Iterable[String]].map(new URI(_)).toSeq,
+            map("stored").asInstanceOf[Iterable[TAElement.Timestamp]].toSeq)
       }
     }
   }
@@ -536,12 +527,51 @@ object Serialization {
   private object DI extends DependencyInjection.PersistentInjectable {
     /** Implementation of the serialization. */
     lazy val implementation: Interface = injectOptional[Interface] getOrElse new Serialization
-    /** Per identifier serialization. */
-    lazy val perIdentifier: immutable.HashMap[Identifier, Mechanism] = injectOptional[immutable.HashMap[Identifier, Mechanism]] getOrElse
-      immutable.HashMap(BuiltinSerialization.Identifier -> new BuiltinSerialization,
-        YAMLSerialization.Identifier -> new YAMLSerialization)
-    /** Per scheme transports. */
-    lazy val perScheme: immutable.HashMap[String, Transport] = injectOptional[immutable.HashMap[String, Transport]] getOrElse
-      immutable.HashMap("file" -> new transport.Local())
+    /**
+     * Per identifier serialization map.
+     *
+     * Each collected mechanism must be:
+     *  1. an instance of Mechanism
+     *  2. has name that starts with "Serialization.Mechanism."
+     */
+    lazy val perIdentifier: immutable.HashMap[Identifier, Mechanism] = {
+      val mechanisms = bindingModule.bindings.filter {
+        case (key, value) ⇒ classOf[Mechanism].isAssignableFrom(key.m.runtimeClass)
+      }.map {
+        case (key, value) ⇒
+          key.name match {
+            case Some(name) if name.startsWith("Serialization.Mechanism.") ⇒
+              log.debug(s"'${name}' loaded.")
+            case _ ⇒
+              log.debug(s"'${key.name.getOrElse("Unnamed")}' serialization mechanism skipped.")
+          }
+          bindingModule.injectOptional(key).asInstanceOf[Option[Mechanism]]
+      }.flatten.toSeq
+      assert(mechanisms.distinct.size == mechanisms.size, "serialization mechanisms contains duplicated entities in " + mechanisms)
+      immutable.HashMap(mechanisms.map(m ⇒ m.identifier -> m): _*)
+    }
+    /**
+     * Per scheme transports map.
+     *
+     * Each collected transport must be:
+     *  1. an instance of Transport
+     *  2. has name that starts with "Serialization.Transport."
+     */
+    lazy val perScheme: immutable.HashMap[String, Transport] = {
+      val transports = bindingModule.bindings.filter {
+        case (key, value) ⇒ classOf[Transport].isAssignableFrom(key.m.runtimeClass)
+      }.map {
+        case (key, value) ⇒
+          key.name match {
+            case Some(name) if name.startsWith("Serialization.Transport.") ⇒
+              log.debug(s"'${name}' loaded.")
+            case _ ⇒
+              log.debug(s"'${key.name.getOrElse("Unnamed")}' serialization transport skipped.")
+          }
+          bindingModule.injectOptional(key).asInstanceOf[Option[Transport]]
+      }.flatten.toSeq
+      assert(transports.distinct.size == transports.size, "serialization transports contains duplicated entities in " + transports)
+      immutable.HashMap(transports.map(t ⇒ t.scheme -> t): _*)
+    }
   }
 }

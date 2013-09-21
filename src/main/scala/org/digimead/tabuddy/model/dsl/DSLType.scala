@@ -181,7 +181,7 @@ object DSLType extends Loggable {
           }
           bindingModule.injectOptional(key).asInstanceOf[Option[DSLType]]
       }.flatten.toSeq
-      assert(types.distinct.size == types.size, "DSL types contains diplicated entities in " + types)
+      assert(types.distinct.size == types.size, "DSL types contains duplicated entities in " + types)
       types
     }
   }

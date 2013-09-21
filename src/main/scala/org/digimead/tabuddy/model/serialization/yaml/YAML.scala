@@ -18,14 +18,16 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
+import scala.Option.option2Iterable
 import scala.collection.JavaConverters._
 import scala.collection.immutable
 import scala.collection.mutable
 
 import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.tabuddy.model.serialization.Serialization
+import org.digimead.digi.lib.log.api.Loggable
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.Construct
 import org.yaml.snakeyaml.constructor.{ Constructor ⇒ YAMLConstructor }
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.MappingNode
@@ -33,6 +35,7 @@ import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.ScalarNode
 import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.representer.Represent
 import org.yaml.snakeyaml.representer.{ Representer ⇒ YAMLRepresenter }
 
 import scala.language.implicitConversions
@@ -40,40 +43,42 @@ import scala.language.implicitConversions
 /**
  * Provide YAML API for application.
  */
-object YAML {
+object YAML extends Loggable {
   implicit def yaml2implementation(y: YAML.type): Yaml = yaml
+  /** Default YAML constructor. */
+  lazy val constructor = DI.constructor
+  /** Default YAML representer. */
+  lazy val representer = DI.representer
 
   /** YAML de/serializer. */
   lazy val yaml = {
     val options = new DumperOptions()
     options.setAllowUnicode(true)
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
+    DI.constructs.foreach(c ⇒ log.debug(s"Add ${c} as YAML contruct."))
+    DI.represents.foreach(r ⇒ log.debug(s"Add ${r} as YAML represent."))
     new Yaml(DI.constructor, DI.representer, options)
   }
 
-  /** Default YAML constructor. */
-  def constructor = DI.constructor
-  /** Default YAML representer. */
-  def representer = DI.representer
-
-  /** Base YAML constructor. */
+  /** YAML constructor. */
   class Constructor extends YAMLConstructor {
-    // Workaround for java.lang.IllegalAccessError
-    override protected def constructObject(node: Node): AnyRef =
+    // Overriding protected methods is workaround for java.lang.IllegalAccessError
+    override def constructObject(node: Node): AnyRef =
       super.constructObject(node)
-    override protected def constructMapping(node: MappingNode): java.util.Map[AnyRef, AnyRef] =
+    override def constructMapping(node: MappingNode): java.util.Map[AnyRef, AnyRef] =
       super.constructMapping(node)
-    override protected def constructSequence(node: SequenceNode): java.util.List[_] =
+    override def constructSequence(node: SequenceNode): java.util.List[_] =
       super.constructSequence(node)
-    protected def getYAMLClassConstructors =
+    def getYAMLClassConstructors =
       this.yamlClassConstructors
-    protected def getYAMLConstructors =
+    def getYAMLConstructors =
       this.yamlConstructors
 
     /** Set new tag to node if not null. */
     def setTagSafe(node: Node, tag: Tag) = if (node.getTag() != Tag.NULL)
       node.setTag(tag)
 
+    class ConstructSequence extends super.ConstructSequence
     abstract class CustomConstruct extends ConstructMapping {
       /** Map with explicit type per key. */
       protected val keyTypes: immutable.HashMap[String, PartialFunction[Node, Unit]]
@@ -104,57 +109,26 @@ object YAML {
       def constructCustom(map: mutable.HashMap[String, AnyRef]): AnyRef
     }
   }
-  /** Default constructor base trait. */
-  trait DefaultConstructor
-    extends Axis.Constructor
-    with Coordinate.Constructor
-    with Optional.Constructor
-    with Property.Constructor
-    with Reference.Constructor
-    with Scope.Constructor
-    with Serialization.Descriptor.Element.Constructor
-    with Serialization.Descriptor.Graph.Constructor
-    with Serialization.Descriptor.Node.Constructor
-    with Stash.Constructor
-    with Symbol.Constructor
-    with Timestamp.Constructor
-    with UUID.Constructor {
-    this: Constructor ⇒
-  }
-  /** Default representer base trait. */
-  trait DefaultRepresenter
-    extends Axis.Representer
-    with Coordinate.Representer
-    with Optional.Representer
-    with Property.Representer
-    with Reference.Representer
-    with Scope.Representer
-    with Stash.Representer
-    with Symbol.Representer
-    with Timestamp.Representer
-    with UUID.Representer {
-    this: Representer ⇒
-  }
-  /** Base YAML representer. */
+  /** YAML representer. */
   class Representer extends YAMLRepresenter {
-    // Workaround for java.lang.IllegalAccessError
-    protected def getMultiRepresenters = this.multiRepresenters
-    protected override def representMapping(tag: Tag, mapping: java.util.Map[_, AnyRef], flowStyle: java.lang.Boolean): Node = {
+    // Overriding protected methods is workaround for java.lang.IllegalAccessError
+    def getMultiRepresenters = this.multiRepresenters
+    override def representMapping(tag: Tag, mapping: java.util.Map[_, AnyRef], flowStyle: java.lang.Boolean): Node = {
       // workaround for proper null representation
       this.objectToRepresent = new Object
       super.representMapping(tag, mapping, flowStyle)
     }
-    protected override def representScalar(tag: Tag, value: String): Node = {
+    override def representScalar(tag: Tag, value: String): Node = {
       // workaround for proper null representation
       this.objectToRepresent = new Object
       super.representScalar(tag, value)
     }
-    protected override def representScalar(tag: Tag, value: String, style: Character): Node = {
+    override def representScalar(tag: Tag, value: String, style: Character): Node = {
       // workaround for proper null representation
       this.objectToRepresent = new Object
       super.representScalar(tag, value, style)
     }
-    protected override def representSequence(tag: Tag, sequence: java.lang.Iterable[_], flowStyle: java.lang.Boolean): Node = {
+    override def representSequence(tag: Tag, sequence: java.lang.Iterable[_], flowStyle: java.lang.Boolean): Node = {
       // workaround for proper null representation
       this.objectToRepresent = new Object
       super.representSequence(tag, sequence, flowStyle)
@@ -165,8 +139,54 @@ object YAML {
    */
   private object DI extends DependencyInjection.PersistentInjectable {
     /** YAML constructor. */
-    val constructor = injectOptional[Constructor] getOrElse new Constructor with DefaultConstructor
+    val constructor = injectOptional[Constructor] getOrElse new Constructor
     /** YAML representer. */
-    val representer = injectOptional[Representer] getOrElse new Representer with DefaultRepresenter
+    val representer = injectOptional[Representer] getOrElse new Representer
+    /**
+     * Collection of YAML constructors.
+     *
+     * Each collected YAML constructor must be:
+     *  1. an instance of Construct
+     *  2. has name that starts with "YAML.Construct."
+     */
+    lazy val constructs = {
+      val constructs = bindingModule.bindings.filter {
+        case (key, value) ⇒ classOf[Construct].isAssignableFrom(key.m.runtimeClass)
+      }.map {
+        case (key, value) ⇒
+          key.name match {
+            case Some(name) if name.startsWith("YAML.Construct.") ⇒
+              log.debug(s"'${name}' loaded.")
+            case _ ⇒
+              log.debug(s"'${key.name.getOrElse("Unnamed")}' YAML construct skipped.")
+          }
+          bindingModule.injectOptional(key).asInstanceOf[Option[Construct]]
+      }.flatten.toSeq
+      assert(constructs.distinct.size == constructs.size, "YAML constructs contains duplicated entities in " + constructs)
+      constructs
+    }
+    /**
+     * Collection of YAML representers.
+     *
+     * Each collected YAML representer must be:
+     *  1. an instance of Represent
+     *  2. has name that starts with "YAML.Represent."
+     */
+    lazy val represents = {
+      val represents = bindingModule.bindings.filter {
+        case (key, value) ⇒ classOf[Represent].isAssignableFrom(key.m.runtimeClass)
+      }.map {
+        case (key, value) ⇒
+          key.name match {
+            case Some(name) if name.startsWith("YAML.Represent.") ⇒
+              log.debug(s"'${name}' loaded.")
+            case _ ⇒
+              log.debug(s"'${key.name.getOrElse("Unnamed")}' YAML represent skipped.")
+          }
+          bindingModule.injectOptional(key).asInstanceOf[Option[Represent]]
+      }.flatten.toSeq
+      assert(represents.distinct.size == represents.size, "YAML represents contains duplicated entities in " + represents)
+      represents
+    }
   }
 }
