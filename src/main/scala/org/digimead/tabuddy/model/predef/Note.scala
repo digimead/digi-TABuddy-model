@@ -79,7 +79,7 @@ object Note extends Loggable {
         withElement[Note, A](id, coordinate, Note.scope, classOf[Note.Stash], (note) ⇒ fTransform(new Relative(note)))
       }
       /** Safe cast element to Note.Like. */
-      def toNote() = element.eAs[Note.Like]
+      def asNote = element.eAs[Note.Like]
     }
     trait RichSpecific[A <: Note.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
@@ -91,7 +91,7 @@ object Note extends Loggable {
     type ElementType <: Like
 
     /** Get relative representation. */
-    override def eRelative(): Note.Relative[ElementType] = new Note.Relative(this.asInstanceOf[ElementType])
+    override def eRelative: Note.Relative[ElementType] = new Note.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Note.Like]
   }

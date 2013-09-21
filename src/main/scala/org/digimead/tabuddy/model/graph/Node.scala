@@ -59,13 +59,11 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
       graph = target.graph,
       parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
-      projectionElementBoxes = immutable.HashMap(),
-      rootElementBox = null), modified)
-    val rootElementBox = internalState.rootElementBox.copy(node = copyNode)
-      assert(copyNode.modified == modified)
-    val projectionElementBoxes: Seq[(Coordinate, ElementBox[A])] = internalState.projectionElementBoxes.map {
+      projectionBoxes = immutable.HashMap()), modified)
+    val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = internalState.projectionBoxes.map {
       case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
     }.toSeq
+    assert(copyNode.modified == modified)
     val children = if (recursive)
       currentNode.iterator.map { _.copy(copyNode, recursive) }.toSeq
     else
@@ -73,8 +71,7 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     copyNode.updateState(
       children = children,
       modified = null, // modification is already assigned
-      rootElementBox = rootElementBox,
-      projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
+      projectionBoxes = immutable.HashMap(projectionBoxes: _*))
     copyNode.graph.nodes ++= copyNode.children.map(n ⇒ n.unique -> n)
     copyNode
   }
@@ -96,40 +93,10 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     try { internalState.children.foldLeft(f)((nestedFn, child) ⇒ child.freezeRead { child ⇒ (node) ⇒ nestedFn(node) })(this.asInstanceOf[Node.ThreadUnsafe[A]]) }
     finally { rwl.writeLock().unlock() }
   }
-  /** Get node element boxes. */
-  def getElementBoxes(): Seq[ElementBox[A]] = {
-    rwl.readLock().lock()
-    try { Seq(internalState.rootElementBox) ++ internalState.projectionElementBoxes.values }
-    finally { rwl.readLock().unlock() }
-  }
   /** Get graph. */
-  def graph(): Graph[_ <: Model.Like] = {
+  def graph: Graph[_ <: Model.Like] = {
     rwl.readLock().lock()
     try { internalState.graph }
-    finally { rwl.readLock().unlock() }
-  }
-  /** Get parent node. */
-  def getParent(): Option[Node[_ <: Element]] = {
-    rwl.readLock().lock()
-    try { internalState.parentNodeReference.get }
-    finally { rwl.readLock().unlock() }
-  }
-  /** Get element box at the specific coordinate. */
-  def getProjection(coordinate: Coordinate): Option[ElementBox[A]] = {
-    rwl.readLock().lock()
-    try { if (coordinate == Coordinate.root) Option(internalState.rootElementBox) else internalState.projectionElementBoxes.get(coordinate) }
-    finally { rwl.readLock().unlock() }
-  }
-  /** Get projection's element boxes. */
-  def getProjections(): immutable.Map[Coordinate, ElementBox[A]] = {
-    rwl.readLock().lock()
-    try { immutable.Map((internalState.projectionElementBoxes.toSeq :+ (Coordinate.root, internalState.rootElementBox)): _*) }
-    finally { rwl.readLock().unlock() }
-  }
-  /** Get root element box. */
-  def getRootElementBox() = {
-    rwl.readLock().lock()
-    try { internalState.rootElementBox }
     finally { rwl.readLock().unlock() }
   }
   /** Get modified timestamp. */
@@ -138,6 +105,24 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
   def modified_=(arg: Element.Timestamp) = {
     modifiedTimestamp = arg
     internalState.parentNodeReference.get.foreach(_.updateModification(arg))
+  }
+  /** Get parent node. */
+  def parent: Option[Node[_ <: Element]] = {
+    rwl.readLock().lock()
+    try { internalState.parentNodeReference.get }
+    finally { rwl.readLock().unlock() }
+  }
+  /** Get projection's element boxes. */
+  def projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = {
+    rwl.readLock().lock()
+    try { internalState.projectionBoxes }
+    finally { rwl.readLock().unlock() }
+  }
+  /** Get root element box. */
+  def rootBox = {
+    rwl.readLock().lock()
+    try { internalState.rootBox }
+    finally { rwl.readLock().unlock() }
   }
   /**
    * Explicitly convert this trait to ThreadUnsafe.
@@ -158,7 +143,11 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     finally { rwl.writeLock().unlock() }
   }
   /** Get internal state, */
-  def state = internalState
+  def state = {
+    rwl.readLock().lock()
+    try { internalState }
+    finally { rwl.readLock().unlock() }
+  }
   /** Update modified timestamp only if argument is greater than current value. */
   def updateModification(arg: Element.Timestamp) = {
     if (modifiedTimestamp < arg) modifiedTimestamp = arg else modifiedTimestamp = Element.timestamp()
@@ -173,7 +162,8 @@ object Node extends Loggable {
 
   /** Simple implementation of the mutable part of a node. */
   class State[A <: Element](val children: Seq[Node[_ <: Element]], val graph: Graph[_ <: Model.Like], val parentNodeReference: WeakReference[Node[_ <: Element]],
-    val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]], val rootElementBox: ElementBox[A]) extends NodeState[A] {
+    val projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]]) extends NodeState[A] {
+    lazy val rootBox: ElementBox[A] = projectionBoxes.get(Coordinate.root).getOrElse(null)
     type NodeStateType = State[A]
 
     /** Copy constructor. */
@@ -181,9 +171,8 @@ object Node extends Loggable {
       children: Seq[Node[_ <: Element]] = this.children,
       graph: Graph[_ <: Model.Like] = this.graph,
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.parentNodeReference,
-      projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionElementBoxes,
-      rootElementBox: ElementBox[A] = this.rootElementBox): NodeStateType =
-      new State(children, graph, parentNodeReference, projectionElementBoxes, rootElementBox)
+      projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionBoxes): NodeStateType =
+      new State(children, graph, parentNodeReference, projectionElementBoxes)
   }
   /**
    * Node companion object realization
@@ -199,12 +188,12 @@ object Node extends Loggable {
     def dump(node: Node[_ <: Element], brief: Boolean, padding: Int = 2): String = node.safeRead { node ⇒
       val pad = " " * padding
       def dumpBoxes() = {
-        val result = Option(node.rootElementBox).map(box ⇒
+        val result = Option(node.rootBox).map(box ⇒
           if (Coordinate.root != box.coordinate)
             Seq(s"Inconsistent coordinates node:${Coordinate.root} vs box:${box.coordinate} for ${box}!", box.toString)
           else
             Seq(box.toString)) ++
-          node.projectionElementBoxes.map {
+          node.projectionBoxes.map {
             case (coordinate, box) ⇒
               if (coordinate != box.coordinate)
                 Seq(s"Inconsistent coordinates node:${coordinate} vs box:${box.coordinate} for ${box}!", box.toString)
@@ -230,8 +219,7 @@ object Node extends Loggable {
         internalState = new State(children = Seq(),
           graph = graph,
           parentNodeReference = WeakReference(null),
-          projectionElementBoxes = immutable.HashMap(),
-          rootElementBox = null)
+          projectionBoxes = immutable.HashMap())
         graph.nodes += this.unique -> this
         modifiedTimestamp = modified
       } finally { rwl.writeLock().unlock() }
@@ -243,7 +231,6 @@ object Node extends Loggable {
   class ThreadUnsafe[A <: Element](val id: Symbol, val unique: UUID, @volatile protected var internalState: NodeState[A],
     @volatile protected var modifiedTimestamp: Element.Timestamp)(implicit val elementType: Manifest[A])
     extends Node[A] with mutable.Set[Node[_ <: Element]] with mutable.SetLike[Node[_ <: Element], ThreadUnsafe[_ <: Element]] {
-
     /** Adds a single element to the set. */
     def +=(elem: Node[_ <: Element]): this.type = { add(elem); this }
     /** Removes a single element to the set. */
@@ -259,13 +246,11 @@ object Node extends Loggable {
             if (node.graph != graph) {
               // Update graph
               node.iteratorRecursive().foreach(_.safeWrite { child ⇒
-                val rootElementBox = child.rootElementBox
-                val projectionElementBoxes = child.projectionElementBoxes
+                val projectionBoxes = child.projectionBoxes
                 child.updateState(graph = graph,
                   parentNodeReference = WeakReference(ThreadUnsafe.this),
-                  projectionElementBoxes = immutable.HashMap(projectionElementBoxes.
-                    map { case (coordinate, box) ⇒ coordinate -> box.copy(node = child) }.toSeq: _*),
-                  rootElementBox = rootElementBox.copy(Coordinate.root, child, rootElementBox.serialization))
+                  projectionBoxes = immutable.HashMap(projectionBoxes.
+                    map { case (coordinate, box) ⇒ coordinate -> box.copy(node = child) }.toSeq: _*))
               })
             }
           }
@@ -283,14 +268,14 @@ object Node extends Loggable {
         false
     }
     /** Build an ancestors sequence. */
-    def ancestors(): Seq[Node[_ <: Element]] = {
+    def ancestors: Seq[Node[_ <: Element]] = {
       @tailrec
       def ancestors(current: Node[_ <: Element], acc: Seq[Node[_ <: Element]]): Seq[Node[_ <: Element]] = {
         if (acc.size > Element.MAXIMUM_DEEPNESS) {
           log.fatal("Node level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
           return acc
         }
-        current.getParent match {
+        current.parent match {
           case n @ Some(parent) if acc.lastOption != n && parent != current ⇒ ancestors(parent, acc :+ parent)
           case _ ⇒ acc
         }
@@ -320,8 +305,7 @@ object Node extends Loggable {
       val newNode = Node[B](id, unique, new State(children = Seq(),
         graph = graph,
         parentNodeReference = WeakReference(this),
-        projectionElementBoxes = immutable.HashMap(),
-        rootElementBox = null), Element.timestamp())
+        projectionBoxes = immutable.HashMap()), Element.timestamp())
       add(newNode)
       newNode
     }
@@ -377,19 +361,15 @@ object Node extends Loggable {
       graph: Graph[_ <: Model.Like] = this.internalState.graph,
       modified: Element.Timestamp = Element.timestamp(),
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.internalState.parentNodeReference,
-      projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionElementBoxes,
-      rootElementBox: ElementBox[A] = this.internalState.rootElementBox): Node.ThreadUnsafe[A] = {
-      internalState = new State[A](children, graph, parentNodeReference, projectionElementBoxes, rootElementBox)
+      projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionBoxes): Node.ThreadUnsafe[A] = {
+      internalState = new State[A](children, graph, parentNodeReference, projectionBoxes)
       if (modified != null)
         this.modified = modified
       this
     }
     /** Update element box at the specific coordinates. */
-    def updateElementBox(coordinate: Coordinate, box: ElementBox[A], modified: Element.Timestamp = Element.timestamp()): Node.ThreadUnsafe[A] = {
-      if (coordinate == Coordinate.root)
-        internalState = internalState.copy(rootElementBox = box)
-      else
-        internalState = internalState.copy(projectionElementBoxes = internalState.projectionElementBoxes + (coordinate -> box))
+    def updateBox(coordinate: Coordinate, box: ElementBox[A], modified: Element.Timestamp = Element.timestamp()): Node.ThreadUnsafe[A] = {
+      internalState = internalState.copy(projectionBoxes = internalState.projectionBoxes + (coordinate -> box))
       if (modified != null)
         this.modified = modified
       this

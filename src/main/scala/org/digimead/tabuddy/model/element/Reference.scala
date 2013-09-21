@@ -43,7 +43,7 @@ case class Reference(origin: Symbol, model: UUID, node: UUID, coordinate: Coordi
 object Reference {
   implicit def reference2implementation(m: Reference.type): Interface = m.inner
 
-  def inner() = DI.implementation
+  def inner = DI.implementation
 
   /**
    * Default reference singleton implementation.
@@ -72,8 +72,8 @@ object Reference {
     def resolve(reference: Reference, modelModificationTimestamp: Element.Timestamp): Option[_ <: Element] = {
       registry.get(reference.origin, reference.model).flatMap { seq ⇒
         seq.find(_.node.modified == modelModificationTimestamp).flatMap(_.nodes.get(reference.node).
-          flatMap(_.getProjection(reference.coordinate): Option[ElementBox[_ <: Element]]))
-      }.map(_.get)
+          flatMap(_.projectionBoxes.get(reference.coordinate): Option[ElementBox[_ <: Element]]))
+      }.map(_.e)
     }
     /** Remove graph of the consume from registry map. */
     def unregister(graph: Graph[_ <: Model.Like]) {

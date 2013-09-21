@@ -77,7 +77,7 @@ object Task extends Loggable {
         withElement[Task, A](id, coordinate, Task.scope, classOf[Task.Stash], (task) ⇒ fTransform(new Relative(task)))
       }
       /** Safe cast element to Task.Like. */
-      def toTask() = element.eAs[Task.Like]
+      def asTask = element.eAs[Task.Like]
     }
     trait RichSpecific[A <: Task.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
@@ -89,7 +89,7 @@ object Task extends Loggable {
     type ElementType <: Like
 
     /** Get relative representation. */
-    override def eRelative(): Task.Relative[ElementType] = new Task.Relative(this.asInstanceOf[ElementType])
+    override def eRelative: Task.Relative[ElementType] = new Task.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Task.Like]
   }

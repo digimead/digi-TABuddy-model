@@ -87,7 +87,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       val otherWorkspace = model.record('test, ('a, 0)).eRelative
       // child of same root with same id MUST have same unique values
       rootWorkspace.eId.name should be(otherWorkspace.eId.name)
-      rootWorkspace.eNodeId should be(otherWorkspace.eNodeId)
+      rootWorkspace.eNode.unique should be(otherWorkspace.eNode.unique)
       //rootWorkspace.unique
       otherWorkspace.eCoordinate.isRoot should be(false)
       otherWorkspace.name should be("")

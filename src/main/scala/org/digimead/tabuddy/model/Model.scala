@@ -79,7 +79,7 @@ object Model extends Loggable {
     trait RichGeneric {
       this: org.digimead.tabuddy.model.dsl.DSL.RichGeneric ⇒
       /** Safe cast element to Model.Like. */
-      def toModel() = element.eAs[Model.Like]
+      def asModel = element.eAs[Model.Like]
     }
     trait RichSpecific[A <: Model.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
@@ -106,16 +106,16 @@ object Model extends Loggable {
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
       val self = "%s: %s".format(eStash.scope, eId) + properties
-      val childrenDump = eNode.safeRead(_.iterator.map(_.getElementBoxes).flatten.
-        map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
+      val childrenDump = eNode.safeRead(_.iterator.map(_.projectionBoxes.values).flatten.
+        map(_.e.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     /** Get Model for this element. */
     override def eModel = this
     /** Get relative representation. */
-    override def eRelative(): Model.Relative[ElementType] = new Model.Relative(this.asInstanceOf[ElementType])
+    override def eRelative: Model.Relative[ElementType] = new Model.Relative(this.asInstanceOf[ElementType])
     /** Get a container */
-    override def eParent(): Option[Node[_ <: Element]] = None
+    override def eParent: Option[Node[_ <: Element]] = None
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Model.Like]
 

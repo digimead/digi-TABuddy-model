@@ -64,7 +64,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   /** Compares this object with the specified object for order. */
   def compare(that: Element): Int = Element.comparator.value.compare(this, that)
   /** Build an ancestors sequence. */
-  def eAncestors(): Seq[Node[_ <: Element]] = eNode.safeRead(_.ancestors)
+  def eAncestors: Seq[Node[_ <: Element]] = eNode.safeRead(_.ancestors)
   /**
    * As an optional instance of for Element
    *
@@ -73,14 +73,14 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
    *   element.eAs[Note.Like]
    *   element.eAs[Record.Like]
    */
-  def eAs[A <: Element]()(implicit m: Manifest[A]): Option[A] =
-    if (m.runtimeClass.isAssignableFrom(getClass)) Some(this.asInstanceOf[A]) else None
+  def eAs[A <: Element: Manifest]: Option[A] =
+    if (implicitly[Manifest[A]].runtimeClass.isAssignableFrom(getClass)) Some(this.asInstanceOf[A]) else None
   /** Get list of axes(tags). */
-  def eCoordinate() = eBox.coordinate
+  def eCoordinate = eBox.coordinate
   /** Copy constructor. */
   def eCopy(elementBox: ElementBox[ElementType], stash: ElementType#StashType): ElementType = {
     val element = Element[ElementType](elementBox, stash)(Manifest.classType(getClass))
-    elementBox.set(Some(element))
+    elementBox.e = Some(element)
     element
   }
   /** Copy constructor that attach copy to the target node. */
@@ -111,25 +111,25 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
       target.safeWrite { target ⇒
         // asInstanceOf[ElementType#StashType] is simplify type between
         // abstract ElementType#StashType#StashType, ElementType#StashType, StashType
-        if (target.rootElementBox == null && coordinate != Coordinate.root) {
+        if (target.rootBox == null && coordinate != Coordinate.root) {
           val root = ElementBox(Coordinate.root, stash.created, target, stash.modified, stash.scope, serialization)(Manifest.classType(getClass), stash.getClass)
           val projection = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
-          target.updateState(target.state.copy(projectionElementBoxes = target.state.projectionElementBoxes + (coordinate -> projection),
-            rootElementBox = root), stash.modified)
+          target.updateState(target.state.copy(projectionBoxes = target.state.projectionBoxes +
+            (coordinate -> projection) + (Coordinate.root -> root)), stash.modified)
           projection
         } else {
           val box = ElementBox(coordinate, target, serialization, stash.asInstanceOf[ElementType#StashType])(Manifest.classType(getClass))
-          target.updateElementBox(coordinate, box, stash.modified)
+          target.updateBox(coordinate, box, stash.modified)
           box
         }
-      }.get
+      }.e
   }
   /** Dump the element content. */
   def eDump(brief: Boolean, padding: Int = 2): String
   /** Find child element. */
   def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.safeRead {
-    _.view.map(_.getElementBoxes: Seq[ElementBox[_ <: Element]]).flatten.
-      find { box ⇒ box.node.elementType.runtimeClass.isAssignableFrom(a.runtimeClass) && p(box.get.asInstanceOf[A]) }.map(_.get.asInstanceOf[A])
+    _.view.map(_.projectionBoxes.values.toSeq: Seq[ElementBox[_ <: Element]]).flatten.
+      find { box ⇒ box.node.elementType.runtimeClass.isAssignableFrom(a.runtimeClass) && p(box.e.asInstanceOf[A]) }.map(_.e.asInstanceOf[A])
   }
   /** Get a property. */
   def eGet[A <: AnyRef with java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] =
@@ -149,21 +149,21 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   /** Get node/element graph. */
   def eGraph: Graph[_ <: Model.Like] = eBox.node.graph
   /** Get node/element verbose id. */
-  def eId(): Symbol = eBox.node.id
+  def eId: Symbol = eBox.node.id
   /** Get relative representation. */
-  def eRelative(): Element.Relative[ElementType] = new Element.Relative(this.asInstanceOf[ElementType]) {}
+  def eRelative: Element.Relative[ElementType] = new Element.Relative(this.asInstanceOf[ElementType]) {}
   /** Get Model for this element. */
-  def eModel(): Model.Like = eNode.graph.model
+  def eModel: Model.Like = eNode.graph.model
   /** Get element node. */
-  def eNode(): Node[ElementType] = eBox.node
+  def eNode: Node[ElementType] = eBox.node
   /** Get identifier which uniquely identify this element. */
-  def eUniqueId(): UUID = eBox.elementUniqueId
+  def eUniqueId: UUID = eBox.elementUniqueId
   /** Get graph origin identifier. */
-  def eOrigin(): Symbol = eBox.node.graph.origin
+  def eOrigin: Symbol = eBox.node.graph.origin
   /** Get a container. */
-  def eParent(): Option[Node[_ <: Element]] = eNode.getParent
+  def eParent: Option[Node[_ <: Element]] = eNode.parent
   /** Get reference of this element */
-  def eReference() = Reference(eOrigin, eNode.graph.node.unique, eNodeId, eCoordinate)
+  def eReference = Reference(eOrigin, eNode.graph.node.unique, eNode.unique, eCoordinate)
   /** Remove the specific property's value */
   def eRemove[A <: AnyRef with java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): ElementType = {
     Element.log.trace(s"Remove $id from $eId.")
@@ -180,9 +180,9 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
     eCopy(eNode, eCoordinate, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
   }
   /** Get the root element from the current origin if any. */
-  def eRoot(): Option[Element] = eNode.getProjection(Coordinate.root).map(_.get)
+  def eRoot: Element = eNode.rootBox.e
   /** Get the scope of the element */
-  def eScope() = eStash.scope
+  def eScope = eStash.scope
   /** Set a new property, return an old property */
   def eSet[A <: AnyRef with java.io.Serializable](id: Symbol, value: Option[Value[A]])(implicit m: Manifest[A]): ElementType =
     eSet(id, value, null.asInstanceOf[A])
@@ -248,8 +248,6 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   }
   /** Get current stash */
   def eStash: StashType
-  /** Get node/element unique id. */
-  def eNodeId(): UUID = eBox.node.unique
   /** Get modification timestamp. */
   def modified = eStash.modified
 
@@ -459,14 +457,14 @@ object Element extends Loggable {
     def this(element: A) = this(element.eNode.asInstanceOf[Node[A]], element.eBox.coordinate)
 
     /** Get absolute element representation. */
-    def absolute(): A = if (coordinate.isRoot)
-      node.safeRead(_.rootElementBox).asInstanceOf[ElementBox[A]].get
+    def absolute: A = if (coordinate.isRoot)
+      node.safeRead(_.rootBox).asInstanceOf[ElementBox[A]].e
     else
-      node.safeRead(_.projectionElementBoxes(coordinate)).asInstanceOf[ElementBox[A]].get
+      node.safeRead(_.projectionBoxes(coordinate)).asInstanceOf[ElementBox[A]].e
     /** Get list of axes(tags). */
-    def eCoordinate() = coordinate
+    def eCoordinate = coordinate
     /** Get element node. */
-    def eNode(): Node[A] = node
+    def eNode: Node[A] = node
 
     /** Copy constructor */
     def copy(stash: A#StashType): A = {
@@ -484,7 +482,7 @@ object Element extends Loggable {
       case that: Element if that canEqual this.absolute ⇒ this.absolute.equals(that)
       case _ ⇒ false
     }
-    override def hashCode = absolute.##
+    override def hashCode() = absolute.##
   }
   object Relative {
     implicit def relative2absolute[A <: Element](m: Relative[A]): A = m.absolute

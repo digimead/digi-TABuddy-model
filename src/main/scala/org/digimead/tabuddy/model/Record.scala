@@ -82,7 +82,7 @@ object Record extends Loggable {
         withElement[Record, A](id, coordinate, Record.scope, classOf[Record.Stash], (record) ⇒ fTransform(new Relative(record)))
       }
       /** Safe cast element to Record.Like. */
-      def toRecord() = element.eAs[Record.Like]
+      def asRecord = element.eAs[Record.Like]
     }
     trait RichSpecific[A <: Record.Like] {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
@@ -112,8 +112,8 @@ object Record extends Loggable {
         "%s: %s".format(eStash.scope, eId) + properties
       else
         "%s: %s \"%s\"".format(eStash.scope, eId, name) + properties
-      val childrenDump = eNode.safeRead(_.iterator.map(_.getElementBoxes).flatten.
-        map(_.get.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
+      val childrenDump = eNode.safeRead(_.iterator.map(_.projectionBoxes.values).flatten.
+        map(_.e.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
     def eGetOrElseRoot(id: Symbol, typeSignature: Symbol): Option[Value[_ <: AnyRef with java.io.Serializable]] =
@@ -123,10 +123,10 @@ object Record extends Loggable {
           None
         else
           // try to find value at root node
-          eRoot.flatMap(_.eGet(id, typeSignature))
+          eRoot.eGet(id, typeSignature)
       }
     /** Get relative representation. */
-    override def eRelative(): Record.Relative[ElementType] = new Record.Relative(this.asInstanceOf[ElementType])
+    override def eRelative: Record.Relative[ElementType] = new Record.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Record.Like]
   }

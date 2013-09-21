@@ -62,7 +62,7 @@ trait DSLType {
   /**
    * Returns all known types
    */
-  def getTypes(): Seq[Symbol] = typeSymbolClassMap.keys.toSeq
+  def types: Seq[Symbol] = typeSymbolClassMap.keys.toSeq
 }
 
 /**
@@ -71,7 +71,7 @@ trait DSLType {
 object DSLType extends Loggable {
   implicit def dsltype2implementation(m: DSLType.type): Interface = m.inner
 
-  def inner() = DI.implementation
+  def inner = DI.implementation
   def types() = DI.dsltypes
 
   trait Interface {
@@ -130,15 +130,15 @@ object DSLType extends Loggable {
       }
     /** Get type symbols */
     protected def getSymbols(): Seq[Symbol] =
-      DSLType.types.map(_.getTypes).flatten
+      DSLType.types.map(_.types).flatten
     /** Get type classes */
     protected def getClasses(): Seq[Class[_]] =
-      DSLType.types.map(_.getTypes).flatten.map(symbol ⇒
+      DSLType.types.map(_.types).flatten.map(symbol ⇒
         DSLType.types.flatMap(_.getTypeClass(symbol))).flatten
     /** Get symbol -> class map */
     protected def getSymbolClassMap(): immutable.HashMap[Symbol, Class[_ <: AnyRef with java.io.Serializable]] = {
       val tuples: Seq[(Symbol, Class[_ <: AnyRef with java.io.Serializable])] = getSymbols().map(symbol ⇒ {
-        val maybeClazz = DSLType.types.find(_.getTypes.contains(symbol)).flatMap(_.getTypeClass(symbol))
+        val maybeClazz = DSLType.types.find(_.types.contains(symbol)).flatMap(_.getTypeClass(symbol))
         maybeClazz.map(clazz ⇒ (symbol, clazz.asInstanceOf[Class[_ <: AnyRef with java.io.Serializable]]))
       }).flatten
       immutable.HashMap[Symbol, Class[_ <: AnyRef with java.io.Serializable]](tuples: _*)
@@ -149,7 +149,7 @@ object DSLType extends Loggable {
     /** Get symbol -> converter map */
     protected def getSymbolConverterMap(): immutable.HashMap[Symbol, DSLType] = {
       val tuples: Seq[(Symbol, DSLType)] = getSymbols().map(symbol ⇒ {
-        val maybeConverter = DSLType.types.find(_.getTypes.contains(symbol))
+        val maybeConverter = DSLType.types.find(_.types.contains(symbol))
         maybeConverter.map(converter ⇒ (symbol, converter))
       }).flatten
       immutable.HashMap[Symbol, DSLType](tuples: _*)

@@ -63,21 +63,21 @@ object DSL {
               case child: Node.ThreadUnsafe[A] ⇒
                 if (!child.elementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
                   throw new IllegalArgumentException(s"Unable to cast ${l.elementType} to ${parentNode.elementType}.")
-                child.getProjection(l.coordinate) match {
-                  case Some(box) ⇒ box.get
-                  case None ⇒ ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootElementBox.serialization)(l.elementType, l.stashClass)
+                child.projectionBoxes.get(l.coordinate) match {
+                  case Some(box) ⇒ box.e
+                  case None ⇒ ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootBox.serialization)(l.elementType, l.stashClass)
                 }
             }
           case None ⇒
             parentNode.createChild[A](l.id, l.unique.getOrElse(UUID.randomUUID())).safeWrite { child ⇒
-              ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootElementBox.serialization)(l.elementType, l.stashClass)
+              ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootBox.serialization)(l.elementType, l.stashClass)
             }
         }
       }
     /** Retrieve child of the current element. */
     def &[A <: Element](l: LocationGeneric[A]): A =
       element.eFind[A](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
-        l.unique.map(_ == e.eNodeId).getOrElse(true))(l.elementType).
+        l.unique.map(_ == e.eNode.unique).getOrElse(true))(l.elementType).
         getOrElse { throw new IllegalArgumentException(s"Unable to find ${l}.") }
 
     /**
@@ -89,20 +89,20 @@ object DSL {
       fTransform: A ⇒ B)(implicit m: Manifest[A]): B = {
       // Double checked locking
       element.eNode.safeRead { parentNode ⇒
-        parentNode.find(child ⇒ child.id == id && child.elementType.runtimeClass.isAssignableFrom(m.runtimeClass)).flatMap(_.getProjection(coordinate).
-          map(e ⇒ fTransform(e.get().asInstanceOf[A])))
+        parentNode.find(child ⇒ child.id == id && child.elementType.runtimeClass.isAssignableFrom(m.runtimeClass)).flatMap(_.projectionBoxes.get(coordinate).
+          map(b ⇒ fTransform(b.e.asInstanceOf[A])))
       }.getOrElse {
         // Modify parent node.
         element.eNode.safeWrite { parentNode ⇒
           parentNode.find(child ⇒ child.id == id && child.elementType.runtimeClass.isAssignableFrom(m.runtimeClass)).map { childNode ⇒
             // node exists
-            childNode.asInstanceOf[Node[A]].getProjection(coordinate).map(e ⇒ fTransform(e.get())).getOrElse {
-              childNode.asInstanceOf[Node[A]].safeWrite { childNode ⇒ fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash)) }
+            childNode.asInstanceOf[Node[A]].projectionBoxes.get(coordinate).map(b ⇒ fTransform(b.e)).getOrElse {
+              childNode.asInstanceOf[Node[A]].safeWrite { childNode ⇒ fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootBox.serialization)(m, stash)) }
             }
           } getOrElse {
             // node not exists
             parentNode.createChild[A](id, UUID.randomUUID()).safeWrite { childNode ⇒
-              fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootElementBox.serialization)(m, stash))
+              fTransform(ElementBox.getOrCreate[A](coordinate, childNode, scope, parentNode.rootBox.serialization)(m, stash))
             }
           }
         }

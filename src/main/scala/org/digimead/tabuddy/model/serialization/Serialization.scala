@@ -162,13 +162,9 @@ class Serialization extends Serialization.Interface with Loggable {
           ElementBox[Model.Like](descriptor.coordinate, descriptor.elementUniqueId, targetNode, storageURI,
             descriptor.serializationIdentifier, descriptor.modified)(Manifest.classType(descriptor.clazz))
       }
-      val (rootElementsPart, projectionElementsPart) = elementBoxes.partition(_.coordinate == Coordinate.root)
-      if (rootElementsPart.isEmpty)
+      if (!elementBoxes.exists(_.coordinate == Coordinate.root))
         throw new IllegalStateException("Root element not found.")
-      if (rootElementsPart.size > 1)
-        throw new IllegalStateException("There are few root elements.")
-      val rootElementBox = rootElementsPart.head
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[Model.Like])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
+      val projectionBoxes: Seq[(Coordinate, ElementBox[Model.Like])] = elementBoxes.map(e ⇒ e.coordinate -> e)
       /* Get children */
       val children = nodeDescriptorˈ.children.flatMap {
         case (childId, childModificationTimestamp) ⇒
@@ -176,8 +172,7 @@ class Serialization extends Serialization.Interface with Loggable {
       }
       targetNode.updateState(children = children,
         modified = null, // modification is already assigned
-        projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*),
-        rootElementBox = rootElementBox)
+        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
       targetNode.graph.nodes ++= targetNode.children.map(node ⇒ (node.unique, node))
       if (graph.modelType != graph.node.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
@@ -236,8 +231,7 @@ class Serialization extends Serialization.Interface with Loggable {
     val targetNodeInitialState = new Node.State[Element](children = Seq(),
       graph = ancestors.head.graph,
       parentNodeReference = WeakReference(ancestors.last),
-      projectionElementBoxes = immutable.HashMap(),
-      rootElementBox = null)
+      projectionBoxes = immutable.HashMap())
     val targetNode = Node[Element](nodeDescriptor.id, nodeDescriptor.unique, targetNodeInitialState, nodeDescriptor.modified)
     targetNode.safeWrite { targetNode ⇒
       /* Get element boxes */
@@ -248,13 +242,9 @@ class Serialization extends Serialization.Interface with Loggable {
           ElementBox[Element](descriptor.coordinate, descriptor.elementUniqueId, targetNode, storageURI,
             descriptor.serializationIdentifier, descriptor.modified)(Manifest.classType(descriptor.clazz))
       }
-      val (rootElementsPart, projectionElementsPart) = elementBoxes.partition(_.coordinate == Coordinate.root)
-      if (rootElementsPart.isEmpty)
+      if (!elementBoxes.exists(_.coordinate == Coordinate.root))
         throw new IllegalStateException("Root element not found.")
-      if (rootElementsPart.size > 1)
-        throw new IllegalStateException("There are few root elements.")
-      val rootElementBox = rootElementsPart.head
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[Element])] = projectionElementsPart.map(e ⇒ e.coordinate -> e)
+      val projectionBoxes: Seq[(Coordinate, ElementBox[Element])] = elementBoxes.map(e ⇒ e.coordinate -> e)
       /* Get children */
       val children = nodeDescriptor.children.flatMap {
         case (childId, childModificationTimestamp) ⇒
@@ -264,8 +254,7 @@ class Serialization extends Serialization.Interface with Loggable {
       targetNode.updateState(
         children = children,
         modified = null, // modification is already assigned
-        projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*),
-        rootElementBox = rootElementBox)
+        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
       targetNode
     }
   }
@@ -289,10 +278,10 @@ class Serialization extends Serialization.Interface with Loggable {
     // save element (update modification time)
     elementBox.getModified match {
       case Some(modified) ⇒
-        if (modified ne elementBox.get)
+        if (modified ne elementBox.e)
           throw new IllegalStateException("Element and modified element are different.")
         elementBox.save(ancestorsNSelf, Some(storageURI))
-        elementBox.get.eStash.property.foreach {
+        elementBox.e.eStash.property.foreach {
           case (valueId, perTypeMap) ⇒ perTypeMap.foreach {
             case (typeSymbolId, value) ⇒
               value.commit(modified, transport, transport.acquireElementLocation(ancestorsNSelf, modified.eBox, storageURI))
@@ -309,8 +298,8 @@ class Serialization extends Serialization.Interface with Loggable {
     fTransform: Serialization.FreezeTransformation, ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]]) {
     log.debug(s"Freeze ${node}.")
     transport.freezeNode(ancestorsNSelf, storageURI, nodeDescriptorToYAML(node.elementType, node.id, node.modified, node.state, node.unique, fTransform))
-    freezeElementBox(node.state.rootElementBox, storageURI, transport, ancestorsNSelf)
-    node.state.projectionElementBoxes.foreach { case (coordinate, box) ⇒ freezeElementBox(box, storageURI, transport, ancestorsNSelf) }
+    freezeElementBox(node.state.rootBox, storageURI, transport, ancestorsNSelf)
+    node.state.projectionBoxes.foreach { case (coordinate, box) ⇒ freezeElementBox(box, storageURI, transport, ancestorsNSelf) }
     node.state.children.foreach(_.safeRead { child ⇒
       val childˈ = fTransform(child.asInstanceOf[Node.ThreadUnsafe[Element]])
       freezeNode(childˈ, storageURI, transport, fTransform, ancestorsNSelf :+ childˈ)
@@ -338,7 +327,7 @@ class Serialization extends Serialization.Interface with Loggable {
   /** Create YAML node descriptor. */
   protected def nodeDescriptorToYAML(elementType: Manifest[_ <: Element], id: Symbol, modified: Element.Timestamp, state: NodeState[_ <: Element],
     unique: UUID, fTransform: Serialization.FreezeTransformation): Array[Byte] = {
-    val elements = (Seq[ElementBox[_ <: Element]](state.rootElementBox) ++ state.projectionElementBoxes.values).map(box ⇒
+    val elements = (Seq[ElementBox[_ <: Element]](state.rootBox) ++ state.projectionBoxes.values).map(box ⇒
       Array(box.elementUniqueId, box.modified)).asJava
     val children = state.children.map(_.safeRead { child ⇒
       val childˈ = fTransform(child.asInstanceOf[Node.ThreadUnsafe[Element]])

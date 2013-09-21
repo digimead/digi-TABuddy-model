@@ -42,18 +42,17 @@ trait NodeState[A <: Element] {
   // graph may contains a model node with weak references
   // then all other nodes will be GC'ed and we may work only with our part of tree.
   val parentNodeReference: WeakReference[Node[_ <: Element]]
-  /** Elements with non-root coordinates(List of axes(tags)). */
-  val projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]]
+  /** Elements with non-root coordinates(List of axes(tags)) and root. */
+  val projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]]
   /** Element with root coordinate. */
   // Option type is meaningless here. Root element must be defined every time.
-  val rootElementBox: ElementBox[A]
+  val rootBox: ElementBox[A]
 
   /** Copy constructor. */
   def copy(
     children: Seq[Node[_ <: Element]] = this.children,
     graph: Graph[_ <: Model.Like] = this.graph,
     parentNodeReference: WeakReference[Node[_ <: Element]] = this.parentNodeReference,
-    projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionElementBoxes,
-    rootElementBox: ElementBox[A] = this.rootElementBox): NodeStateType
+    projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionBoxes): NodeStateType
 }
 

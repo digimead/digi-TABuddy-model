@@ -31,4 +31,5 @@ package object model {
     org.digimead.tabuddy.model.dsl.default ~
     org.digimead.tabuddy.model.serialization.default ~
     org.digimead.tabuddy.model.serialization.yaml.default
+  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.element.Reference$DI$")
 }

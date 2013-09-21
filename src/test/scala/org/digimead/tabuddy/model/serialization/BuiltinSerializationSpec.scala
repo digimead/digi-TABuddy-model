@@ -137,31 +137,31 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             node2.unique should be(node.unique)
             node2.children should be(node.children)
             node2.modified should be(node.modified)
-            node2.projectionElementBoxes should be(node.projectionElementBoxes)
-            node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
-            node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
-            node2.rootElementBox.modified should be(node.rootElementBox.modified)
-            node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
+            node2.projectionBoxes should be(node.projectionBoxes)
+            node2.rootBox.coordinate should be(node.rootBox.coordinate)
+            node2.rootBox.elementUniqueId should be(node.rootBox.elementUniqueId)
+            node2.rootBox.modified should be(node.rootBox.modified)
+            node2.rootBox.serialization should be(node.rootBox.serialization)
 
             node2.graph should be(graph2)
             node2.parentNodeReference.get should be(None)
             node2.elementType should be(node.elementType)
 
             /* compare root element box */
-            node2.rootElementBox.coordinate should be(node.rootElementBox.coordinate)
-            node2.rootElementBox.elementUniqueId should be(node.rootElementBox.elementUniqueId)
-            node2.rootElementBox.modified should be(node.rootElementBox.modified)
-            node2.rootElementBox.node should be(node.rootElementBox.node)
-            node2.rootElementBox.serialization should be(node.rootElementBox.serialization)
+            node2.rootBox.coordinate should be(node.rootBox.coordinate)
+            node2.rootBox.elementUniqueId should be(node.rootBox.elementUniqueId)
+            node2.rootBox.modified should be(node.rootBox.modified)
+            node2.rootBox.node should be(node.rootBox.node)
+            node2.rootBox.serialization should be(node.rootBox.serialization)
 
             /* compare root element */
-            val element = node.rootElementBox.get
-            val element2 = node2.rootElementBox.get
+            val element = node.rootBox.e
+            val element2 = node2.rootBox.e
 
             element should not be (null)
             element2 should not be (null)
-            node.rootElementBox.getModified should be(None)
-            node2.rootElementBox.getModified should be(None)
+            node.rootBox.getModified should be(None)
+            node2.rootBox.getModified should be(None)
             element.ne(element2) should be(true)
             element2 should be(element)
 
@@ -173,7 +173,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             // container always point to current active model
             graph2.model.eId.name should be(graph.model.eId.name)
             graph2.model.eUniqueId should be(graph.model.eUniqueId)
-            graph2.model.eNodeId should be(graph.model.eNodeId)
+            graph2.model.eNode.unique should be(graph.model.eNode.unique)
             graph2.model.modified should be(graph.model.modified)
             graph2.model.eModel should be(graph2.model)
             graph2.model.eModel should be(graph.model)
@@ -182,13 +182,13 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
             graph2.model.e(graph2.model.eReference) should not be ('empty)
             // record
             graph2.node.safeRead(_.head).eq(graph.node.safeRead(_.head)) should be(false)
-            graph2.node.safeRead(_.head).safeRead(_.rootElementBox.get()).eModel should be(graph2.model)
-            graph2.model.e(graph2.node.safeRead(_.head).safeRead(_.rootElementBox.get()).eReference) should not be ('empty)
+            graph2.node.safeRead(_.head).safeRead(_.rootBox.e).eModel should be(graph2.model)
+            graph2.model.e(graph2.node.safeRead(_.head).safeRead(_.rootBox.e).eReference) should not be ('empty)
           }
         }
 
         val graphModification = graph.modified
-        val baseLevel = graph.model | RecordLocation('baseLevel) eRelative ()
+        val baseLevel = (graph.model | RecordLocation('baseLevel)).eRelative
         baseLevel.name = "321"
         graph.modified should be > (graphModification)
 
@@ -283,14 +283,14 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         (model & RecordLocation('root) & RecordLocation('level2) & RecordLocation('level3)).eNode.modified should be(newModification)
 
         val record_level3_rel = graph2.model.e(record_level3.eReference).flatMap(_.eAs[Record]).get.eRelative
-        val record_level2_node = record_level3_rel.eNode.getParent.get
+        val record_level2_node = record_level3_rel.eNode.parent.get
         record_level2_node.id.name should be("level2")
         record_level2_node.safeRead(_.children) should have size (1)
         record_level3_rel.eModel.eq(graph2.model) should be(true)
-        val record_level2_rel = record_level2_node.getRootElementBox.get.eAs[Record].get.eRelative
+        val record_level2_rel = record_level2_node.rootBox.e.eAs[Record].get.eRelative
         record_level2_rel.name should be("123")
         record_level2_node.safeRead(_.children) should have size (1)
-        record_level2_node.safeRead(_.children.head.getRootElementBox.get) should be(record_level3_rel.absolute)
+        record_level2_node.safeRead(_.children.head.rootBox.e) should be(record_level3_rel.absolute)
         record_level3_rel.name should be("456")
         record_level3_rel.eNode.safeRead(_.children) should be('empty)
 

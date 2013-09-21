@@ -151,7 +151,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         val r1 = graph.model.withRecord('a) { r ⇒ r }
         val rcoord = r1.eCoordinate
         val rid = r1.eId
-        val runique = r1.eNodeId
+        val runique = r1.eNode.unique
         // create element projection at different coordinate
         log.___glance(s"Copy ${r1} to ('x, 1).")
         val r1projection = r1.eCopy(r1.eNode, ('x, 1 + i))
@@ -172,7 +172,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       r4.eNode.safeWrite { node ⇒
         val timestamp = Element.timestamp()
         val stash = new Record.Stash(timestamp, timestamp, new Stash.Data, Record.scope)
-        ElementBox[Record](Coordinate(('cxv, 6)), node, node.rootElementBox.serialization, stash)
+        ElementBox[Record](Coordinate(('cxv, 6)), node, node.rootBox.serialization, stash)
       } should not be (null)
     }
     it("should register elements in model") {
@@ -205,17 +205,17 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         }
       }
       record.name should be("root")
-      val record2 = record.eNode.safeRead(_.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record])
+      val record2 = record.eNode.safeRead(_.head.rootBox.e.asInstanceOf[Record])
       record2.name should be("level2a")
       record2 should be(save)
-      val record3 = record2.eNode.safeRead(_.head.getProjection(Coordinate.root).get.get.asInstanceOf[Record])
+      val record3 = record2.eNode.safeRead(_.head.rootBox.e.asInstanceOf[Record])
       record3.name should be("level3")
       save = save.eSet[Integer]('test, 123)
       val saveValue = save.eGet[Integer]('test).get
       val copy = save.eCopy(save.eNode, ('a, 1))
       copy.eId.name should be("level2")
       copy.name should be("level2a")
-      copy.eNode.safeRead(_.head.getRootElementBox.get.asInstanceOf[Record].name) should be("level3")
+      copy.eNode.safeRead(_.head.rootBox.e.asInstanceOf[Record].name) should be("level3")
       val copyValue = copy.eGet[Integer]('test).get
       record.eReference.model should be(copy.eReference.model)
       record.eReference.node should not be (copy.eReference.node)
@@ -229,7 +229,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       myModel.e(save.eReference) should be('nonEmpty)
       save.eModel should be(myModel)
       var newChild: Node[_ <: Element] = null
-      val newRecord2 = save.eNode.getParent.map(_.safeWrite { parent ⇒
+      val newRecord2 = save.eNode.parent.map(_.safeWrite { parent ⇒
         parent.createChild[Record]('new, UUID.randomUUID()).safeWrite { child ⇒
           newChild = child
           save.eCopy(child, save.eCoordinate, save.eStash, save.eBox.serialization)

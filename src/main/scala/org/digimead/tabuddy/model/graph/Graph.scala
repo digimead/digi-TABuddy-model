@@ -58,8 +58,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
     val graph = new Graph[A](created, targetModelNode, origin)
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, modified)
-      val rootElementBox = sourceModelNode.rootElementBox.copy(node = targetNode)
-      val projectionElementBoxes: Seq[(Coordinate, ElementBox[A])] = sourceModelNode.projectionElementBoxes.map {
+      val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = sourceModelNode.projectionBoxes.map {
         case (coordinate, box) ⇒ coordinate -> box.copy(node = targetNode)
       }.toSeq
       if (graph.modelType != graph.node.elementType)
@@ -70,14 +69,13 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
       targetNode.updateState(
         children = sourceModelNode.children.map(_.copy(targetNode, true)),
         modified = null, // modification is already assigned
-        rootElementBox = rootElementBox,
-        projectionElementBoxes = immutable.HashMap(projectionElementBoxes: _*))
+        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
       graph.nodes ++= targetNode.children.map(n ⇒ n.unique -> n)
     }
     graph
   }
   /** Get graph model. */
-  def model(): A = node.getRootElementBox.get
+  def model: A = node.rootBox.e
   /** Get modification timestamp. */
   def modified: Element.Timestamp = node.modified
 
@@ -108,7 +106,7 @@ object Graph {
       modelNode.safeWrite { node ⇒
         modelNode.initializeModelNode(modelGraph, timestamp)
         val modelBox = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
-        node.updateElementBox(Coordinate.root, modelBox, timestamp)
+        node.updateBox(Coordinate.root, modelBox, timestamp)
         if (modelGraph.modelType != modelGraph.node.elementType)
           throw new IllegalArgumentException(s"Unexpected model type ${modelGraph.modelType} vs ${modelGraph.node.elementType}")
         modelGraph

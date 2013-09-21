@@ -23,7 +23,7 @@ class Coordinate private (
   /** List of an axis values. */
   val coordinate: List[Axis[_ <: AnyRef with java.io.Serializable]]) extends Equals with java.io.Serializable {
   /** Check if coordinate at the root point. */
-  def isRoot() = coordinate.isEmpty
+  def isRoot = coordinate.isEmpty
 
   override def canEqual(that: Any) = that.isInstanceOf[Coordinate]
   override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {

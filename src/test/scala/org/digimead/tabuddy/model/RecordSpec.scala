@@ -55,11 +55,11 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
         val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), Right(elementElementForwardReference),
           Element.Timestamp(0, 0))(elementType = implicitly[Manifest[Record]],
             node = test1Node, serialization = graph.model.eBox.serialization)
-        test1Node.updateState(rootElementBox = elementBox)
+        test1Node.updateState(projectionBoxes = test1Node.projectionBoxes.updated(Coordinate.root, elementBox))
         // 3. create element
         elementElementForwardReference.set(Element[Record](elementBox, record1Timestamp, record1Timestamp, new Stash.Data(), Record.scope))
         // 4. initialize box and get element
-        elementBox.get
+        elementBox.e
       })
 
       val record2Timestamp = Element.timestamp()
@@ -70,11 +70,11 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
         val elementBox = ElementBox[Record](Coordinate.root, UUID.randomUUID(), Right(elementElementForwardReference),
           Element.Timestamp(0, 0))(elementType = implicitly[Manifest[Record]],
             node = test2Node, serialization = graph.model.eBox.serialization)
-        test2Node.updateState(rootElementBox = elementBox)
+        test2Node.updateState(projectionBoxes = test2Node.projectionBoxes.updated(Coordinate.root, elementBox))
         // 3. create element
         elementElementForwardReference.set(Element[Record](elementBox, record2Timestamp, record2Timestamp, new Stash.Data(), Record.scope))
         // 4. initialize box and get element
-        elementBox.get
+        elementBox.e
       })
 
       record1 should not be (record2)
@@ -111,11 +111,11 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       // check child elements
       val record_1a = record_0 & RecordLocation('level1a)
       val record_1b = record_0 & RecordLocation('level1b)
-      record_0.eNode.safeRead(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_1a, record_1b))
+      record_0.eNode.safeRead(_.children.map(_.rootBox.e).toSet) should equal(Set(record_1a, record_1b))
       val record_2a = record_0 & RecordLocation('level1a) & RecordLocation('level2a)
-      record_1a.eNode.safeRead(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2a))
+      record_1a.eNode.safeRead(_.children.map(_.rootBox.e).toSet) should equal(Set(record_2a))
       val record_2b = record_0 & RecordLocation('level1b) & RecordLocation('level2b)
-      record_1b.eNode.safeRead(_.children.map(_.getRootElementBox.get).toSet) should equal(Set(record_2b))
+      record_1b.eNode.safeRead(_.children.map(_.rootBox.e).toSet) should equal(Set(record_2b))
 
       val treeA = model.takeRecord('baseLevel) { r ⇒
         r.takeRecord('level1a) { r ⇒
@@ -126,7 +126,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
         }
       }
       model.eNode.safeRead { _.iteratorRecursive().find(_.id == 'level2a) }.
-        flatMap(_.getRootElementBox.get.eAs[Record].map(_.name)) should be(Some("ok"))
+        flatMap(_.rootBox.e.eAs[Record].map(_.name)) should be(Some("ok"))
     }
   }
 

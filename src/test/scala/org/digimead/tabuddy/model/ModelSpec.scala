@@ -67,7 +67,7 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       (graphCopy.node.safeRead(_.iteratorRecursive()).toSeq :+ graphCopy.node).sortBy(_.unique).corresponds(graphCopy.nodes.values.toSeq.sortBy(_.unique))(_ eq _) should be(true)
       graphCopy.model should equal(graphCopy.model.eModel)
       graphCopy.model.eq(graphCopy.model.eModel) should be(true)
-      val recordCopy = graphCopy.model.eNode.safeRead(_.head).getRootElementBox.get
+      val recordCopy = graphCopy.model.eNode.safeRead(_.head).rootBox.e
       recordCopy.eModel.eq(graphCopy.model.eModel) should be(true)
       recordCopy.eId.name should be("rA")
       recordCopy.eNode.safeRead(_.size) should be(1)

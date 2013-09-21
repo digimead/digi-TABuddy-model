@@ -81,7 +81,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           myModel1.eGet[String]('AAAKey).get.get should be("AAA")
           myModel1.eGet[String]('BBBKey).get.get should be("BBB")
           (myModel1.eId.name) should not be (myModel2.eId.name)
-          (myModel1.eNodeId) should not be (myModel2.eNodeId)
+          (myModel1.eNode.unique) should not be (myModel2.eNode.unique)
           (myModel1.eOrigin.name) should not be (myModel2.eOrigin.name)
           (myModel1.eStash.created) should not be (myModel2.eStash.created)
           (myModel1.eStash.modified) should not be (myModel2.eStash.modified)
@@ -89,7 +89,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           // Copy
           myModel2 = myModel1.eCopy(graph2.node)
           (myModel1.eId.name) should not be (myModel2.eId.name)
-          (myModel1.eNodeId) should not be (myModel2.eNodeId)
+          (myModel1.eNode.unique) should not be (myModel2.eNode.unique)
           (myModel1.eOrigin.name) should not be (myModel2.eOrigin.name)
           (myModel1.eStash.created) should be(myModel2.eStash.created)
           (myModel1.eStash.modified) should be(myModel2.eStash.modified)
@@ -120,7 +120,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
 
           val saveRelative = save.eRelative
           saveRelative.name = "321"
-          model1BranchNodes.map(_.getRootElementBox.get).sorted.map(_.eId.name) should be(Seq("root", "level2"))
+          model1BranchNodes.map(_.rootBox.e).sorted.map(_.eId.name) should be(Seq("root", "level2"))
           myModel1Relative.compare(record) should be(1) // Model modified after
           myModel1Relative.compare(saveRelative) should be(-1) // Model modified before
           saveRelative.compare(record) should be(1) // saveRelative modified after
@@ -128,7 +128,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1Relative | RecordLocation('root)).compare(record) should be(0)
 
           record.eRelative.name = "321"
-          model1BranchNodes.map(_.getRootElementBox.get).sorted.map(_.eId.name) should be(Seq("level2", "root"))
+          model1BranchNodes.map(_.rootBox.e).sorted.map(_.eId.name) should be(Seq("level2", "root"))
         }
       }
     }

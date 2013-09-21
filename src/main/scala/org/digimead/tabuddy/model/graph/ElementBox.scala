@@ -71,17 +71,19 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   def copy(coordinate: Coordinate = this.coordinate,
     node: Node[A] = this.node,
     serialization: Serialization.Identifier = this.serialization): ElementBox[A] = {
-    val element = get()
+    val element = this.e
     val elementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
     val elementBox = ElementBox[A](coordinate, UUID.randomUUID(), Right(elementForwardReference),
       element.modified)(elementType = node.elementType, node = node, serialization = serialization)
     val elementCopy = Element[A](elementBox, element.eStash.asInstanceOf[A#StashType])(node.elementType)
     elementForwardReference.set(elementCopy)
-    elementBox.get
+    elementBox.e
     elementBox
   }
   /** Get element. */
-  def get(): A
+  def e: A
+  /** Set element. */
+  def e_=(arg: Option[A])
   /** Get modified element. Returns only if value was modified. */
   def getModified(): Option[A]
   /** Get unmodified element. */
@@ -97,8 +99,6 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
    * @param storageURI explicit storage URI
    */
   def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]] = Seq(), storageURI: Option[URI] = None)
-  /** Set element. */
-  def set(arg: Option[A])
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[ElementBox[_]]
   override def equals(that: Any): Boolean = that match {
@@ -157,7 +157,7 @@ object ElementBox extends Loggable {
       // create element.
       val element = Element.apply[A](elementBox, created, modified, new org.digimead.tabuddy.model.element.Stash.Data, scope)
       elementElementForwardReference.set(element)
-      if (elementBox.get == null)
+      if (elementBox.e == null)
         throw new IllegalStateException(s"${element} element is absent.")
       elementBox
     }
@@ -170,7 +170,7 @@ object ElementBox extends Loggable {
       // create element.
       val element = Element.apply[A](elementBox, stash)
       elementElementForwardReference.set(element)
-      if (elementBox.get == null)
+      if (elementBox.e == null)
         throw new IllegalStateException(s"${element} element is absent.")
       elementBox
     }
@@ -178,31 +178,31 @@ object ElementBox extends Loggable {
     def getOrCreate[A <: Element](coordinate: Coordinate, node: Node.ThreadUnsafe[A], scope: A#StashType#ScopeType,
       serialization: Serialization.Identifier)(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): A = {
       val requiredBox = if (coordinate == Coordinate.root)
-        Option(node.rootElementBox)
+        Option(node.rootBox)
       else
-        node.projectionElementBoxes.get(coordinate)
-      requiredBox.map(box ⇒ box.get.eAs[A].
-        getOrElse { throw new IllegalAccessException(s"Found ${box.get}, but it type isn't ${m.runtimeClass}.") }).
+        node.projectionBoxes.get(coordinate)
+      requiredBox.map(box ⇒ box.e.eAs[A].
+        getOrElse { throw new IllegalAccessException(s"Found ${box.e}, but it type isn't ${m.runtimeClass}.") }).
         getOrElse {
           val timestamp = Element.timestamp()
           val elementBox = for {
             parent ← node.parentNodeReference.get
           } yield {
             // create root element before projection one
-            if (node.rootElementBox == null && coordinate != Coordinate.root) {
+            if (node.rootBox == null && coordinate != Coordinate.root) {
               val root = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)
               val projection = ElementBox[A](coordinate, timestamp, node, timestamp, scope, serialization)
-              node.updateState(node.state.copy(projectionElementBoxes = node.state.projectionElementBoxes + (coordinate -> projection),
-                rootElementBox = root), timestamp)
+              node.updateState(node.state.copy(projectionBoxes = node.state.projectionBoxes +
+                (coordinate -> projection) + (Coordinate.root -> root)), timestamp)
               projection
             } else {
               val box = ElementBox[A](coordinate, timestamp, node, timestamp, scope, serialization)
-              node.updateElementBox(coordinate, box, timestamp)
+              node.updateBox(coordinate, box, timestamp)
               box
             }
           }
           elementBox match {
-            case Some(box) ⇒ box.get
+            case Some(box) ⇒ box.e
             case None ⇒ throw new IllegalStateException("Unable to create element box.")
           }
         }
@@ -225,7 +225,14 @@ object ElementBox extends Loggable {
     /** Unmodified element object. */
     @volatile protected var unmodifiedCache: Option[A] = None
 
-    def get(): A = getModified getOrElse getUnmodified
+    def e: A = getModified getOrElse getUnmodified
+    def e_=(arg: Option[A]) {
+      modifiedCache = arg
+      arg match {
+        case Some(element) ⇒ node.updateModification(element.modified)
+        case None ⇒ node.updateModification(unmodified)
+      }
+    }
     def getModified(): Option[A] = modifiedCache
     def getUnmodified(): A = unmodifiedCache getOrElse load()
     def load(): A = synchronized {
@@ -283,15 +290,7 @@ object ElementBox extends Loggable {
         }
       }
 
-    def set(arg: Option[A]) = {
-      modifiedCache = arg
-      arg match {
-        case Some(element) ⇒ node.updateModification(element.modified)
-        case None ⇒ node.updateModification(unmodified)
-      }
-    }
-
-    override def toString = s"graph.Box$$Hard[${coordinate}/${elementType};${node.id}]"
+    override def toString() = s"graph.Box$$Hard[${coordinate}/${elementType};${node.id}]"
   }
   /**
    * Soft element reference that contains element only while there is enough memory available.
@@ -302,8 +301,9 @@ object ElementBox extends Loggable {
    * Dependency injection routines.
    */
   private object DI extends DependencyInjection.PersistentInjectable {
-    /** The local origin that is alias of a user or a system or an anything other */
+    /** Class for new element boxes by default. */
     lazy val elementBoxClass = injectOptional[Class[_ <: ElementBox[_]]] getOrElse classOf[Hard[_]]
+    /** ElementBox implementation. */
     lazy val implementation = injectOptional[Interface] getOrElse new AnyRef with Interface {}
   }
 }

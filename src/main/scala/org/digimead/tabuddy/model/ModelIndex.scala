@@ -48,7 +48,7 @@ trait ModelIndex {
   def e(reference: Reference): Option[Element] = {
     if (reference.origin != eNode.graph.origin)
       throw new IllegalArgumentException(s"""Unable to process reference from graph "${reference.origin}" within "${eNode.graph.origin}" one.""")
-    e(reference.node).flatMap { _.getProjection(reference.coordinate).map(_.get) }
+    e(reference.node).flatMap { _.projectionBoxes.get(reference.coordinate).map(_.e) }
   }
   /** Get node for the unique id from the current graph. */
   def e(nodeId: UUID): Option[Node[_ <: Element]] = eNode.graph.nodes.get(nodeId)
