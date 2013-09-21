@@ -41,14 +41,15 @@ class YAMLSerialization extends Mechanism with Loggable {
    * @return element
    */
   def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = {
-    log.debug(s"Load ${elementBox} from ${storageURI}.")
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, storageURI)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
+    log.debug(s"Load ${elementBox} from ${elementURI}.")
     val elementContent = transport.read(elementURI)
+    log.debug(s"Load optional ${elementBox} from ${optionalURI}.")
     val optionalContent = transport.read(optionalURI)
     val optional = yaml.YAML.loadAs(new String(optionalContent, io.Codec.UTF8.charSet), classOf[yaml.Optional]).asInstanceOf[yaml.Optional]
     Serialization.stash.set(optional)
@@ -64,12 +65,13 @@ class YAMLSerialization extends Mechanism with Loggable {
    * @param ancestorsNSelf sequence of ancestors
    */
   def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) {
-    log.debug(s"Save ${element.eBox} to ${storageURI}.")
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, storageURI)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     val optional = yaml.Optional.getOptional(element.eStash)
+    log.debug(s"Save ${element.eBox} to ${elementURI}.")
     transport.write(yaml.YAML.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), elementURI)
+    log.debug(s"Save optional ${element.eBox} to ${optionalURI}.")
     transport.write(yaml.YAML.dump(optional).getBytes(io.Codec.UTF8.charSet), optionalURI)
   }
 }

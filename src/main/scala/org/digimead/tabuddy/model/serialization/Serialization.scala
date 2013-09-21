@@ -275,7 +275,6 @@ class Serialization extends Serialization.Interface with Loggable {
   protected def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI,
     transport: Transport, ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]]) {
     log.debug(s"Freeze ${elementBox}.")
-    // save element (update modification time)
     elementBox.getModified match {
       case Some(modified) ⇒
         if (modified ne elementBox.e)
@@ -298,8 +297,15 @@ class Serialization extends Serialization.Interface with Loggable {
     fTransform: Serialization.FreezeTransformation, ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]]) {
     log.debug(s"Freeze ${node}.")
     transport.freezeNode(ancestorsNSelf, storageURI, nodeDescriptorToYAML(node.elementType, node.id, node.modified, node.state, node.unique, fTransform))
-    freezeElementBox(node.state.rootBox, storageURI, transport, ancestorsNSelf)
-    node.state.projectionBoxes.foreach { case (coordinate, box) ⇒ freezeElementBox(box, storageURI, transport, ancestorsNSelf) }
+    if (node.state.rootBox.getModified.nonEmpty)
+      // save only modified element box
+      freezeElementBox(node.state.rootBox, storageURI, transport, ancestorsNSelf)
+    node.state.projectionBoxes.foreach {
+      case (coordinate, box) ⇒
+        if (box.getModified.nonEmpty)
+          // save only modified element box
+          freezeElementBox(box, storageURI, transport, ancestorsNSelf)
+    }
     node.state.children.foreach(_.safeRead { child ⇒
       val childˈ = fTransform(child.asInstanceOf[Node.ThreadUnsafe[Element]])
       freezeNode(childˈ, storageURI, transport, fTransform, ancestorsNSelf :+ childˈ)

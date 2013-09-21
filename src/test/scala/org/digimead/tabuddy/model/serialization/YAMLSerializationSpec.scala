@@ -482,8 +482,13 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph3.node.safeRead(_.iteratorRecursive().forall(_.modified == Element.timestamp(0, 0))) should be(true)
         x should be(11) // model + all elements + children
 
+        // We MUST copy element boxes since
+        // 1. some of original element boxes are unmodified and will not be saved
+        // 2. element box container is changed (node id)
+        //  so copies will be saved as modified
         val fFilterSave3 = (node: Node.ThreadUnsafe[Element]) ⇒
-          Node(Symbol("x" + node.id.name), node.unique, node.state, node.modified)(node.elementType)
+          Node(Symbol("x" + node.id.name), node.unique, node.state.copy(projectionBoxes =
+            immutable.HashMap(node.state.projectionBoxes.map { case (k, v) ⇒ k -> v.copy() }.toSeq: _*)), node.modified)(node.elementType)
         Serialization.freeze(graph, fFilterSave3)
         graph.stored should have size (2)
 

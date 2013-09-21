@@ -234,7 +234,9 @@ object ElementBox extends Loggable {
         case None ⇒ node.updateModification(unmodified)
       }
     }
-    def getModified(): Option[A] = modifiedCache
+    def getModified(): Option[A] = modifiedCache orElse
+      // if there is unsaved initial value
+      { if (unmodifiedCache.isEmpty) initial.right.toOption else None }
     def getUnmodified(): A = unmodifiedCache getOrElse load()
     def load(): A = synchronized {
       initial match {
