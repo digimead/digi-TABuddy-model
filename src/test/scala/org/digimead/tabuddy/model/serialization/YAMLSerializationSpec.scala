@@ -326,12 +326,12 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph2.node.safeRead { node ⇒
           graph1x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
         graph.node.safeRead { node ⇒
           graph2x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
         graph1x.node.safeRead { node ⇒
@@ -377,7 +377,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
+            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
 
@@ -426,7 +426,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.node.safeRead { node ⇒
           graph3.node.safeRead { node3 ⇒
-            node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified }
+            node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
       }

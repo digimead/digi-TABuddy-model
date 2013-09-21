@@ -56,6 +56,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
      */
     val targetModelNode = Node.model[A](id, unique, modified)
     val graph = new Graph[A](created, targetModelNode, origin)
+    graph.storages = this.storages
+    graph.stored = this.stored
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, modified)
       val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = sourceModelNode.projectionBoxes.map {
@@ -81,7 +83,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Graph[_]]
   override def equals(other: Any) = other match {
-    case that: Graph[_] ⇒ that.canEqual(this) && this.## == that.##
+    case that: Graph[_] ⇒ (that eq this) ||
+      (that.canEqual(this) && this.## == that.## && this.modified == that.modified)
     case _ ⇒ false
   }
   override def hashCode() = lazyHashCode

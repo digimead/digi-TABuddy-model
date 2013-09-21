@@ -40,7 +40,6 @@ import scala.language.implicitConversions
 
 /**
  * Common model.
- * Any concrete model may be represent as this trait.
  */
 class Model(val eStash: Model.Stash)(@transient val eBox: ElementBox[Model])
   extends Model.Like with ModelIndex with Loggable {
@@ -85,7 +84,10 @@ object Model extends Loggable {
       this: org.digimead.tabuddy.model.dsl.DSL.RichSpecific[A] ⇒
     }
   }
-  /** Base trait for all models. */
+  /**
+   * Base trait for all models.
+   * Any concrete model may be represent as this trait.
+   */
   trait Like extends Record.Like with ModelIndex {
     this: Loggable ⇒
     type StashType <: Model.Stash.Like

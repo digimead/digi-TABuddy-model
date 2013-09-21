@@ -232,7 +232,7 @@ class Serialization extends Serialization.Interface with Loggable {
       graph = ancestors.head.graph,
       parentNodeReference = WeakReference(ancestors.last),
       projectionBoxes = immutable.HashMap())
-    val targetNode = Node[Element](nodeDescriptor.id, nodeDescriptor.unique, targetNodeInitialState, nodeDescriptor.modified)
+    val targetNode = Node[Element](nodeDescriptor.id, nodeDescriptor.unique, targetNodeInitialState, nodeDescriptor.modified)(Manifest.classType(nodeDescriptor.clazz))
     targetNode.safeWrite { targetNode ⇒
       /* Get element boxes */
       val elementBoxes = nodeDescriptor.elements.map {
@@ -354,6 +354,9 @@ object Serialization extends Loggable {
   /** Serialization stash. */
   val stash = new ThreadLocal[AnyRef]()
 
+  /** Load graph with the specific origin. */
+  def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Element.Timestamp): Graph[_ <: Model.Like] =
+    inner.acquireGraph(origin, bootstrapStorageURI, defaultAcquireTransformation, Some(modified))
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation): Graph[_ <: Model.Like] =
     inner.acquireGraph(origin, bootstrapStorageURI, fTransform, None)

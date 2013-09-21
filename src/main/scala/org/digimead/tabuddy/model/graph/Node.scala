@@ -193,7 +193,7 @@ object Node extends Loggable {
             Seq(s"Inconsistent coordinates node:${Coordinate.root} vs box:${box.coordinate} for ${box}!", box.toString)
           else
             Seq(box.toString)) ++
-          node.projectionBoxes.map {
+          node.projectionBoxes.filterNot(_._1.isRoot).map {
             case (coordinate, box) ⇒
               if (coordinate != box.coordinate)
                 Seq(s"Inconsistent coordinates node:${coordinate} vs box:${box.coordinate} for ${box}!", box.toString)
@@ -381,7 +381,8 @@ object Node extends Loggable {
      */
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Node[_]]
     override def equals(other: Any) = other match {
-      case that: Node[_] ⇒ that.canEqual(this) && this.## == that.##
+      case that: Node[_] ⇒ (that eq this) ||
+        (that.canEqual(this) && this.## == that.## && this.modified == that.modified && this.elementType == that.elementType)
       case _ ⇒ false
     }
     override def hashCode() = lazyHashCode

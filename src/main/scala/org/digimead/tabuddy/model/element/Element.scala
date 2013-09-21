@@ -263,9 +263,11 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Element]
   override def equals(that: Any): Boolean = that match {
     case that: Element ⇒ // vs absolute
-      (that eq this) || ((that canEqual this) && this.## == that.##)
+      (that eq this) ||
+        ((that canEqual this) && this.## == that.##)
     case that: Element.Relative[_] ⇒ // vs relative
-      (that.absolute eq this) || ((that.absolute canEqual this) && this.## == that.absolute.##)
+      (that.absolute eq this) ||
+        ((that.absolute canEqual this) && this.## == that.absolute.##)
     case _ ⇒ false
   }
   override def hashCode() = lazyHashCode

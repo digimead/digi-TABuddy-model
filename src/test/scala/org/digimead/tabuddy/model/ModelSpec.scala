@@ -76,6 +76,13 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       rB1.eNode.safeRead(_.iterator.toSeq) should have size (1)
       rLeaf1.eNode.safeRead(_.children) should be('empty)
       (graphCopy.model & RecordLocation('rA) & RecordLocation('rB) & RecordLocation('rLeaf)).eNode.safeRead(_.children) should be('empty)
+
+      val m1 = graph.modified
+      val q = (graph.model & RecordLocation('rA) & RecordLocation('rB) & RecordLocation('rLeaf) | RecordLocation('rX)).eRelative
+      graph.modified should be > (m1)
+      val m2 = graph.modified
+      q.eSet[String]('abc, "abc")
+      graph.modified should be > (m2)
     }
   }
 

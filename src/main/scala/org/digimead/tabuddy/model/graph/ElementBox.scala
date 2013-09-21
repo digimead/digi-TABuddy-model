@@ -102,7 +102,8 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[ElementBox[_]]
   override def equals(that: Any): Boolean = that match {
-    case that: ElementBox[_] ⇒ (that eq this) || ((that canEqual this) && this.## == that.##)
+    case that: ElementBox[_] ⇒ (that eq this) ||
+      ((that canEqual this) && this.## == that.## && this.modified == that.modified && this.node.elementType == that.node.elementType)
     case _ ⇒ false
   }
   override def hashCode() = java.util.Arrays.hashCode(Array[Int](lazyHashCode))

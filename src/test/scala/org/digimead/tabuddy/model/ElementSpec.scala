@@ -142,6 +142,13 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       rootX.eStash.created should be(oldCreated)
       rootX.copy(rootX.eStash.copy(created = newCreated))
       rootX.eStash.created should be(newCreated)
+      graph.copy().node.safeRead { node ⇒
+        graph.node.safeRead { node2 ⇒
+          node.graph.storages should be(node2.graph.storages)
+          node.graph.stored should be(node2.graph.stored)
+          node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
     }
     it("should have proper constraints") {
       import TestDSL._
