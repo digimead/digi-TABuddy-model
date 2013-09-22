@@ -33,13 +33,13 @@ import org.digimead.tabuddy.model.serialization.transport.Transport
 /**
  * Trait that provide general interface for Value implementation
  */
-trait Value[T] extends Equals with java.io.Serializable {
-  /** Value type. */
-  val valueType: Manifest[T]
+trait Value[T <: AnyRef with java.io.Serializable] extends Equals with java.io.Serializable {
+  /** Content manifest. */
+  val m: Manifest[T]
 
   /** Commit complex property (if needed) while saving. */
   def commit(element: Element, transport: Transport, elementDirectoryURI: URI) =
-    DSLType.commit[T](this, element, transport, elementDirectoryURI)(valueType)
+    DSLType.commit(this, element, transport, elementDirectoryURI)
   /** Get value. */
   def get(): T
   /** Value equality. */
@@ -99,8 +99,8 @@ object Value extends Loggable {
    *
    * @param data actual value
    */
-  class Dynamic[T <: AnyRef with java.io.Serializable](protected val data: () ⇒ T)(implicit val valueType: Manifest[T]) extends Value[T] {
-    assert(valueType.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
+  class Dynamic[T <: AnyRef with java.io.Serializable](protected val data: () ⇒ T)(implicit val m: Manifest[T]) extends Value[T] {
+    assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
     /** Get value. */
     def get() = data()
@@ -109,7 +109,7 @@ object Value extends Loggable {
     def canEqual(that: Any): Boolean = that.isInstanceOf[Dynamic[_]]
     override def hashCode() = lazyHashCode
     protected lazy val lazyHashCode = data.##
-    override def toString() = "Dynamic[%s](%s)".format(valueType.runtimeClass.getName.split("""\.""").last,
+    override def toString() = "Dynamic[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
       DSLType.convertToString[T](get()).getOrElse(get()))
   }
   /**
@@ -117,8 +117,8 @@ object Value extends Loggable {
    *
    * @param data initial value
    */
-  class Static[T <: AnyRef with java.io.Serializable](protected val data: T)(implicit val valueType: Manifest[T]) extends Value[T] {
-    assert(valueType.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
+  class Static[T <: AnyRef with java.io.Serializable](protected val data: T)(implicit val m: Manifest[T]) extends Value[T] {
+    assert(m.runtimeClass != classOf[java.io.Serializable], "Unable to create a value for generic type java.io.Serializable")
 
     /** Get value. */
     def get() = data
@@ -127,7 +127,7 @@ object Value extends Loggable {
     def canEqual(that: Any): Boolean = that.isInstanceOf[Static[_]]
     override def hashCode() = lazyHashCode
     protected lazy val lazyHashCode = data.##
-    override def toString() = "Static[%s](%s)".format(valueType.runtimeClass.getName.split("""\.""").last,
+    override def toString() = "Static[%s](%s)".format(m.runtimeClass.getName.split("""\.""").last,
       DSLType.convertToString[T](get()).getOrElse(get()))
   }
 }

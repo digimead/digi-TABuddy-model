@@ -154,7 +154,7 @@ class Local extends Transport with Loggable {
     val bis = new BufferedInputStream(content)
     val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
     val buffer = new Array[Byte](4096)
-    try { Stream.continually(bis.read(buffer)).takeWhile(_ != -1).foreach(_ ⇒ bos.write(buffer)) }
+    try { Stream.continually(bis.read(buffer)).takeWhile(_ != -1).foreach(i ⇒ bos.write(buffer, 0, i)) }
     finally {
       try { bis.close() } catch { case e: IOException ⇒ }
       try { bos.close() } catch { case e: IOException ⇒ }

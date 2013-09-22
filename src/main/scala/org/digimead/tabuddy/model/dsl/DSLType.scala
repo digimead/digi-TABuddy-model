@@ -89,9 +89,8 @@ object DSLType extends Loggable {
     /**
      * Commit complex type (if needed) while saving
      */
-    def commit[T](value: Value[T], element: Element, transport: Transport,
-      elementDirectoryURI: URI)(implicit m: Manifest[T]): Unit =
-      classSymbolMap.get(m.runtimeClass).map(symbolType ⇒ commit(symbolType, value, element, transport, elementDirectoryURI))
+    def commit(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, transport: Transport, elementDirectoryURI: URI): Unit =
+      classSymbolMap.get(value.m.runtimeClass).map(symbolType ⇒ commit(symbolType, value, element, transport, elementDirectoryURI))
     /**
      * Commit complex type (if needed) while saving
      */
