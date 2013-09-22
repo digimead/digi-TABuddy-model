@@ -34,13 +34,17 @@ import org.digimead.tabuddy.model.graph.Node
  */
 trait Transport {
   this: Loggable ⇒
-  /** Element resource name. */
-  val elementResourceName = "element"
+  /** Box prefix. */
+  val boxPrefix = "box"
   /** Descriptor resource name. */
   val descriptorResourceName = "descriptor"
+  /** Element resource name. */
+  val elementResourceName = "element"
   /** Model directory name. */
   val modelDirectoryName = "model"
-  /** Element resource name. */
+  /** Node prefix. */
+  val nodePrefix = "node"
+  /** Name of optional part of element. */
   val optionalResourceName = "optional"
   /** Transport scheme. */
   val scheme: String
@@ -68,8 +72,6 @@ trait Transport {
   def freezeGraph(node: Node[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte])
   /** Save node to the specific URI. */
   def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte])
-  /** Save custom value to the specific URI. */
-  def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte])
   /** Open stream. */
   def open(uri: URI): InputStream
   /** Read resource. */

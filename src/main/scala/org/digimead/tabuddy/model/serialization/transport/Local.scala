@@ -67,10 +67,10 @@ class Local extends Transport with Loggable {
   def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, storageURI: URI): Array[Byte] = {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestors, false)
-    val elementDirectoryName = "%X-%X-%s".format(elementUniqueId.getMostSignificantBits(),
+    val elementDirectoryName = "%s %X-%X-%s".format(boxPrefix, elementUniqueId.getMostSignificantBits(),
       elementUniqueId.getLeastSignificantBits(), Timestamp.dump(modified))
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
-    val elementDescriptor = new File(elementDirectory, descriptorResourceSimple).toURI
+    val elementDescriptor = new File(elementDirectory, "%s %s".format(boxPrefix, descriptorResourceSimple)).toURI
     log.debug(s"Acquire descriptor from ${elementDescriptor}.")
     read(elementDescriptor)
   }
@@ -99,7 +99,8 @@ class Local extends Transport with Loggable {
     val storageDirectory = new File(storageURI)
     val parentNodeDirectory = getNodeDirectory(storageDirectory, ancestors, true)
     val nodeDirectory = new File(parentNodeDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
-    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.dump(modified))).toURI
+    val nodeDescriptor = new File(nodeDirectory, "%s %s".format(nodePrefix,
+      descriptorResourceNameTemplate.format(Timestamp.dump(modified)))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
     read(nodeDescriptor)
   }
@@ -110,7 +111,7 @@ class Local extends Transport with Loggable {
   def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, elementBox, true)
-    val elementDescriptorFile = new File(elementDirectory, descriptorResourceSimple).toURI
+    val elementDescriptorFile = new File(elementDirectory, "%s %s".format(boxPrefix, descriptorResourceSimple)).toURI
     log.debug(s"Freeze descriptor to ${elementDescriptorFile}.")
     write(elementBoxDescriptorContent, elementDescriptorFile)
   }
@@ -126,13 +127,10 @@ class Local extends Transport with Loggable {
   def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte]) {
     val storageDirectory = new File(storageURI)
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestorsNSelf, true)
-    val nodeDescriptorFile = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.dump(ancestorsNSelf.last.modified))).toURI
+    val nodeDescriptorFile = new File(nodeDirectory, "%s %s".format(nodePrefix,
+      descriptorResourceNameTemplate.format(Timestamp.dump(ancestorsNSelf.last.modified)))).toURI
     log.debug(s"Freeze descriptor to ${nodeDescriptorFile}.")
     write(nodeDescriptorContent, nodeDescriptorFile)
-  }
-  /** Save custom value to the specific URI. */
-  def freezeValue(value: Value[_ <: AnyRef with java.io.Serializable], element: Element, storageURI: URI, elementContent: Array[Byte]) {
-
   }
   /** Open stream */
   def open(uri: URI): InputStream = new FileInputStream(new File(uri))
@@ -175,7 +173,7 @@ class Local extends Transport with Loggable {
   /** Get or create element directory. */
   protected def getElementDirectory(base: File, nodes: Seq[Node[_ <: Element]],
     elementBox: ElementBox[_ <: Element], create: Boolean): File = {
-    val elementBoxDirectoryName = "%X-%X-%s".format(elementBox.elementUniqueId.getMostSignificantBits(),
+    val elementBoxDirectoryName = "%s %X-%X-%s".format(boxPrefix, elementBox.elementUniqueId.getMostSignificantBits(),
       elementBox.elementUniqueId.getLeastSignificantBits(), Timestamp.dump(elementBox.modified))
     val relativePart = (nodes.map { node ⇒
       nodeNameTemplate.format(node.id.name, node.id.name.hashCode())
@@ -198,7 +196,7 @@ class Local extends Transport with Loggable {
       } else {
         throw new IOException(s"Directory ${graphDirectory} not exists.")
       }
-    val modelDirectory = new File(base, modelDirectoryName)
+    val modelDirectory = new File(graphDirectory, modelDirectoryName)
     if (!modelDirectory.exists() && create)
       if (!modelDirectory.mkdirs())
         throw new IOException(s"Unable to create ${modelDirectory}.")
