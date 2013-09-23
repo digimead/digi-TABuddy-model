@@ -70,8 +70,11 @@ object Model extends Loggable {
   trait DSL {
     case class ModelLocation(val id: Symbol, val unique: Option[UUID],
       val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Model],
-        val stashClass: Class[_ <: Model#StashType]) extends LocationGeneric[Model] {
+        val stashClass: Class[_ <: Model#StashType]) extends LocationGeneric {
       val scope = Model.scope
+      type ElementType = Model
+      type RelativeType = Relative[Model]
+      def toRelative(element: Model): RelativeType = new Relative(element)
     }
   }
   object DSL {

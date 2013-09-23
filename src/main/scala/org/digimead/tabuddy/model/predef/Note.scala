@@ -52,8 +52,11 @@ object Note extends Loggable {
   trait DSL {
     case class NoteLocation(val id: Symbol, val unique: Option[UUID] = None,
       val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Note],
-        val stashClass: Class[_ <: Note#StashType]) extends LocationGeneric[Note] {
+        val stashClass: Class[_ <: Note#StashType]) extends LocationGeneric {
       val scope = Note.scope
+      type ElementType = Note
+      type RelativeType = Relative[Note]
+      def toRelative(element: Note): RelativeType = new Relative(element)
     }
   }
   object DSL {

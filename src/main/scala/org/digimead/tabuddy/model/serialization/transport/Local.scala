@@ -90,7 +90,8 @@ class Local extends Transport with Loggable {
     val graphDirectory = new File(storageDirectory, origin.name)
     val modelDirectory = new File(graphDirectory, modelDirectoryName)
     val nodeDirectory = new File(modelDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
-    val nodeDescriptor = new File(nodeDirectory, descriptorResourceNameTemplate.format(Timestamp.dump(modified))).toURI
+    val nodeDescriptor = new File(nodeDirectory, "%s %s".format(nodePrefix,
+      descriptorResourceNameTemplate.format(Timestamp.dump(modified)))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
     read(nodeDescriptor)
   }

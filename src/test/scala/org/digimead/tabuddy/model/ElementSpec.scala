@@ -197,13 +197,13 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       var save: Record = null
       val record: Record = myModel.takeRecord('root) { r1 ⇒
         r1.name = "root"
-        r1.element.eGet[String]('name).get.get should be("root")
+        r1.eGet[String]('name).get.get should be("root")
         r1.name should be("root")
         val a: Record = r1
         a.name should be("root")
         save = r1.takeRecord('level2) { r2 ⇒
           r2.name = "level2"
-          r2.element.eGet[String]('name).get.get should be("level2")
+          r2.eGet[String]('name).get.get should be("level2")
           r2.takeRecord('level3) { r3 ⇒
             r3.name = "level3"
             r3.name should be("level3")

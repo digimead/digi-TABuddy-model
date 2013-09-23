@@ -23,24 +23,36 @@ import java.util.UUID
 /**
  * Abstract location description.
  */
-trait LocationGeneric[A <: Element] {
+trait LocationGeneric {
+  type ElementType <: Element
+  /** Type of the relative element. */
+  type RelativeType <: Element.Relative[ElementType]
+
   /** Element box coordinate. */
   val coordinate: Coordinate
   /** Element type. */
-  val elementType: Manifest[A]
+  val elementType: Manifest[ElementType]
   /** Node id. */
   val id: Symbol
   /** Element scope. */
-  val scope: A#StashType#ScopeType
+  val scope: ElementType#StashType#ScopeType
+
   /** Element stash type. */
-  val stashClass: Class[_ <: A#StashType]
+  val stashClass: Class[_ <: ElementType#StashType]
   /** Node unique. */
   val unique: Option[UUID]
+
+  /** Get relative element. */
+  def toRelative(element: ElementType): RelativeType
 }
 
 /**
  * An element reference that points to the relative location.
  */
-case class Location[A <: Element](val id: Symbol, val unique: Option[UUID], val scope: A#StashType#ScopeType,
-  val coordinate: Coordinate)(implicit val elementType: Manifest[A], val stashClass: Class[_ <: A#StashType])
-  extends LocationGeneric[A]
+case class Location(val id: Symbol, val unique: Option[UUID], val scope: Element#StashType#ScopeType,
+  val coordinate: Coordinate)(implicit val elementType: Manifest[Element], val stashClass: Class[_ <: Element#StashType])
+  extends LocationGeneric {
+  type ElementType = Element
+  type RelativeType = Element.Relative[ElementType]
+  def toRelative(element: ElementType): RelativeType = new Element.Relative(element) {}
+}

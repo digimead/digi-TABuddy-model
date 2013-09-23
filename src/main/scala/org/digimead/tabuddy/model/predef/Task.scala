@@ -50,8 +50,11 @@ object Task extends Loggable {
   trait DSL {
     case class TaskLocation(val id: Symbol, val unique: Option[UUID] = None,
       val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Task],
-        val stashClass: Class[_ <: Task#StashType]) extends LocationGeneric[Task] {
+        val stashClass: Class[_ <: Task#StashType]) extends LocationGeneric {
       val scope = Task.scope
+      type ElementType = Task
+      type RelativeType = Relative[Task]
+      def toRelative(element: Task): RelativeType = new Relative(element)
     }
   }
   object DSL {

@@ -55,8 +55,11 @@ object Record extends Loggable {
   trait DSL {
     case class RecordLocation(val id: Symbol, val unique: Option[UUID] = None,
       val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Record],
-        val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric[Record] {
+        val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric {
       val scope = Record.scope
+      type ElementType = Record
+      type RelativeType = Relative[Record]
+      def toRelative(element: Record): RelativeType = new Relative(element)
     }
   }
   object DSL {

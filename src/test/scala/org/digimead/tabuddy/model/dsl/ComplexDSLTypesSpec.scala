@@ -18,9 +18,17 @@
 
 package org.digimead.tabuddy.model.dsl
 
+import java.util.UUID
+
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
+import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.TestDSL
+import org.digimead.tabuddy.model.element.Value.string2someValue
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.graph.Graph.graph2interface
+import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
@@ -48,6 +56,31 @@ class ComplexDSLTypesSpec extends FunSpec with ShouldMatchers with LoggingHelper
       saved should be("abba mamba dubba")
       val restored = dslType.convertFromString('ArrayOfSymbol, saved)
       restored should be(Array('abba, 'mamba, 'dubba))
+    }
+    it("should provide basic functions") {
+      import TestDSL._
+
+      // define record
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val record_0 = model.takeRecord('baseLevel) { r ⇒
+        r.takeRecord('level1a) { r ⇒
+          r.takeRecord('level2a) { r ⇒
+            r.name = "record_2a"
+          }
+          r.name = "record_1a"
+        }
+        r.takeRecord('level1b) { r ⇒
+          r.takeRecord('level2b) { r ⇒
+            r.name = "record_2b"
+          }
+          r.name = "record_1b"
+        }
+        r.name = "record_0"
+      }.eRelative
+      model.transform(RecordLocation('baseLevel)) { record ⇒
+        record.name should be("record_0")
+      }
     }
   }
 

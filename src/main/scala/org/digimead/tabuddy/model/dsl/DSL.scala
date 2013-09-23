@@ -32,53 +32,55 @@ import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
 
 abstract class DSL() {
-  /** Type that points to something with generic (common for every element) DSL routine. */
-  type DSLGeneric = ElementGenericDSL
-
-  trait ElementGenericDSL extends DSL.RichGeneric
+  class ElementGenericDSL(val element: Element) extends DSL.RichSpecific[Element]
+    with DSL.RichGeneric
     with Record.DSL.RichGeneric
     with Model.DSL.RichGeneric
     with Note.DSL.RichGeneric
     with Task.DSL.RichGeneric
 
-  class ElementSpecificDSL[A <: Element](val element: A) extends DSL.RichSpecific[A] with DSLGeneric
-  class RecordSpecificDSL[A <: Record.Like](e: A) extends ElementSpecificDSL(e) with Record.DSL.RichSpecific[A]
-  class NoteSpecificDSL[A <: Note.Like](e: A) extends RecordSpecificDSL(e) with Note.DSL.RichSpecific[A]
-  class TaskSpecificDSL[A <: Task.Like](e: A) extends NoteSpecificDSL(e) with Task.DSL.RichSpecific[A]
-  class ModelSpecificDSL[A <: Model.Like](e: A) extends RecordSpecificDSL(e) with Model.DSL.RichSpecific[A]
+  class RecordSpecificDSL[A <: Record.Like](protected val element: A) extends Record.DSL.RichSpecific[A] with DSL.RichSpecific[A]
+  class NoteSpecificDSL[A <: Note.Like](protected val element: A) extends Note.DSL.RichSpecific[A] with DSL.RichSpecific[A]
+  class TaskSpecificDSL[A <: Task.Like](protected val element: A) extends Task.DSL.RichSpecific[A] with DSL.RichSpecific[A]
+  class ModelSpecificDSL[A <: Model.Like](protected val element: A) extends Model.DSL.RichSpecific[A] with DSL.RichSpecific[A]
 }
 
 object DSL {
   /** Base trait for element generic DSL builder. */
-  trait RichGeneric {
-    implicit val element: Element
-
+  trait RichGeneric extends RichSpecific[Element] {
     /** Create or retrieve child of the current element. */
-    def |[A <: Element](l: LocationGeneric[A]): A =
+    def |(l: LocationGeneric): l.ElementType =
       element.eNode.safeWrite { parentNode ⇒
         implicit val m = l.elementType
         parentNode.iterator.find(child ⇒ child.id == l.id && l.unique.map(_ == child.unique).getOrElse(true)) match {
           case Some(child) ⇒
             child.safeWrite {
-              case child: Node.ThreadUnsafe[A] ⇒
+              case child: Node.ThreadUnsafe[_] ⇒
                 if (!child.elementType.runtimeClass.isAssignableFrom(l.elementType.runtimeClass))
                   throw new IllegalArgumentException(s"Unable to cast ${l.elementType} to ${parentNode.elementType}.")
                 child.projectionBoxes.get(l.coordinate) match {
-                  case Some(box) ⇒ box.e
-                  case None ⇒ ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootBox.serialization)(l.elementType, l.stashClass)
+                  case Some(box) ⇒ box.e.asInstanceOf[l.ElementType]
+                  case None ⇒ ElementBox.getOrCreate[l.ElementType](l.coordinate, child.asInstanceOf[Node.ThreadUnsafe[l.ElementType]],
+                    l.scope, parentNode.rootBox.serialization)(l.elementType, l.stashClass)
                 }
             }
           case None ⇒
-            parentNode.createChild[A](l.id, l.unique.getOrElse(UUID.randomUUID())).safeWrite { child ⇒
-              ElementBox.getOrCreate[A](l.coordinate, child, l.scope, parentNode.rootBox.serialization)(l.elementType, l.stashClass)
+            parentNode.createChild[l.ElementType](l.id, l.unique.getOrElse(UUID.randomUUID())).safeWrite { child ⇒
+              ElementBox.getOrCreate[l.ElementType](l.coordinate, child, l.scope, parentNode.rootBox.serialization)(l.elementType, l.stashClass)
             }
         }
       }
     /** Retrieve child of the current element. */
-    def &[A <: Element](l: LocationGeneric[A]): A =
-      element.eFind[A](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
+    def &(l: LocationGeneric): l.ElementType =
+      element.eFind[l.ElementType](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
         l.unique.map(_ == e.eNode.unique).getOrElse(true))(l.elementType).
         getOrElse { throw new IllegalArgumentException(s"Unable to find ${l}.") }
+
+    /**
+     * Create a new element or retrieve exists one, convert it to relative and apply fTransform to.
+     */
+    def transform[A](l: LocationGeneric)(fTransform: l.RelativeType ⇒ A): A =
+      withElement[l.ElementType, A](l.id, l.coordinate, l.scope, l.stashClass, (e) ⇒ fTransform(l.toRelative(e)))(l.elementType)
 
     /**
      * Create a new element or retrieve exists one and apply fTransform to.
@@ -111,6 +113,6 @@ object DSL {
   }
   /** Base trait for element specific DSL builder. */
   trait RichSpecific[A <: Element] {
-    implicit val element: A
+    protected val element: A
   }
 }
