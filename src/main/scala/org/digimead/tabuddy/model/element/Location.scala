@@ -25,8 +25,6 @@ import java.util.UUID
  */
 trait LocationGeneric {
   type ElementType <: Element
-  /** Type of the relative element. */
-  type RelativeType <: Element.Relative[ElementType]
 
   /** Element box coordinate. */
   val coordinate: Coordinate
@@ -41,9 +39,6 @@ trait LocationGeneric {
   val stashClass: Class[_ <: ElementType#StashType]
   /** Node unique. */
   val unique: Option[UUID]
-
-  /** Get relative element. */
-  def toRelative(element: ElementType): RelativeType
 }
 
 /**

@@ -34,7 +34,11 @@ import org.digimead.tabuddy.model.graph.ElementBox.box2interface
  */
 class Task(val eStash: Task.Stash)(@transient val eBox: ElementBox[Task]) extends Task.Like with Loggable {
   type ElementType = Task
+  type RelativeType = Task.Relative[ElementType]
   type StashType = Task.Stash
+
+  /** Get relative representation. */
+  override def eRelative: RelativeType = new Task.Relative(this)
 
   /** Built in serialization helper. */
   private def readObject(in: ObjectInputStream) {
@@ -53,8 +57,6 @@ object Task extends Loggable {
         val stashClass: Class[_ <: Task#StashType]) extends LocationGeneric {
       val scope = Task.scope
       type ElementType = Task
-      type RelativeType = Relative[Task]
-      def toRelative(element: Task): RelativeType = new Relative(element)
     }
   }
   object DSL {
@@ -90,9 +92,7 @@ object Task extends Loggable {
   trait Like extends Note.Like {
     this: Loggable ⇒
     type ElementType <: Like
-
-    /** Get relative representation. */
-    override def eRelative: Task.Relative[ElementType] = new Task.Relative(this.asInstanceOf[ElementType])
+    type RelativeType <: Relative[ElementType]
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Task.Like]
   }

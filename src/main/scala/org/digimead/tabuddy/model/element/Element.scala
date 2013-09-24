@@ -51,6 +51,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   this: Loggable ⇒
   /** Element type. */
   type ElementType <: Element
+  /** Relative type. */
+  type RelativeType <: Element.Relative[ElementType]
   /** Stash type. */
   type StashType <: Stash.Like
   /**
@@ -150,8 +152,6 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   def eGraph: Graph[_ <: Model.Like] = eBox.node.graph
   /** Get node/element verbose id. */
   def eId: Symbol = eBox.node.id
-  /** Get relative representation. */
-  def eRelative: Element.Relative[ElementType] = new Element.Relative(this.asInstanceOf[ElementType]) {}
   /** Get Model for this element. */
   def eModel: Model.Like = eNode.graph.model
   /** Get element node. */
@@ -164,6 +164,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   def eParent: Option[Node[_ <: Element]] = eNode.parent
   /** Get reference of this element */
   def eReference = Reference(eOrigin, eNode.graph.node.unique, eNode.unique, eCoordinate)
+  /** Get relative representation. */
+  def eRelative: RelativeType
   /** Remove the specific property's value */
   def eRemove[A <: AnyRef with java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): ElementType = {
     Element.log.trace(s"Remove $id from $eId.")

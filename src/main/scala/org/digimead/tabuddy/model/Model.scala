@@ -44,7 +44,11 @@ import scala.language.implicitConversions
 class Model(val eStash: Model.Stash)(@transient val eBox: ElementBox[Model])
   extends Model.Like with ModelIndex with Loggable {
   type StashType = Model.Stash
+  type RelativeType = Model.Relative[ElementType]
   type ElementType = Model
+
+  /** Get relative representation. */
+  override def eRelative: RelativeType = new Model.Relative(this)
 
   /** Built in serialization helper. */
   private def readObject(in: ObjectInputStream) {
@@ -73,8 +77,6 @@ object Model extends Loggable {
         val stashClass: Class[_ <: Model#StashType]) extends LocationGeneric {
       val scope = Model.scope
       type ElementType = Model
-      type RelativeType = Relative[Model]
-      def toRelative(element: Model): RelativeType = new Relative(element)
     }
   }
   object DSL {
@@ -93,8 +95,9 @@ object Model extends Loggable {
    */
   trait Like extends Record.Like with ModelIndex {
     this: Loggable ⇒
-    type StashType <: Model.Stash.Like
     type ElementType <: Like
+    type RelativeType <: Relative[ElementType]
+    type StashType <: Model.Stash.Like
 
     /** Dump the model content. */
     override def eDump(brief: Boolean, padding: Int = 2): String = synchronized {
@@ -117,8 +120,6 @@ object Model extends Loggable {
     }
     /** Get Model for this element. */
     override def eModel = this
-    /** Get relative representation. */
-    override def eRelative: Model.Relative[ElementType] = new Model.Relative(this.asInstanceOf[ElementType])
     /** Get a container */
     override def eParent: Option[Node[_ <: Element]] = None
 

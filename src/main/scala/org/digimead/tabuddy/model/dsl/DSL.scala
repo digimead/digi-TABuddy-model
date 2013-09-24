@@ -79,8 +79,8 @@ object DSL {
     /**
      * Create a new element or retrieve exists one, convert it to relative and apply fTransform to.
      */
-    def transform[A](l: LocationGeneric)(fTransform: l.RelativeType ⇒ A): A =
-      withElement[l.ElementType, A](l.id, l.coordinate, l.scope, l.stashClass, (e) ⇒ fTransform(l.toRelative(e)))(l.elementType)
+    def transform[A](l: LocationGeneric)(fTransform: l.ElementType#RelativeType ⇒ A): A =
+      withElement[l.ElementType, A](l.id, l.coordinate, l.scope, l.stashClass, (e) ⇒ fTransform(e.eRelative))(l.elementType)
 
     /**
      * Create a new element or retrieve exists one and apply fTransform to.

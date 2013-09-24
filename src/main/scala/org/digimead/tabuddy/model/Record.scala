@@ -40,6 +40,10 @@ class Record(val eStash: Record.Stash)(@transient val eBox: ElementBox[Record])
   extends Record.Like with Loggable {
   type ElementType = Record
   type StashType = Record.Stash
+  type RelativeType = Record.Relative[ElementType]
+
+  /** Get relative representation. */
+  override def eRelative: RelativeType = new Record.Relative(this)
 
   /** Built in serialization helper. */
   private def readObject(in: ObjectInputStream) {
@@ -58,8 +62,6 @@ object Record extends Loggable {
         val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric {
       val scope = Record.scope
       type ElementType = Record
-      type RelativeType = Relative[Record]
-      def toRelative(element: Record): RelativeType = new Relative(element)
     }
   }
   object DSL {
@@ -95,6 +97,7 @@ object Record extends Loggable {
   trait Like extends Element {
     this: Loggable ⇒
     type ElementType <: Like
+    type RelativeType <: Relative[ElementType]
     type StashType <: Stash.Like
 
     def name = eGetOrElseRoot[String]('name).map(_.get) getOrElse ""
@@ -128,8 +131,6 @@ object Record extends Loggable {
           // try to find value at root node
           eRoot.eGet(id, typeSignature)
       }
-    /** Get relative representation. */
-    override def eRelative: Record.Relative[ElementType] = new Record.Relative(this.asInstanceOf[ElementType])
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[Record.Like]
   }
