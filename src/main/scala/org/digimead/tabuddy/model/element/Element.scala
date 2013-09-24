@@ -487,6 +487,7 @@ object Element extends Loggable {
       case _ ⇒ false
     }
     override def hashCode() = absolute.##
+    override def toString() = s"R{${absolute}}"
   }
   object Relative {
     implicit def relative2absolute[A <: Element](m: Relative[A]): A = m.absolute
