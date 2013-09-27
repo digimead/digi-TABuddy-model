@@ -137,7 +137,7 @@ object Record extends Loggable {
   /** Relative representation of Record.Like. */
   class Relative[A <: Like](e: A) extends Element.Relative[A](e) {
     def name = absolute.name
-    def name_=(value: String) { absolute.eSet('name, value, "").asInstanceOf[A] }
+    def name_=(value: String) { absolute.eSet('name, value, "") }
   }
   /** The marker object that describes record scope. */
   class Scope(override val modificator: Symbol = 'Record) extends Element.Scope(modificator) {

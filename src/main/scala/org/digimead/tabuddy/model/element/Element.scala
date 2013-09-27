@@ -278,6 +278,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
 }
 
 object Element extends Loggable {
+  implicit def relative2absolute[A <: Element](m: A#RelativeType): A = m.absolute.asInstanceOf[A]
   /**
    * Elements and it derivative classes default ordering
    */
@@ -488,9 +489,6 @@ object Element extends Loggable {
     }
     override def hashCode() = absolute.##
     override def toString() = s"R{${absolute}}"
-  }
-  object Relative {
-    implicit def relative2absolute[A <: Element](m: Relative[A]): A = m.absolute
   }
   /** The class that provides a marker for additional specialization of the element */
   abstract class Scope(val modificator: Symbol) extends java.io.Serializable with Equals {

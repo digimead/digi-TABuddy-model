@@ -42,7 +42,7 @@ class ComplexDSLTypesSpec extends FunSpec with ShouldMatchers with LoggingHelper
   describe("A ComplexDSLTypes") {
     it("should have proper equality") {
       val dslType = new ComplexDSLTypes
-      dslType.types should be(Seq('ArrayOfSymbol))
+      dslType.types should be(Seq('ArrayOfSymbol, 'Reference))
       dslType.getTypeSymbol(classOf[Array[Int]]) should be(None)
       dslType.getTypeSymbol(classOf[Array[Symbol]]) should be(Some('ArrayOfSymbol))
       dslType.getTypeSymbol(classOf[Array[String]]) should be(None)

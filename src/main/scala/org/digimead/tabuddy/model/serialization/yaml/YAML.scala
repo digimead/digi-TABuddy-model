@@ -44,19 +44,28 @@ import scala.language.implicitConversions
  * Provide YAML API for application.
  */
 object YAML extends Loggable {
-  implicit def yaml2implementation(y: YAML.type): Yaml = yaml
+  implicit def yaml2implementation(y: YAML.type): Yaml = block
   /** Default YAML constructor. */
   lazy val constructor = DI.constructor
   /** Default YAML representer. */
   lazy val representer = DI.representer
 
-  /** YAML de/serializer. */
-  lazy val yaml = {
+  /** YAML de/serializer with BLOCK flow style. */
+  lazy val block = {
     val options = new DumperOptions()
     options.setAllowUnicode(true)
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
-    DI.constructs.foreach(c ⇒ log.debug(s"Add ${c} as YAML contruct."))
-    DI.represents.foreach(r ⇒ log.debug(s"Add ${r} as YAML represent."))
+    DI.constructs.foreach(c ⇒ log.debug(s"Add ${c} as YAML contruct to BLOCK serializer."))
+    DI.represents.foreach(r ⇒ log.debug(s"Add ${r} as YAML represent to BLOCK serializer."))
+    new Yaml(DI.constructor, DI.representer, options)
+  }
+  /** YAML de/serializer with FLAT flow style. */
+  lazy val flat = {
+    val options = new DumperOptions()
+    options.setAllowUnicode(true)
+    options.setDefaultFlowStyle(DumperOptions.FlowStyle.FLOW)
+    DI.constructs.foreach(c ⇒ log.debug(s"Add ${c} as YAML contruct to FLOW serializer."))
+    DI.represents.foreach(r ⇒ log.debug(s"Add ${r} as YAML represent to FLOW serializer."))
     new Yaml(DI.constructor, DI.representer, options)
   }
 

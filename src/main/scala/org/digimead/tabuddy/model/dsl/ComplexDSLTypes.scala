@@ -24,11 +24,13 @@ import scala.Array.canBuildFrom
 import scala.collection.immutable
 
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.serialization.transport.Transport
+import org.digimead.tabuddy.model.serialization.yaml.YAML
 
 class ComplexDSLTypes extends DSLType {
   protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](
-    classOf[Array[Symbol]] -> 'ArrayOfSymbol)
+    classOf[Array[Symbol]] -> 'ArrayOfSymbol, classOf[Reference] -> 'Reference)
 
   /**
    * Commit complex type (if needed) while saving
@@ -41,6 +43,7 @@ class ComplexDSLTypes extends DSLType {
   def convertFromString: PartialFunction[(Symbol, String), _ <: AnyRef with java.io.Serializable] = {
     case (_, null) ⇒ null
     case ('ArrayOfSymbol, valueData) ⇒ valueData.split(" ").map(Symbol(_)).toArray
+    case ('Reference, valueData) ⇒ YAML.flat.loadAs(valueData, classOf[Reference]).asInstanceOf[Reference]
   }
   /**
    * Save value to string
@@ -48,5 +51,6 @@ class ComplexDSLTypes extends DSLType {
   def convertToString: PartialFunction[(Symbol, _ <: AnyRef with java.io.Serializable), String] = {
     case (_, null) ⇒ null
     case ('ArrayOfSymbol, valueData) ⇒ valueData.asInstanceOf[Array[Symbol]].map(_.name).mkString(" ")
+    case ('Reference, valueData) ⇒ YAML.flat.dump(valueData.asInstanceOf[Reference])
   }
 }
