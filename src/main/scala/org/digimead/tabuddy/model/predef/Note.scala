@@ -72,7 +72,7 @@ object Note extends Loggable {
        *
        * @return note
        */
-      def takeNode[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
+      def takeNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
         withNote(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new note or retrieve exists one and apply fTransform to.

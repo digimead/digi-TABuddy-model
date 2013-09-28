@@ -192,7 +192,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
           }
           r.name = "record_0"
         }.eRelative
-        graph.node.safeRead(_.iteratorRecursive().size) should be(5)
+        graph.node.safeRead(_.iteratorRecursive.size) should be(5)
         model.eNode.safeRead(_.size) should be(1)
         model.copy(model.eStash.copy(property = model.eStash.property + ('a -> immutable.HashMap(DSLType.classSymbolMap(classOf[String]) -> new Value.Static("123")))))
         log.___glance("Model dump:\n" + model.eDump(false))
@@ -280,11 +280,11 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
             element.ne(element2) should be(true)
             element2 should be(element)
 
-            node2.iteratorRecursive().toVector should be(node.iteratorRecursive().toVector)
+            node2.iteratorRecursive.toVector should be(node.iteratorRecursive.toVector)
 
             // check
             // model
-            graph2.node.safeRead(_.iteratorRecursive().toSeq) should have size (5)
+            graph2.node.safeRead(_.iteratorRecursive.toSeq) should have size (5)
             // container always point to current active model
             graph2.model.eId.name should be(graph.model.eId.name)
             graph2.model.eUniqueId should be(graph.model.eUniqueId)
@@ -315,10 +315,10 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
         val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last))
 
-        val size = graph.node.safeRead(_.iteratorRecursive().size)
-        val size2 = graph2.node.safeRead(_.iteratorRecursive().size)
-        val size1x = graph1x.node.safeRead(_.iteratorRecursive().size)
-        val size2x = graph2x.node.safeRead(_.iteratorRecursive().size)
+        val size = graph.node.safeRead(_.iteratorRecursive.size)
+        val size2 = graph2.node.safeRead(_.iteratorRecursive.size)
+        val size1x = graph1x.node.safeRead(_.iteratorRecursive.size)
+        val size2x = graph2x.node.safeRead(_.iteratorRecursive.size)
 
         assert(size === size2)
         assert(size === size1x)
@@ -326,17 +326,17 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph2.node.safeRead { node ⇒
           graph1x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
         graph.node.safeRead { node ⇒
           graph2x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
         graph1x.node.safeRead { node ⇒
           graph2x.node.safeRead { node2 ⇒
-            node.iteratorRecursive().zip(node2.iteratorRecursive()).forall {
+            node.iteratorRecursive.zip(node2.iteratorRecursive).forall {
               case (a, b) ⇒
                 a.ne(b) && {
                   if (a.id == 'john1 || a.id == 'baseLevel)
@@ -369,7 +369,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         model.e(record_level3.eReference).get.eq(record_level3) should be(true)
         val note = model.note('note)
         val task = model.task('task)
-        model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
+        model.eNode.safeRead(_.iteratorRecursive.toSeq) should have size (5)
 
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
         Serialization.freeze(graph)
@@ -377,7 +377,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
 
@@ -426,7 +426,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.node.safeRead { node ⇒
           graph3.node.safeRead { node3 ⇒
-            node.iteratorRecursive().corresponds(node3.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+            node.iteratorRecursive.corresponds(node3.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
           }
         } should be(true)
       }
@@ -451,7 +451,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         model.e(record_level3.eReference).get.eq(record_level3) should be(true)
         val note = model.note('note)
         val task = model.task('task)
-        model.eNode.safeRead(_.iteratorRecursive().toSeq) should have size (5)
+        model.eNode.safeRead(_.iteratorRecursive.toSeq) should have size (5)
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
 
         // save
@@ -463,7 +463,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         val graph2 = Serialization.acquire('john1, folder.toURI)
         graph2.node.safeRead(_.children) should be('empty)
-        graph2.node.safeRead(_.iteratorRecursive().size) should be(0)
+        graph2.node.safeRead(_.iteratorRecursive.size) should be(0)
 
         graph2.modified should be(graph.modified)
 
@@ -476,10 +476,10 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.stored should have size (2)
 
         val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))
-        graph3.node.safeRead(_.iteratorRecursive().size) should be(5)
+        graph3.node.safeRead(_.iteratorRecursive.size) should be(5)
         graph3.modified should be(Element.timestamp(0, 0))
         graph3.node.modified should be(Element.timestamp(0, 0))
-        graph3.node.safeRead(_.iteratorRecursive().forall(_.modified == Element.timestamp(0, 0))) should be(true)
+        graph3.node.safeRead(_.iteratorRecursive.forall(_.modified == Element.timestamp(0, 0))) should be(true)
         x should be(11) // model + all elements + children
 
         // We MUST copy element boxes since
@@ -495,7 +495,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         val graph4 = Serialization.acquire('john1, folder.toURI)
         graph.node.safeRead { node ⇒
           graph4.node.safeRead { node4 ⇒
-            node.iteratorRecursive().corresponds(node4.iteratorRecursive()) { (a, b) ⇒
+            node.iteratorRecursive.corresponds(node4.iteratorRecursive) { (a, b) ⇒
               a.ne(b) && a.modified == b.modified && ("x" + a.id.name) == b.id.name
             }
           }
@@ -507,7 +507,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
           nodeDescriptor.copy(children = Seq())
         val graph5 = Serialization.acquire('john1, folder.toURI, fFilterLoad1)
         graph5.node.safeRead(_.children) should be('empty)
-        graph5.node.safeRead(_.iteratorRecursive().size) should be(0)
+        graph5.node.safeRead(_.iteratorRecursive.size) should be(0)
       }
     }
   }

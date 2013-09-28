@@ -97,7 +97,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           (myModel1.eStash.property) should be(myModel2.eStash.property)
 
           val myModel1Relative = myModel1.eRelative
-          val model1BranchNodes = myModel1Relative.eNode.safeRead(_.iteratorRecursive().toIndexedSeq)
+          val model1BranchNodes = myModel1Relative.eNode.safeRead(_.iteratorRecursive.toIndexedSeq)
           model1BranchNodes should be(Seq(record.eNode, save.eNode))
 
           myModel1.compare(myModel2) should be(0) // myModel1 == myModel2

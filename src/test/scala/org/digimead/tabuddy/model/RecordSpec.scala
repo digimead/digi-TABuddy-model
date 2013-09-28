@@ -80,7 +80,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
       record1 should not be (record2)
       record1.eId.name should be("test1")
       record2.eId.name should be("test2")
-      graph.model.eNode.safeRead(_.iteratorRecursive().toSeq.size) should be(2)
+      graph.model.eNode.safeRead(_.iteratorRecursive.toSeq.size) should be(2)
     }
     it("should support nested elements") {
       import TestDSL._
@@ -125,7 +125,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
           }
         }
       }
-      model.eNode.safeRead { _.iteratorRecursive().find(_.id == 'level2a) }.
+      model.eNode.safeRead { _.iteratorRecursive.find(_.id == 'level2a) }.
         flatMap(_.rootBox.e.eAs[Record].map(_.name)) should be(Some("ok"))
     }
   }

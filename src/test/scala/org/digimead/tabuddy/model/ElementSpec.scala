@@ -146,7 +146,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         graph.node.safeRead { node2 ⇒
           node.graph.storages should be(node2.graph.storages)
           node.graph.stored should be(node2.graph.stored)
-          node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
         }
       } should be(true)
     }
@@ -303,13 +303,38 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         }
       }
       myModel.eNode.safeRead { modelNode ⇒
-        val modelIterator = modelNode.iteratorRecursive()
+        val modelIterator = modelNode.iteratorRecursive
         assert(modelIterator.length === 3) // Model + 3 children
-        val modelChildren = modelNode.iteratorRecursive().foldLeft(Seq[Node[_ <: Element]]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
+        val modelChildren = modelNode.iteratorRecursive.foldLeft(Seq[Node[_ <: Element]]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
         Seq(e1.eNode, e2.eNode, e3.eNode).sortBy(_.unique).sameElements(modelChildren)
-        assert(e2.eNode.safeRead { _.iteratorRecursive().length === 1 })
-        assert(e3.eNode.safeRead { _.iteratorRecursive().length === 0 })
+        assert(e2.eNode.safeRead { _.iteratorRecursive.length === 1 })
+        assert(e3.eNode.safeRead { _.iteratorRecursive.length === 0 })
       }
+    }
+    it("should provide recursive search") {
+      import TestDSL._
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val myModel = graph.model
+      var e2: Note = null
+      var e3: Task = null
+      val e1 = myModel.takeRecord('root) { r ⇒
+        r.name = "root"
+        e2 = r.takeNote('level2) { r ⇒
+          r.name = "level2"
+          e3 = r.takeTask('level3) { r ⇒
+            r.name = "level3"
+          }
+        }
+      }
+      myModel.eFind[Element](_ => true) should be (Some(e1))
+      myModel.eFind[Element](_.eId == 'root) should be (Some(e1))
+      myModel.eFind[Element](_.eId == 'level2) should be (Some(e2))
+      myModel.eFind[Element](_.eId == 'level3) should be (Some(e3))
+      myModel.eFind[Record.Like](_ => true) should be (Some(e1))
+      myModel.eFind[Note.Like](_ => true) should be (Some(e2))
+      myModel.eFind[Task.Like](_ => true) should be (Some(e3))
+      myModel.eFind[Record.Like](_.eId == 'level3) should be (Some(e3))
+      myModel.eFind[Task.Like](_.eId == 'root) should be (None)
     }
     it("should throw an exception if type is unknown") {
       import TestDSL._

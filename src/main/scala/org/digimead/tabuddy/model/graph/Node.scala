@@ -245,7 +245,7 @@ object Node extends Loggable {
             node.updateState(parentNodeReference = WeakReference(ThreadUnsafe.this))
             if (node.graph != graph) {
               // Update graph
-              node.iteratorRecursive().foreach(_.safeWrite { child ⇒
+              node.iteratorRecursive.foreach(_.safeWrite { child ⇒
                 val projectionBoxes = child.projectionBoxes
                 child.updateState(graph = graph,
                   parentNodeReference = WeakReference(ThreadUnsafe.this),
@@ -257,7 +257,7 @@ object Node extends Loggable {
           /* add node */
           updateState(children = internalState.children :+ elem)
           graph.nodes += elem.unique -> elem
-          node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
+          node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
         }
         modified = Element.timestamp()
         /* notify */
@@ -284,7 +284,7 @@ object Node extends Loggable {
     }
     /** Clears the Node's contents. After this operation, there are no children. */
     override def clear() = {
-      iteratorRecursive().foreach { node ⇒ graph.nodes -= node.unique }
+      iteratorRecursive.foreach { node ⇒ graph.nodes -= node.unique }
       updateState(children = Seq())
       /* notify */
       //val undoF = () ⇒ { state.children.foreach(super.add) }
@@ -320,18 +320,21 @@ object Node extends Loggable {
     def iterator: Iterator[Node[_ <: Element]] = internalState.children.iterator
     /**
      * Creates a new iterator over all elements contained in this iterable object and it's children.
-     * @param transformNodeChildren - function that provide sorting/filtering capability
+     * Iteration order is parent1, child1OfParent1, childN, parent2, child1OfParent2, childN, parent3 ...
      * @return the new iterator
      */
-    def iteratorRecursive(transformNodeChildren: (Node[_ <: Element], Seq[Node[_ <: Element]]) ⇒ Iterator[Node[_ <: Element]] = (parent, children) ⇒ children.toIterator): Iterator[Node[_ <: Element]] = {
-      new Iterator[Node[_ <: Element]] {
-        val iterator: Iterator[Node[_ <: Element]] = buildIterator(transformNodeChildren(ThreadUnsafe.this, ThreadUnsafe.this.internalState.children))
-        def hasNext: Boolean = iterator.hasNext
-        def next(): Node[_ <: Element] = iterator.next
-        private def buildIterator(iterator: Iterator[Node[_ <: Element]]): Iterator[Node[_ <: Element]] = {
-          for (child ← iterator) yield child.safeRead { node ⇒ Iterator(child) ++ buildIterator(transformNodeChildren(node, node.internalState.children)) }
-        }.foldLeft(Iterator[Node[_ <: Element]]())(_ ++ _)
+    def iteratorRecursive: Iterator[Node[_ <: Element]] = new Iterator[Node[_ <: Element]] {
+      private var stack = List[Iterator[Node[_ <: Element]]](internalState.children.iterator)
+      def hasNext: Boolean = {
+        while (!stack.head.hasNext && stack.size > 1)
+          stack = stack.tail
+        stack.head.hasNext
       }
+      def next(): Node[_ <: Element] = if (hasNext) {
+        val nextChild = stack.head.next
+        stack = nextChild.internalState.children.iterator +: stack
+        nextChild
+      } else Iterator.empty.next()
     }
     /** Removes a single element to the set. */
     override def remove(elem: Node[_ <: Element]): Boolean = if (internalState.children.contains(elem)) {
@@ -339,7 +342,7 @@ object Node extends Loggable {
       elem.safeWrite { node ⇒
         updateState(children = internalState.children.filterNot(_.eq(elem)))
         graph.nodes -= elem.unique
-        node.iteratorRecursive().foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
+        node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
       }
       /* notify */
       //val undoF = () => { super.add(node); {} }

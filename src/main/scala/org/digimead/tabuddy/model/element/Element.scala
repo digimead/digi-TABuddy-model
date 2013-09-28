@@ -129,10 +129,10 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   /** Dump the element content. */
   def eDump(brief: Boolean, padding: Int = 2): String
   /** Find child element. */
-  def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.safeRead {
-    _.view.map(_.projectionBoxes.values.toSeq: Seq[ElementBox[_ <: Element]]).flatten.
-      find { box ⇒ box.node.elementType.runtimeClass.isAssignableFrom(a.runtimeClass) && p(box.e.asInstanceOf[A]) }.map(_.e.asInstanceOf[A])
-  }
+  def eFind[A <: Element](p: A ⇒ Boolean)(implicit a: Manifest[A]): Option[A] = eNode.freezeRead(
+    _.iteratorRecursive.map(_.projectionBoxes.values.toSeq: Seq[ElementBox[_ <: Element]]).flatten.find { box ⇒
+      a.runtimeClass.isAssignableFrom(box.node.elementType.runtimeClass) && p(box.e.asInstanceOf[A])
+    }.map(_.e.asInstanceOf[A]))
   /** Get a property. */
   def eGet[A <: AnyRef with java.io.Serializable](id: Symbol)(implicit m: Manifest[A]): Option[Value[A]] =
     DSLType.classSymbolMap.get(m.runtimeClass).flatMap(typeSymbol ⇒

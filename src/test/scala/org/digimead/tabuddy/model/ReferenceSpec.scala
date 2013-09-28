@@ -94,7 +94,7 @@ class ReferenceSpec extends FunSpec with StorageHelper with ShouldMatchers with 
         copy should be(graph)
         graph.node.safeRead { node ⇒
           copy.node.safeRead { node2 ⇒
-            node.iteratorRecursive().corresponds(node2.iteratorRecursive()) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a == b }
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a == b }
           }
         } should be(true)
         copy.modified should be(graph.modified)
