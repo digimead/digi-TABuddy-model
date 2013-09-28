@@ -33,6 +33,7 @@ import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 
 import scala.language.implicitConversions
 
@@ -53,6 +54,23 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
   /** Element system id. */
   val unique: UUID
 
+  /** Build an ancestors sequence. */
+  def ancestors: Seq[Node[_ <: Element]] = {
+    @tailrec
+    def ancestors(current: Node[_ <: Element], acc: Seq[Node[_ <: Element]]): Seq[Node[_ <: Element]] = {
+      if (acc.size > Element.MAXIMUM_DEEPNESS) {
+        Node.log.fatal("Node level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
+        return acc
+      }
+      current.parent match {
+        case n @ Some(parent) if acc.lastOption != n && parent != current ⇒ ancestors(parent, acc :+ parent)
+        case _ ⇒ acc
+      }
+    }
+    rwl.readLock().lock()
+    try { ancestors(this, Seq()) }
+    finally { rwl.readLock().unlock() }
+  }
   /** Copy this node and attach it to target. */
   def copy[B <: Element](target: Node.ThreadUnsafe[B], recursive: Boolean = true, modified: Element.Timestamp = this.modified): Node[A] = safeRead { currentNode ⇒
     implicit val m = elementType
@@ -111,6 +129,20 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     rwl.readLock().lock()
     try { internalState.parentNodeReference.get }
     finally { rwl.readLock().unlock() }
+  }
+  /** Get or create projection. */
+  def projection(coordinate: Coordinate): ElementBox[A] = {
+    rwl.readLock().lock()
+    (try { internalState.projectionBoxes.get(coordinate) } finally { rwl.readLock().unlock() }) getOrElse {
+      rwl.writeLock().lock()
+      // double check
+      internalState.projectionBoxes.get(coordinate) getOrElse {
+        try {
+          ElementBox.getOrCreate[A](coordinate, this.asInstanceOf[Node.ThreadUnsafe[A]],
+            internalState.rootBox.e.eScope, rootBox.serialization)(elementType, internalState.rootBox.e.eStash.getClass).eBox.asInstanceOf[ElementBox[A]]
+        } finally { rwl.writeLock().unlock() }
+      }
+    }
   }
   /** Get projection's element boxes. */
   def projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = {
@@ -266,21 +298,6 @@ object Node extends Loggable {
         true
       } else
         false
-    }
-    /** Build an ancestors sequence. */
-    def ancestors: Seq[Node[_ <: Element]] = {
-      @tailrec
-      def ancestors(current: Node[_ <: Element], acc: Seq[Node[_ <: Element]]): Seq[Node[_ <: Element]] = {
-        if (acc.size > Element.MAXIMUM_DEEPNESS) {
-          log.fatal("Node level is too deep: %s, ...".format(acc.take(10).mkString(", ")))
-          return acc
-        }
-        current.parent match {
-          case n @ Some(parent) if acc.lastOption != n && parent != current ⇒ ancestors(parent, acc :+ parent)
-          case _ ⇒ acc
-        }
-      }
-      ancestors(this, Seq())
     }
     /** Clears the Node's contents. After this operation, there are no children. */
     override def clear() = {

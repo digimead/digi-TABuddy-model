@@ -113,7 +113,7 @@ object Model extends Loggable {
       }
       val pad = " " * padding
       val properties = if (brief) "" else dumpProperties()
-      val self = "%s: %s".format(eStash.scope, eId) + properties
+      val self = "%s: %s → %s".format(eStash.scope, eId, eCoordinate) + properties
       val childrenDump = eNode.safeRead(_.iterator.map(_.projectionBoxes.values).flatten.
         map(_.e.eDump(brief, padding)).mkString("\n").split("\n").map(pad + _).mkString("\n").trim)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump

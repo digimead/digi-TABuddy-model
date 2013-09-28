@@ -136,7 +136,7 @@ class Serialization extends Serialization.Interface with Loggable {
     // Load a model with respect for the specific modification
     val nodeDescriptor = nodeDescriptorFromYaml(transport.acquireModel(graphDescriptor.modelId,
       graphDescriptor.origin, modified, storageURI))
-    val nodeDescriptorˈ = fTransform(None, nodeDescriptor.asInstanceOf[Serialization.Descriptor.Node[Element]])
+    val nodeDescriptorˈ = fTransform(Seq(), nodeDescriptor.asInstanceOf[Serialization.Descriptor.Node[Element]])
     if (nodeDescriptor.elements.isEmpty)
       throw new IllegalStateException("There are no elements in the model node.")
     if (nodeDescriptor.id == null)
@@ -209,8 +209,9 @@ class Serialization extends Serialization.Interface with Loggable {
           None
       }
     val mostUpToDate = nodeDescriptors.flatten.maxBy(_._1.modified)
+    val descriptorˈ = fTransform(ancestors, mostUpToDate._1.asInstanceOf[Serialization.Descriptor.Node[Element]])
     // TODO Synchronize obsolete nodes
-    Some(acquireNode(mostUpToDate._1, mostUpToDate._2, mostUpToDate._3, fTransform, ancestors))
+    Some(acquireNode(descriptorˈ, mostUpToDate._2, mostUpToDate._3, fTransform, ancestors))
   } catch {
     case e: Throwable ⇒
       log.error(s"Unable to load node ${id} : " + e.getMessage(), e)
@@ -353,7 +354,7 @@ class Serialization extends Serialization.Interface with Loggable {
 object Serialization extends Loggable {
   /** Transformation that is applied to acquiring nodes. */
   /* (parent node, child node descriptor) => transformed child node descriptor */
-  type AcquireTransformation = Function2[Option[Node[Element]], Descriptor.Node[Element], Descriptor.Node[Element]]
+  type AcquireTransformation = Function2[Seq[Node.ThreadUnsafe[_ <: Element]], Descriptor.Node[Element], Descriptor.Node[Element]]
   /* node => copy of transformed node */
   /** Transformation that is applied to freezing nodes. */
   type FreezeTransformation = Function1[Node.ThreadUnsafe[Element], Node.ThreadUnsafe[Element]]
@@ -374,7 +375,7 @@ object Serialization extends Loggable {
    * AcquasScalaBufferConverter
    * import scala.collection.JavaConverters.seqAsJavaListConverterire transformation that keeps arguments unmodified.
    */
-  def defaultAcquireTransformation(parentNode: Option[Node[Element]], nodeDescriptor: Descriptor.Node[Element]) = nodeDescriptor
+  def defaultAcquireTransformation(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Descriptor.Node[Element]) = nodeDescriptor
   /** Freeze transformation that keeps arguments unmodified. */
   def defaultFreezeTransformation(node: Node.ThreadUnsafe[Element]): Node.ThreadUnsafe[Element] = node
   /** Save graph. */

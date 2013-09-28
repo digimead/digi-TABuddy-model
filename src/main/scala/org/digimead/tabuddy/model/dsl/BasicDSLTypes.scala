@@ -28,6 +28,7 @@ import org.digimead.tabuddy.model.serialization.transport.Transport
 
 class BasicDSLTypes extends DSLType with Loggable {
   protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](
+    classOf[Null] -> 'Null,
     classOf[java.lang.Byte] -> 'Byte,
     classOf[java.lang.Double] -> 'Double,
     classOf[java.lang.Float] -> 'Float,
@@ -36,7 +37,6 @@ class BasicDSLTypes extends DSLType with Loggable {
     classOf[java.lang.Short] -> 'Short,
     classOf[java.lang.Boolean] -> 'Boolean,
     classOf[java.lang.String] -> 'String)
-
   /**
    * Commit complex type (if needed) while saving
    */
@@ -46,28 +46,28 @@ class BasicDSLTypes extends DSLType with Loggable {
    * Convert value from string
    */
   def convertFromString: PartialFunction[(Symbol, String), _ <: AnyRef with java.io.Serializable] = {
-    case (_, null) => null
-    case ('Byte, valueData) => valueData.toByte
-    case ('Double, valueData) => valueData.toDouble
-    case ('Float, valueData) => valueData.toFloat
-    case ('Integer, valueData) => valueData.toInt
-    case ('Long, valueData) => valueData.toLong
-    case ('Short, valueData) => valueData.toShort
-    case ('Boolean, valueData) => valueData.toBoolean
-    case ('String, valueData) => valueData
+    case (_, null) ⇒ null
+    case ('Byte, valueData) ⇒ valueData.toByte
+    case ('Double, valueData) ⇒ valueData.toDouble
+    case ('Float, valueData) ⇒ valueData.toFloat
+    case ('Integer, valueData) ⇒ valueData.toInt
+    case ('Long, valueData) ⇒ valueData.toLong
+    case ('Short, valueData) ⇒ valueData.toShort
+    case ('Boolean, valueData) ⇒ valueData.toBoolean
+    case ('String, valueData) ⇒ valueData
   }
   /**
    * Save value to string
    */
   def convertToString: PartialFunction[(Symbol, _ <: AnyRef with java.io.Serializable), String] = {
-    case (_, null) => null
-    case ('Byte, valueData) => String.valueOf(valueData)
-    case ('Double, valueData) => String.valueOf(valueData)
-    case ('Float, valueData) => String.valueOf(valueData)
-    case ('Integer, valueData) => String.valueOf(valueData)
-    case ('Long, valueData) => String.valueOf(valueData)
-    case ('Short, valueData) => String.valueOf(valueData)
-    case ('Boolean, valueData) => String.valueOf(valueData)
-    case ('String, valueData) => valueData.toString
+    case (_, null) ⇒ null
+    case ('Byte, valueData) ⇒ String.valueOf(valueData)
+    case ('Double, valueData) ⇒ String.valueOf(valueData)
+    case ('Float, valueData) ⇒ String.valueOf(valueData)
+    case ('Integer, valueData) ⇒ String.valueOf(valueData)
+    case ('Long, valueData) ⇒ String.valueOf(valueData)
+    case ('Short, valueData) ⇒ String.valueOf(valueData)
+    case ('Boolean, valueData) ⇒ String.valueOf(valueData)
+    case ('String, valueData) ⇒ valueData.toString
   }
 }

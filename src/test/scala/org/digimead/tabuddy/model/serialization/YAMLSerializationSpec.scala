@@ -201,7 +201,13 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         new File(folder, "john1") should not be ('exists)
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
         graph.stored should be('empty)
-        Serialization.freeze(graph)
+        val before = model.eBox.modified
+        val timestamp1 = Serialization.freeze(graph)
+        timestamp1 should be(graph.stored.last)
+        timestamp1 should be(graph.node.modified)
+        timestamp1 should be(graph.modified)
+        val after = model.eBox.modified
+        after should be(before)
         graph.stored should have size (1)
         graph.stored.head should be(graph.modified)
 
@@ -308,13 +314,30 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.modified should be > (graphModification)
 
         Serialization.freeze(graph)
+        val timestamp2 = Serialization.freeze(graph)
+        timestamp2 should be(graph.stored.last)
+        timestamp2 should be(graph.node.modified)
+        timestamp2 should be(graph.modified)
         graph.stored should have size (2)
         graph.stored.last should be(graph.modified)
         graph.stored.head should be(graphModification)
 
         val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
-        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last))
-
+        var elementCounter = 0
+        def loadMonitor(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) = {
+          elementCounter += 1
+          elementCounter match {
+            case 1 ⇒ ancestors.map(_.id) should be('empty)
+            case 2 ⇒ ancestors.map(_.id) should be(Seq('john1))
+            case 3 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel))
+            case 4 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel, 'level1a))
+            case 5 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel))
+            case 6 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel, 'level1b))
+          }
+          nodeDescriptor
+        }
+        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor)
+        elementCounter should be(6)
         val size = graph.node.safeRead(_.iteratorRecursive.size)
         val size2 = graph2.node.safeRead(_.iteratorRecursive.size)
         val size1x = graph1x.node.safeRead(_.iteratorRecursive.size)
@@ -503,7 +526,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         // load
 
-        val fFilterLoad1 = (parentNode: Option[Node[Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
+        val fFilterLoad1 = (ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
           nodeDescriptor.copy(children = Seq())
         val graph5 = Serialization.acquire('john1, folder.toURI, fFilterLoad1)
         graph5.node.safeRead(_.children) should be('empty)

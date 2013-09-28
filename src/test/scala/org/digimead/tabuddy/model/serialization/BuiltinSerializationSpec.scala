@@ -202,8 +202,21 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         graph.stored.head should be(graphModification)
 
         val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
-        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last))
-
+        var elementCounter = 0
+        def loadMonitor(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) = {
+          elementCounter += 1
+          elementCounter match {
+            case 1 ⇒ ancestors.map(_.id) should be('empty)
+            case 2 ⇒ ancestors.map(_.id) should be(Seq('john1))
+            case 3 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel))
+            case 4 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel, 'level1a))
+            case 5 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel))
+            case 6 ⇒ ancestors.map(_.id) should be(Seq('john1, 'baseLevel, 'level1b))
+          }
+          nodeDescriptor
+        }
+        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor)
+        elementCounter should be(6)
         val size = graph.node.safeRead(_.iteratorRecursive.size)
         val size2 = graph2.node.safeRead(_.iteratorRecursive.size)
         val size1x = graph1x.node.safeRead(_.iteratorRecursive.size)
@@ -392,7 +405,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
 
         // load
 
-        val fFilterLoad1 = (parentNode: Option[Node[Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
+        val fFilterLoad1 = (ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
           nodeDescriptor.copy(children = Seq())
         val graph5 = Serialization.acquire('john1, folder.toURI, fFilterLoad1)
         graph5.node.safeRead(_.children) should be('empty)

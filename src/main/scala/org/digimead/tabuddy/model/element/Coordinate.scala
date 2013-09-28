@@ -27,8 +27,8 @@ class Coordinate private (
 
   override def canEqual(that: Any) = that.isInstanceOf[Coordinate]
   override def equals(that: Any): Boolean = (this eq that.asInstanceOf[Object]) || (that match {
-    case that: Coordinate if that canEqual this => this.## == that.##
-    case _ => false
+    case that: Coordinate if that canEqual this ⇒ this.## == that.##
+    case _ ⇒ false
   })
   override def hashCode() = lazyHashCode
   protected lazy val lazyHashCode = if (coordinate.nonEmpty)
@@ -38,7 +38,8 @@ class Coordinate private (
 
   /** Verbose coordinate representation. */
   override def toString() = if (coordinate.nonEmpty)
-    "Axis(%s)".format(coordinate.map(axis => "%s->%s".format(axis.id.name, axis.value.toString)).mkString(", "))
+    "Axis(%s)".format(coordinate.map(axis ⇒
+      if (axis.value == null) "%s".format(axis.id.name) else "%s->%s".format(axis.id.name, axis.value.toString)).mkString(", "))
   else
     "ROOT"
 }

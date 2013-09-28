@@ -39,4 +39,6 @@ case class Axis[T <: AnyRef with java.io.Serializable](
 object Axis {
   implicit def intToAxis(x: (Symbol, Int)): Axis[java.lang.Integer] = Axis[java.lang.Integer](x._1, Int.box(x._2))
   type Generic = Axis[_ <: AnyRef with java.io.Serializable]
+
+  def apply(id: Symbol) = new Axis[Null](id, null)
 }
