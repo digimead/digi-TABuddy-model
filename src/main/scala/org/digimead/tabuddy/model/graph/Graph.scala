@@ -64,6 +64,12 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
         // Nth node MUST always have parent
         val undoF = () ⇒ {}
         val result = super.put(key, value)
+        if (strict)
+          result.foreach { previous ⇒
+            // restore
+            super.put(key, previous)
+            throw new IllegalStateException(s"Such node ${key} is already exists.")
+          }
         Graph.this.publish(Event.GraphChange(value.parent.get, result.getOrElse(null), value)(undoF))
         result
       }
@@ -96,6 +102,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   @volatile var storages: Seq[URI] = Seq()
   /** List of timestamp to stored graphs. */
   @volatile var stored = Seq[Element.Timestamp]()
+  /** Check if such node is already exists. */
+  @volatile var strict = true
 
   /** Copy graph. */
   def copy(created: Element.Timestamp = created,

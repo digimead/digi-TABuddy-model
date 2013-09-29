@@ -21,21 +21,23 @@ package org.digimead.tabuddy.model
 import java.util.UUID
 
 import scala.collection.mutable
+import scala.collection.mutable.Publisher
+import scala.collection.mutable.Subscriber
 
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
+import org.digimead.lib.test.StorageHelper
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Event
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.serialization.StubSerialization
+import org.digimead.tabuddy.model.serialization.BuiltinSerialization
+import org.digimead.tabuddy.model.serialization.Serialization
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
-import TestDSL._
-
-class EventSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+class EventSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
@@ -45,37 +47,51 @@ class EventSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
 
   describe("An Event") {
     it("should be fired while graph is changed") {
-      import TestDSL._
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      val events = mutable.ListBuffer[Event]()
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒
-        g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event })
+        val events = mutable.ListBuffer[Event]()
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒
+          g.storages = g.storages :+ folder.getAbsoluteFile().toURI()
+          g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event })
+        }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        val record_0 = model.takeRecord('baseLevel) { r ⇒
+          r.takeRecord('level1a) { r ⇒
+            r.takeRecord('level2a) { r ⇒
+              r.name = "record_2a"
+            }
+            r.name = "record_1a"
+          }
+          r.takeRecord('level1b) { r ⇒
+            r.takeRecord('level2b) { r ⇒
+              r.name = "record_2b"
+            }
+            r.name = "record_1b"
+          }
+          r.name = "record_0"
+        }.eRelative
+        graph.nodes.size should be(6)
+        testCreation(graph, events)
+
+        val graphCopy = graph.copy(origin = 'john2)(g ⇒ g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event }))
+        graphCopy.nodes.size should be(6)
+        testCreation(graphCopy, events)
+
+        val timestamp = Serialization.freeze(graph)
+        val graph2 = Serialization.acquire(graph.origin, folder.toURI) {
+          _.subscribe(new Subscriber[Event, Publisher[Event]] {
+            def notify(pub: Publisher[Event], event: Event) = events += event
+          })
+        }
+        graph2.nodes.size should be(6)
+        testCreation(graphCopy, events)
       }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val record_0 = model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒
-          r.takeRecord('level2a) { r ⇒
-            r.name = "record_2a"
-          }
-          r.name = "record_1a"
-        }
-        r.takeRecord('level1b) { r ⇒
-          r.takeRecord('level2b) { r ⇒
-            r.name = "record_2b"
-          }
-          r.name = "record_1b"
-        }
-        r.name = "record_0"
-      }.eRelative
-      graph.nodes.size should be(6)
-      testCreation(graph, events)
-
-      val graphCopy = graph.copy(origin = 'john2)(g ⇒ g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event }))
-      graphCopy.nodes.size should be(6)
-      testCreation(graphCopy, events)
     }
   }
   def testCreation(graph: Graph[_ <: Model.Like], events: mutable.ListBuffer[Event]) {
+    import TestDSL._
+
     Option(events.remove(0)).map { ev ⇒
       ev.getPropertyName() should be("john1")
       ev.getSource() should be(graph.model.eNode)

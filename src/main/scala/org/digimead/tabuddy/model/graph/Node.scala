@@ -54,7 +54,7 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
   /** Element system id. */
   val unique: UUID
 
-  /** Build an ancestors sequence (head:this -> last:top parent). */
+  /** Build an ancestors sequence (head:top parent -> last:this). */
   def ancestors: Seq[Node[_ <: Element]] = {
     @tailrec
     def ancestors(current: Node[_ <: Element], acc: Seq[Node[_ <: Element]]): Seq[Node[_ <: Element]] = {
@@ -92,7 +92,7 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
       children = children,
       modified = null, // modification is already assigned
       projectionBoxes = immutable.HashMap(projectionBoxes: _*))
-    currentNode.registerWithAncestors(copyNode)
+    copyNode.registerWithAncestors()
     copyNode
   }
   /**
@@ -290,8 +290,8 @@ object Node extends Loggable {
           }
           /* add node */
           updateState(children = internalState.children :+ elem)
-          registerWithAncestors(node)
-          node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
+          node.registerWithAncestors()
+          node.iteratorRecursive.foreach(_.safeRead(_.registerWithAncestors))
         }
         modified = Element.timestamp()
         true
@@ -395,10 +395,10 @@ object Node extends Loggable {
     }
 
     /** Register node and ancestors at graph. */
-    protected[Node] def registerWithAncestors(node: Node.ThreadUnsafe[_ <: Element]) {
-      if (!node.internalState.graph.nodes.contains(node.unique)) {
-        node.internalState.parentNodeReference.get.foreach(_.safeRead(registerWithAncestors))
-        node.internalState.graph.nodes += node.unique -> node.asInstanceOf[Node[_ <: Element]]
+    def registerWithAncestors() {
+      if (!internalState.graph.nodes.contains(unique)) {
+        internalState.parentNodeReference.get.foreach(_.safeRead(_.registerWithAncestors))
+        internalState.graph.nodes += unique -> this.asInstanceOf[Node[_ <: Element]]
       }
     }
 

@@ -174,7 +174,7 @@ class Serialization extends Serialization.Interface with Loggable {
       targetNode.updateState(children = children,
         modified = null, // modification is already assigned
         projectionBoxes = immutable.HashMap(projectionBoxes: _*))
-      targetNode.graph.nodes ++= targetNode.children.map(node ⇒ (node.unique, node))
+      targetNode.children.foreach(_.safeRead(_.registerWithAncestors()))
       if (graph.modelType != graph.node.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
     }
@@ -252,7 +252,7 @@ class Serialization extends Serialization.Interface with Loggable {
         case (childId, childModificationTimestamp) ⇒
           acquireNode(childId, childModificationTimestamp, fTransform, ancestors :+ targetNode)
       }
-      targetNode.graph.nodes ++= children.map(node ⇒ (node.unique, node))
+      children.foreach(_.safeRead(_.registerWithAncestors()))
       targetNode.updateState(
         children = children,
         modified = null, // modification is already assigned
