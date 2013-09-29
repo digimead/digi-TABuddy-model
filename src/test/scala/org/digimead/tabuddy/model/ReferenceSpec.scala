@@ -48,7 +48,7 @@ class ReferenceSpec extends FunSpec with StorageHelper with ShouldMatchers with 
         import TestDSL._
 
         // graph
-        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID())
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val record_0 = model.takeRecord('baseLevel) { r ⇒
           r.takeRecord('level1a) { r ⇒
@@ -84,11 +84,11 @@ class ReferenceSpec extends FunSpec with StorageHelper with ShouldMatchers with 
         timestamp3 should not be (timestamp1)
         Reference.resolve(record_0.eReference, timestamp1) should be('empty)
         Reference.resolve(record_0.eReference, timestamp3) should not be ('empty)
-        Reference.register(Serialization.acquire(graph.origin, graph.storages.head, Some(timestamp1)))
+        Reference.register(Serialization.acquire(graph.origin, graph.storages.head, Some(timestamp1))(_ ⇒ ()))
         Reference.resolve(record_0.eReference, timestamp1) should not be ('empty)
         Reference.resolve(record_0.eReference, timestamp3) should not be ('empty)
         val modified1 = graph.modified
-        val copy = graph.copy()
+        val copy = graph.copy()(_ ⇒ ())
         Reference.register(copy)
         graph.modified should be(modified1)
         copy should be(graph)

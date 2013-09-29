@@ -45,7 +45,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
   describe("A Record") {
     it("should create new instance") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
 
       val record1Timestamp = Element.timestamp()
       // 1. create node
@@ -85,7 +85,7 @@ class RecordSpec extends FunSpec with ShouldMatchers with LoggingHelper with Log
     it("should support nested elements") {
       import TestDSL._
       // define record
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val record_0 = model.takeRecord('baseLevel) { r ⇒
         r.takeRecord('level1a) { r ⇒

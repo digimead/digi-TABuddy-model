@@ -126,7 +126,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
     it("should convert Stash") {
       import TestDSL._
 
-      val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1))
+      val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1)) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val stash = model.eStash.copy(modified = Element.timestamp(2, 2))
       val optional = yaml.Optional.getOptional(stash)
@@ -152,7 +152,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
     it("should convert Optional") {
       import TestDSL._
 
-      val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1))
+      val graph = Graph[Model]('john1, 'john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID(), Element.timestamp(1, 1)) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").
         eSet('other, Some(new Value.Static(123: Integer))).eRelative
       model.copy(model.eStash.copy(property = model.eStash.property +
@@ -175,7 +175,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         import TestDSL._
 
         // graph
-        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID())
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val record_0 = model.takeRecord('baseLevel) { r ⇒
           r.takeRecord('level1a) { r ⇒
@@ -242,7 +242,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         //testTxtSource.close()
 
         // deserialize
-        val graph2 = Serialization.acquire(graph.origin, folder.toURI)
+        val graph2 = Serialization.acquire(graph.origin, folder.toURI)(_ ⇒ ())
         /* compare graph */
         graph2 should not be (null)
         graph2 should be(graph)
@@ -322,7 +322,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.stored.last should be(graph.modified)
         graph.stored.head should be(graphModification)
 
-        val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
+        val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))(_ ⇒ ())
         var elementCounter = 0
         def loadMonitor(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) = {
           elementCounter += 1
@@ -336,7 +336,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
           }
           nodeDescriptor
         }
-        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor _)
+        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor _)(_ ⇒ ())
         elementCounter should be(6)
         val size = graph.node.safeRead(_.iteratorRecursive.size)
         val size2 = graph2.node.safeRead(_.iteratorRecursive.size)
@@ -376,7 +376,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
       withTempFolder { folder ⇒
         import TestDSL._
 
-        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID())
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val record_root = model.takeRecord('root) { r ⇒
           r.takeRecord('level2) { r ⇒
@@ -396,7 +396,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
         Serialization.freeze(graph)
-        val graph2 = Serialization.acquire(graph.origin, folder.toURI)
+        val graph2 = Serialization.acquire(graph.origin, folder.toURI)(_ ⇒ ())
 
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
@@ -441,7 +441,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         record_level2.eRelative.name = "111"
 
         Serialization.freeze(graph)
-        val graph3 = Serialization.acquire(graph.origin, graph.storages.head)
+        val graph3 = Serialization.acquire(graph.origin, graph.storages.head)(_ ⇒ ())
 
         graph2.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("123")
         graph.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("111")
@@ -458,7 +458,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
       withTempFolder { folder ⇒
         import TestDSL._
 
-        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID())
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val record_root = model.takeRecord('root) { r ⇒
           r.takeRecord('level2) { r ⇒
@@ -484,7 +484,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         Serialization.freeze(graph, fFilterSave1)
         graph.stored should have size (1)
 
-        val graph2 = Serialization.acquire('john1, folder.toURI)
+        val graph2 = Serialization.acquire('john1, folder.toURI)(_ ⇒ ())
         graph2.node.safeRead(_.children) should be('empty)
         graph2.node.safeRead(_.iteratorRecursive.size) should be(0)
 
@@ -498,7 +498,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         Serialization.freeze(graph, fFilterSave2)
         graph.stored should have size (2)
 
-        val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))
+        val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))(_ ⇒ ())
         graph3.node.safeRead(_.iteratorRecursive.size) should be(5)
         graph3.modified should be(Element.timestamp(0, 0))
         graph3.node.modified should be(Element.timestamp(0, 0))
@@ -515,7 +515,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         Serialization.freeze(graph, fFilterSave3)
         graph.stored should have size (2)
 
-        val graph4 = Serialization.acquire('john1, folder.toURI)
+        val graph4 = Serialization.acquire('john1, folder.toURI)(_ ⇒ ())
         graph.node.safeRead { node ⇒
           graph4.node.safeRead { node4 ⇒
             node.iteratorRecursive.corresponds(node4.iteratorRecursive) { (a, b) ⇒
@@ -528,7 +528,7 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         val fFilterLoad1 = (ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
           nodeDescriptor.copy(children = Seq())
-        val graph5 = Serialization.acquire('john1, folder.toURI, fFilterLoad1)
+        val graph5 = Serialization.acquire('john1, folder.toURI, fFilterLoad1)(_ ⇒ ())
         graph5.node.safeRead(_.children) should be('empty)
         graph5.node.safeRead(_.iteratorRecursive.size) should be(0)
       }

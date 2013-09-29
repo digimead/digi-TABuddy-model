@@ -42,7 +42,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
   describe("A Value") {
     it("should have a proper equality") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model
       val container = model.record('test).eRelative
       new Value.Static("123") == new Value.Static("123") should be(true)
@@ -52,7 +52,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should should be affected by implicit conversions") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model
       val rootWorkspace = model.record('test).eRelative
       implicit val container = rootWorkspace.absolute
@@ -66,7 +66,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should should may have an empty container") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model
       val rootWorkspace = model.record('test).eRelative
       // x2value: convert T -> Option[Value[T]]
@@ -79,7 +79,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should search a default value at the root node") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model
       val rootWorkspace = model.record('test).eRelative
       rootWorkspace.eCoordinate.isRoot should be(true)
@@ -101,7 +101,7 @@ class ValueSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
     }
     it("should create values with builder functions") {
       import TestDSL._
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model
       val record1 = model.record('test)
       val value1 = Value.static("A")

@@ -75,7 +75,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     it("should have proper equality") {
       import TestDSL._
       // graph 1
-      val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val rA1 = model1.takeRecord('rA) { r ⇒
         r.takeRecord('rAB) { r ⇒
@@ -87,7 +87,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       val rAB1 = (rA1 & RecordLocation('rAB)).eRelative
       val rLeaf1 = (rAB1 & RecordLocation('rLeaf)).eRelative
       // graph 2
-      val graph2 = graph1.copy(origin = 'john2)
+      val graph2 = graph1.copy(origin = 'john2) { g ⇒ }
       val model2 = graph2.model.eRelative
       val rA2 = (model2 & RecordLocation('rA)).eRelative
       val rAB2 = (rA2 & RecordLocation('rAB)).eRelative
@@ -112,7 +112,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should have proper copy") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       graph should not be null
       val myModel = graph.model
       myModel should not be null
@@ -142,7 +142,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       rootX.eStash.created should be(oldCreated)
       rootX.copy(rootX.eStash.copy(created = newCreated))
       rootX.eStash.created should be(newCreated)
-      graph.copy().node.safeRead { node ⇒
+      graph.copy()(_ ⇒ {}).node.safeRead { node ⇒
         graph.node.safeRead { node2 ⇒
           node.graph.storages should be(node2.graph.storages)
           node.graph.stored should be(node2.graph.stored)
@@ -152,7 +152,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should have proper constraints") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       multithread(1000, 10) { i ⇒
         val r1 = graph.model.withRecord('a) { r ⇒ r }
@@ -184,7 +184,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should register elements in model") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       val r1 = myModel.withRecord('a) { r ⇒ r }
       myModel.e(r1.eReference) should be(Some(r1: Element))
@@ -192,7 +192,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should have proper copy constructor") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       var save: Record = null
       val record: Record = myModel.takeRecord('root) { r1 ⇒
@@ -253,7 +253,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should determinate ancestors") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       var recordL2: Record = null
       var recordL3: Record = null
@@ -269,7 +269,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should provide the convertation ability") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       val note = myModel.note('root)
       note should not be (null)
@@ -289,7 +289,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should provide recursive iterator") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       var e2: Record = null
       var e3: Record = null
@@ -313,7 +313,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
     it("should provide recursive search") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       var e2: Note = null
       var e3: Task = null
@@ -326,19 +326,19 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
           }
         }
       }
-      myModel.eFind[Element](_ => true) should be (Some(e1))
-      myModel.eFind[Element](_.eId == 'root) should be (Some(e1))
-      myModel.eFind[Element](_.eId == 'level2) should be (Some(e2))
-      myModel.eFind[Element](_.eId == 'level3) should be (Some(e3))
-      myModel.eFind[Record.Like](_ => true) should be (Some(e1))
-      myModel.eFind[Note.Like](_ => true) should be (Some(e2))
-      myModel.eFind[Task.Like](_ => true) should be (Some(e3))
-      myModel.eFind[Record.Like](_.eId == 'level3) should be (Some(e3))
-      myModel.eFind[Task.Like](_.eId == 'root) should be (None)
+      myModel.eFind[Element](_ ⇒ true) should be(Some(e1))
+      myModel.eFind[Element](_.eId == 'root) should be(Some(e1))
+      myModel.eFind[Element](_.eId == 'level2) should be(Some(e2))
+      myModel.eFind[Element](_.eId == 'level3) should be(Some(e3))
+      myModel.eFind[Record.Like](_ ⇒ true) should be(Some(e1))
+      myModel.eFind[Note.Like](_ ⇒ true) should be(Some(e2))
+      myModel.eFind[Task.Like](_ ⇒ true) should be(Some(e3))
+      myModel.eFind[Record.Like](_.eId == 'level3) should be(Some(e3))
+      myModel.eFind[Task.Like](_.eId == 'root) should be(None)
     }
     it("should throw an exception if type is unknown") {
       import TestDSL._
-      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       val record = myModel.record('test)
       val unknownData = ElementSpec.UnknownType(0)

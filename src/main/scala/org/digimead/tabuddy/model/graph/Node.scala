@@ -303,8 +303,8 @@ object Node extends Loggable {
       iteratorRecursive.foreach { node ⇒ graph.nodes -= node.unique }
       updateState(children = Seq())
       /* notify */
-      val undoF = () ⇒ {}
-      internalState.graph.publish(Event.ChildrenReset(this)(undoF))
+      //val undoF = () ⇒ {}
+      //internalState.graph.publish(Event.ChildrenReset(this)(undoF))
     }
     /** Clone this node. */
     override def clone(): Node.ThreadUnsafe[A] = new Node.ThreadUnsafe[A](id, unique, internalState, this.modifiedTimestamp)(elementType)
@@ -361,8 +361,8 @@ object Node extends Loggable {
         node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
       }
       /* notify */
-      val undoF = () ⇒ {}
-      internalState.graph.publish(Event.ChildRemove(this, elem)(undoF))
+      //val undoF = () ⇒ {}
+      //internalState.graph.publish(Event.ChildRemove(this, elem)(undoF))
       true
     } else
       false

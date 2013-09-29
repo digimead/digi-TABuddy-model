@@ -64,7 +64,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     it("should provide proper comparison") {
       import TestDSL._
       multithread(1000, 10) { i ⇒
-        val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+        val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         var myModel1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB")
         var save: Record = null
         val record = myModel1.takeRecord('root) { r ⇒
@@ -72,7 +72,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
             r.name = "123"
           }
         }
-        val graph2 = Graph[Model]('john2, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+        val graph2 = Graph[Model]('john2, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         var myModel2 = graph2.model
         graph2.model.eId.name should be("john2")
         CompareByTimespamp.doWith {
@@ -137,7 +137,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     it("should provide proper comparison") {
       import TestDSL._
       multithread(1000, 10) { i ⇒
-        val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID())
+        val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
         val rA1 = model1.takeRecord('rA) { r ⇒
           r.takeRecord('rB) { r ⇒
@@ -149,7 +149,7 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
         val rB1 = (rA1 & RecordLocation('rB)).eRelative
         val rLeaf1 = (rB1 & RecordLocation('rLeaf)).eRelative
 
-        val graph2 = graph1.copy(origin = 'john2)
+        val graph2 = graph1.copy(origin = 'john2) { g ⇒ }
         graph1.model.eStash.created should be(graph2.model.eStash.created)
         val model2 = graph2.model.eRelative
         val rA2 = (model2 & RecordLocation('rA)).eRelative

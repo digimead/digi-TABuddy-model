@@ -44,12 +44,13 @@ class EventSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
   }
 
   describe("An Event") {
-    it("should be fired") {
+    it("should be fired while graph is changed") {
       import TestDSL._
 
       val events = mutable.ListBuffer[Event]()
-      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID(),
-        prepare = (g: Graph[Model]) ⇒ g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event }))
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒
+        g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event })
+      }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
       val record_0 = model.takeRecord('baseLevel) { r ⇒
         r.takeRecord('level1a) { r ⇒
@@ -69,8 +70,7 @@ class EventSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       graph.nodes.size should be(6)
       testCreation(graph, events)
 
-      val graphCopy = graph.copy(origin = 'john2, prepare =
-        g ⇒ g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event }))
+      val graphCopy = graph.copy(origin = 'john2)(g ⇒ g.subscribe(new g.Sub { def notify(pub: g.Pub, event: Event) = events += event }))
       graphCopy.nodes.size should be(6)
       testCreation(graphCopy, events)
     }
