@@ -215,7 +215,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
           }
           nodeDescriptor
         }
-        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor)
+        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor _)
         elementCounter should be(6)
         val size = graph.node.safeRead(_.iteratorRecursive.size)
         val size2 = graph2.node.safeRead(_.iteratorRecursive.size)

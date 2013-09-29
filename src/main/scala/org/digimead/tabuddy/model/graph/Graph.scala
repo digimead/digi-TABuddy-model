@@ -44,18 +44,7 @@ import scala.language.implicitConversions
 class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with mutable.Publisher[Event] with Equals {
   /** Index of all graph nodes. */
-  val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]] {
-    /** Adds a single element to the set. */
-    override def +=(kv: (UUID, Node[_ <: Element])): this.type = synchronized {
-      /* notify */
-      val undoF = () ⇒ {}
-      val parent = kv._2.parent match {
-        case Some(parent) ⇒ publish(Event.ChildInclude(parent, kv._2, parent.modified)(undoF))
-        case None ⇒ publish(Event.ChildInclude(kv._2, kv._2, kv._2.modified)(undoF)) // model
-      }
-      super.+=(kv)
-    }
-  }
+  val nodes = new Graph.Nodes(this) with mutable.SynchronizedMap[UUID, Node[_ <: Element]]
   /** Path to graph storages. */
   @volatile var storages: Seq[URI] = Seq()
   /** List of timestamp to stored graphs. */
@@ -151,6 +140,23 @@ object Graph extends Loggable {
       val self = "graph origin:%s, model id:%s, model unique:%s".format(graph.origin, graph.node.id, graph.node.unique)
       val childrenDump = Node.dump(graph.node, brief, padding)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
+    }
+  }
+
+  /**
+   * HashMap for graph nodes index.
+   */
+  // TODO -=
+  class Nodes[A <: Model.Like](graph: Graph[A]) extends mutable.HashMap[UUID, Node[_ <: Element]] {
+    /** Adds a single element to the set. */
+    override def +=(kv: (UUID, Node[_ <: Element])): this.type = {
+      /* notify */
+      val undoF = () ⇒ {}
+      val parent = kv._2.parent match {
+        case Some(parent) ⇒ graph.publish(Event.ChildInclude(parent, kv._2)(undoF))
+        case None ⇒ graph.publish(Event.ChildInclude(kv._2, kv._2)(undoF)) // model
+      }
+      super.+=(kv)
     }
   }
   /**

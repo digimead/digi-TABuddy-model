@@ -53,7 +53,7 @@ import scala.language.implicitConversions
 class Serialization extends Serialization.Interface with Loggable {
   /** Load graph with the specific origin and timestamp. */
   def acquireGraph(origin: Symbol, bootstrapStorageURI: URI, fTransform: Serialization.AcquireTransformation,
-    modified: Option[Element.Timestamp]): Graph[_ <: Model.Like] = {
+    modified: Option[Element.Timestamp], prepare: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] = {
     log.debug(s"Acquire graph ${origin}.")
     // Bootstrap graph from here. After that we may check another locations with more up to date elements.
     val storages = Serialization.perScheme.get(bootstrapStorageURI.getScheme()) match {
@@ -96,7 +96,7 @@ class Serialization extends Serialization.Interface with Loggable {
     }
     val mostUpToDate = graphDescriptors.flatten.maxBy(_._1.modified)
     // TODO Synchronize obsolete graphs
-    acquireGraph(mostUpToDate._1, modified.getOrElse(mostUpToDate._1.stored.last), mostUpToDate._2, mostUpToDate._3, fTransform)
+    acquireGraph(mostUpToDate._1, modified.getOrElse(mostUpToDate._1.stored.last), mostUpToDate._2, mostUpToDate._3, fTransform, prepare)
   }
   /** Save graph. */
   def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: Serialization.FreezeTransformation): Element.Timestamp = {
@@ -132,7 +132,7 @@ class Serialization extends Serialization.Interface with Loggable {
 
   /** Internal method that loads graph from the graph descriptor. */
   protected def acquireGraph(graphDescriptor: Serialization.Descriptor.Graph[_ <: Model.Like], modified: Element.Timestamp,
-    storageURI: URI, transport: Transport, fTransform: Serialization.AcquireTransformation): Graph[_ <: Model.Like] = {
+    storageURI: URI, transport: Transport, fTransform: Serialization.AcquireTransformation, prepare: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] = {
     // Load a model with respect for the specific modification
     val nodeDescriptor = nodeDescriptorFromYaml(transport.acquireModel(graphDescriptor.modelId,
       graphDescriptor.origin, modified, storageURI))
@@ -152,7 +152,8 @@ class Serialization extends Serialization.Interface with Loggable {
     val modelTypeManifest = Manifest.classType[Model.Like](graphDescriptor.modelType)
     val targetModelNode = Node.model[Model.Like](nodeDescriptorˈ.id, nodeDescriptorˈ.unique, nodeDescriptorˈ.modified)(modelTypeManifest)
     val graph = new Graph[Model.Like](graphDescriptor.created, targetModelNode, graphDescriptor.origin)(modelTypeManifest)
-    graph.storages = graphDescriptor.storages
+    prepare(graph)
+    graph.storages ++= graphDescriptor.storages
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, nodeDescriptorˈ.modified)
       /* Get element boxes */
@@ -363,14 +364,21 @@ object Serialization extends Loggable {
 
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Element.Timestamp): Graph[_ <: Model.Like] =
-    inner.acquireGraph(origin, bootstrapStorageURI, defaultAcquireTransformation, Some(modified))
+    inner.acquireGraph(origin, bootstrapStorageURI, defaultAcquireTransformation, Some(modified), (_: Graph[_ <: Model.Like]) ⇒ {})
+  /** Load graph with the specific origin. */
+  def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Element.Timestamp, prepare: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] =
+    inner.acquireGraph(origin, bootstrapStorageURI, defaultAcquireTransformation, Some(modified), prepare)
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation): Graph[_ <: Model.Like] =
-    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, None)
+    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, None, (_: Graph[_ <: Model.Like]) ⇒ {})
+  /** Load graph with the specific origin. */
+  def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation, prepare: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] =
+    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, None, prepare)
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None,
-    fTransform: AcquireTransformation = defaultAcquireTransformation): Graph[_ <: Model.Like] =
-    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, modified)
+    fTransform: AcquireTransformation = defaultAcquireTransformation,
+    prepare: Graph[_ <: Model.Like] ⇒ Unit = (_: Graph[_ <: Model.Like]) ⇒ {}): Graph[_ <: Model.Like] =
+    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, modified, prepare)
   /**
    * AcquasScalaBufferConverter
    * import scala.collection.JavaConverters.seqAsJavaListConverterire transformation that keeps arguments unmodified.
@@ -516,7 +524,8 @@ object Serialization extends Loggable {
     val skipBrokenNodes = false
 
     /** Load graph with the specific origin. */
-    def acquireGraph(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation, modified: Option[Element.Timestamp]): Graph[_ <: Model.Like]
+    def acquireGraph(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation,
+      modified: Option[Element.Timestamp], prepare: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like]
     /** Save graph. */
     def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation): Element.Timestamp
   }
