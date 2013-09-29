@@ -25,6 +25,7 @@ import scala.collection.immutable
 import scala.collection.mutable
 
 import org.digimead.digi.lib.api.DependencyInjection
+import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
@@ -41,23 +42,40 @@ import scala.language.implicitConversions
  * @param origin graph owner identifier
  */
 class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
-  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with Equals {
+  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with mutable.Publisher[Event] with Equals {
   /** Index of all graph nodes. */
-  val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]]
+  val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]] {
+    /** Adds a single element to the set. */
+    override def +=(kv: (UUID, Node[_ <: Element])): this.type = synchronized {
+      /* notify */
+      val undoF = () ⇒ {}
+      val parent = kv._2.parent match {
+        case Some(parent) ⇒ publish(Event.ChildInclude(parent, kv._2, parent.modified)(undoF))
+        case None ⇒ publish(Event.ChildInclude(kv._2, kv._2, kv._2.modified)(undoF)) // model
+      }
+      super.+=(kv)
+    }
+  }
   /** Path to graph storages. */
   @volatile var storages: Seq[URI] = Seq()
   /** List of timestamp to stored graphs. */
   @volatile var stored = Seq[Element.Timestamp]()
 
   /** Copy graph. */
-  def copy(created: Element.Timestamp = created, id: Symbol = node.id, modified: Element.Timestamp = node.modified, origin: Symbol = this.origin, unique: UUID = node.unique): Graph[A] = node.freezeRead { sourceModelNode ⇒
+  def copy[B](created: Element.Timestamp = created,
+    id: Symbol = node.id,
+    modified: Element.Timestamp = node.modified,
+    origin: Symbol = this.origin,
+    unique: UUID = node.unique,
+    prepare: Graph[A] ⇒ B = (_: Graph[A]) ⇒ {}): Graph[A] = node.freezeRead { sourceModelNode ⇒
     /*
      * Create graph and model node
      */
     val targetModelNode = Node.model[A](id, unique, modified)
     val graph = new Graph[A](created, targetModelNode, origin)
-    graph.storages = this.storages
-    graph.stored = this.stored
+    prepare(graph)
+    graph.storages ++= this.storages
+    graph.stored ++= this.stored
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, modified)
       val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = sourceModelNode.projectionBoxes.map {
@@ -72,7 +90,6 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
         children = sourceModelNode.children.map(_.copy(targetNode, true)),
         modified = null, // modification is already assigned
         projectionBoxes = immutable.HashMap(projectionBoxes: _*))
-      graph.nodes ++= targetNode.children.map(n ⇒ n.unique -> n)
     }
     graph
   }
@@ -80,6 +97,14 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   def model: A = node.rootBox.e
   /** Get modification timestamp. */
   def modified: Element.Timestamp = node.modified
+  /** Provide publish() public access */
+  override def publish(event: Event) = try {
+    super.publish(event)
+  } catch {
+    // catch all other subscriber exceptions
+    case e: Throwable ⇒
+      Graph.log.error(e.getMessage(), e)
+  }
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Graph[_]]
   override def equals(other: Any) = other match {
@@ -92,7 +117,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   override def toString() = s"Graph[${origin}]#${modified}"
 }
 
-object Graph {
+object Graph extends Loggable {
   implicit def graph2interface(g: Graph.type): Interface = DI.implementation
 
   trait Interface {
@@ -102,10 +127,15 @@ object Graph {
       unique: UUID)(implicit stashClass: Class[_ <: A#StashType]): Graph[A] =
       apply[A](origin, origin, scope, serialization, unique)
     /** Create a new graph. */
-    def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
-      unique: UUID, timestamp: Element.Timestamp = Element.timestamp())(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
+    def apply[A <: Model.Like: Manifest](origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier,
+      unique: UUID, prepare: Graph[A] ⇒ Unit)(implicit stashClass: Class[_ <: A#StashType]): Graph[A] =
+      apply[A](origin, origin, scope, serialization, unique, prepare = prepare)
+    /** Create a new graph. */
+    def apply[A <: Model.Like](id: Symbol, origin: Symbol, scope: A#StashType#ScopeType, serialization: Serialization.Identifier, unique: UUID,
+      timestamp: Element.Timestamp = Element.timestamp(), prepare: Graph[A] ⇒ Unit = (_: Graph[A]) ⇒ {})(implicit m: Manifest[A], stashClass: Class[_ <: A#StashType]): Graph[A] = {
       val modelNode = Node.model[A](id, unique, timestamp)
       val modelGraph = new Graph[A](timestamp, modelNode, origin)
+      prepare(modelGraph)
       modelNode.safeWrite { node ⇒
         modelNode.initializeModelNode(modelGraph, timestamp)
         val modelBox = ElementBox[A](Coordinate.root, timestamp, node, timestamp, scope, serialization)

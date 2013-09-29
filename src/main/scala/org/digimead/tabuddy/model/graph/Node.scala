@@ -54,7 +54,7 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
   /** Element system id. */
   val unique: UUID
 
-  /** Build an ancestors sequence. */
+  /** Build an ancestors sequence (head:this -> last:top parent). */
   def ancestors: Seq[Node[_ <: Element]] = {
     @tailrec
     def ancestors(current: Node[_ <: Element], acc: Seq[Node[_ <: Element]]): Seq[Node[_ <: Element]] = {
@@ -72,26 +72,28 @@ trait Node[A <: Element] extends Modifiable.Write with Equals {
     finally { rwl.readLock().unlock() }
   }
   /** Copy this node and attach it to target. */
-  def copy[B <: Element](target: Node.ThreadUnsafe[B], recursive: Boolean = true, modified: Element.Timestamp = this.modified): Node[A] = safeRead { currentNode ⇒
-    implicit val m = elementType
-    val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
-      graph = target.graph,
-      parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
-      projectionBoxes = immutable.HashMap()), modified)
-    val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = internalState.projectionBoxes.map {
-      case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
-    }.toSeq
-    assert(copyNode.modified == modified)
-    val children = if (recursive)
-      currentNode.iterator.map { _.copy(copyNode, recursive) }.toSeq
-    else
-      internalState.children
-    copyNode.updateState(
-      children = children,
-      modified = null, // modification is already assigned
-      projectionBoxes = immutable.HashMap(projectionBoxes: _*))
-    copyNode.graph.nodes ++= copyNode.children.map(n ⇒ n.unique -> n)
-    copyNode
+  def copy[B <: Element](target: Node.ThreadUnsafe[B],
+    recursive: Boolean = true,
+    modified: Element.Timestamp = this.modified): Node[A] = safeRead { currentNode ⇒
+      implicit val m = elementType
+      val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
+        graph = target.graph,
+        parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
+        projectionBoxes = immutable.HashMap()), modified)
+      val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = currentNode.internalState.projectionBoxes.map {
+        case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
+      }.toSeq
+      assert(copyNode.modified == modified)
+      val children = if (recursive)
+        currentNode.internalState.children.map { _.copy(copyNode, recursive) }.toSeq
+      else
+        currentNode.internalState.children
+      copyNode.updateState(
+        children = children,
+        modified = null, // modification is already assigned
+        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
+      Node.register(copyNode)
+      copyNode
   }
   /**
    * Lock this node and all child nodes.
@@ -239,6 +241,13 @@ object Node extends Loggable {
       val childrenDump = node.children.map(Node.dump(_, brief, padding)).map(pad + _).mkString("\n\n").split("\n").map(pad + _).mkString("\n")
       (if (childrenDump.isEmpty) self else self + "\n" + childrenDump).trim
     }
+    /** Register node and ancestors at graph. */
+    protected[Node] def register(node: Node.ThreadUnsafe[_ <: Element]) {
+      if (!node.internalState.graph.nodes.contains(node.unique)) {
+        node.internalState.parentNodeReference.get.foreach(_.safeRead(register))
+        node.internalState.graph.nodes += node.unique -> node.asInstanceOf[Node[_ <: Element]]
+      }
+    }
   }
   /** Allow to initialize model node. */
   trait ModelNodeInitializer {
@@ -260,7 +269,7 @@ object Node extends Loggable {
   /**
    * Thread unsafe node representation.
    */
-  class ThreadUnsafe[A <: Element](val id: Symbol, val unique: UUID, @volatile protected var internalState: NodeState[A],
+  class ThreadUnsafe[A <: Element](val id: Symbol, val unique: UUID, @volatile protected[Node] var internalState: NodeState[A],
     @volatile protected var modifiedTimestamp: Element.Timestamp)(implicit val elementType: Manifest[A])
     extends Node[A] with mutable.Set[Node[_ <: Element]] with mutable.SetLike[Node[_ <: Element], ThreadUnsafe[_ <: Element]] {
     /** Adds a single element to the set. */
@@ -288,13 +297,10 @@ object Node extends Loggable {
           }
           /* add node */
           updateState(children = internalState.children :+ elem)
-          graph.nodes += elem.unique -> elem
+          Node.register(node)
           node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes += subChildNode.unique -> subChildNode }
         }
         modified = Element.timestamp()
-        /* notify */
-        //val undoF = () => { super.remove(node); {} }
-        //Element.Event.publish(Element.Event.ChildInclude(parentNode.get, node.get, parentNode.get.eModified)(undoF))
         true
       } else
         false
@@ -304,8 +310,8 @@ object Node extends Loggable {
       iteratorRecursive.foreach { node ⇒ graph.nodes -= node.unique }
       updateState(children = Seq())
       /* notify */
-      //val undoF = () ⇒ { state.children.foreach(super.add) }
-      //Element.Event.publish(Element.Event.ChildrenReset(parentNode.get, parentNode.get.eModified)(undoF))
+      val undoF = () ⇒ {}
+      internalState.graph.publish(Event.ChildrenReset(this, modified)(undoF))
     }
     /** Clone this node. */
     override def clone(): Node.ThreadUnsafe[A] = new Node.ThreadUnsafe[A](id, unique, internalState, this.modifiedTimestamp)(elementType)
@@ -362,8 +368,8 @@ object Node extends Loggable {
         node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
       }
       /* notify */
-      //val undoF = () => { super.add(node); {} }
-      //Element.Event.publish(Element.Event.ChildRemove(parentNode.get, node.get, parentNode.get.eModified)(undoF))
+      val undoF = () ⇒ {}
+      internalState.graph.publish(Event.ChildRemove(this, elem, modified)(undoF))
       true
     } else
       false
