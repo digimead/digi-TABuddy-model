@@ -21,13 +21,13 @@ package org.digimead.tabuddy.model.serialization.transport
 import java.io.InputStream
 import java.net.URI
 import java.util.UUID
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Node
+import java.net.URLEncoder
 
 /**
  * Serialization transport that provides implementation for the specific URI scheme.
@@ -61,9 +61,9 @@ trait Transport {
   def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
   /** Append path to URI. */
   def append(uri: URI, part: String*): URI = if (uri.toString().endsWith("/"))
-    new URI(uri + part.mkString("/"))
+    new URI(uri + part.map(URLEncoder.encode(_, "UTF-8").replace("+", "%20")).mkString("/"))
   else
-    new URI(uri + "/" + part.mkString("/"))
+    new URI(uri + "/" + part.map(URLEncoder.encode(_, "UTF-8").replace("+", "%20")).mkString("/"))
   /** Delete resource. */
   def delete(uri: URI)
   /** Save element box to the specific URI. */

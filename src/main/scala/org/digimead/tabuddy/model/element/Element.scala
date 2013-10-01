@@ -156,8 +156,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   def eModel: Model.Like = eNode.graph.model
   /** Get element node. */
   def eNode: Node[ElementType] = eBox.node
-  /** Get identifier which uniquely identify this element. */
-  def eUniqueId: UUID = eBox.elementUniqueId
+  /** Throw an exception or adjust the element before save. */
+  def eOnCommit() {}
   /** Get graph origin identifier. */
   def eOrigin: Symbol = eBox.node.graph.origin
   /** Get a container. */
@@ -250,6 +250,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   }
   /** Get current stash */
   def eStash: StashType
+  /** Get identifier which uniquely identify this element. */
+  def eUniqueId: UUID = eBox.elementUniqueId
   /** Get modification timestamp. */
   def modified = eStash.modified
 

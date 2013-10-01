@@ -104,18 +104,21 @@ class Serialization extends Serialization.Interface with Loggable {
     if (graph.storages.isEmpty)
       throw new IllegalStateException("Unable to freeze graph without any defined storages.")
     val storedTimestamps = graph.node.freezeRead { modelNode ⇒
+      // commit elements
+      modelNode.iteratorRecursive.grouped(64).foreach { nodes ⇒
+        nodes.par.foreach(_.projectionBoxes.foreach(_._2.e.eOnCommit()))
+      }
+      // freeze graph
       graph.storages.map {
         case storageURI if storageURI.isAbsolute() ⇒
           Serialization.perScheme.get(storageURI.getScheme()) match {
             case Some(transport) ⇒
-              graph.node.freezeRead { model ⇒
-                val modelˈ = fTransform(model.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
-                if (!graph.stored.contains(modelˈ.modified))
-                  graph.stored = (graph.stored :+ modelˈ.modified).sorted
-                transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ))
-                freezeNode(modelˈ, storageURI, transport, fTransform, Seq(modelˈ))
-                Some(modelˈ.modified)
-              }
+              val modelˈ = fTransform(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
+              if (!graph.stored.contains(modelˈ.modified))
+                graph.stored = (graph.stored :+ modelˈ.modified).sorted
+              transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ))
+              freezeNode(modelˈ, storageURI, transport, fTransform, Seq(modelˈ))
+              Some(modelˈ.modified)
             case None ⇒
               log.error(s"Unable to save graph to URI with unknown scheme ${storageURI.getScheme}.")
               None
