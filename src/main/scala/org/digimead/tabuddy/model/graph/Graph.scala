@@ -74,6 +74,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
         result
       }
     }
+    /** Removes a key from this map, returning the value associated previously */
     override def remove(key: UUID): Option[Node[_ <: Element]] = super.remove(key).map { node ⇒
       if (isEmpty) {
         // last node MUST be always a model
@@ -147,6 +148,15 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
     // catch all other subscriber exceptions
     case e: Throwable ⇒
       Graph.log.error(e.getMessage(), e)
+  }
+  /** Visit graph elements. */
+  def visit(visitor: Element.Visitor, onlyModified: Boolean = true): Unit = node.freezeRead {
+    _.iteratorRecursive.grouped(64).foreach { nodes ⇒
+      nodes.par.foreach(_.projectionBoxes.values.foreach(box ⇒ if (onlyModified)
+        box.getModified.foreach(_.eOnVisit(visitor))
+      else
+        box.e.eOnVisit(visitor)))
+    }
   }
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Graph[_]]

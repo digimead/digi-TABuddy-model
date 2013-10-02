@@ -104,10 +104,6 @@ class Serialization extends Serialization.Interface with Loggable {
     if (graph.storages.isEmpty)
       throw new IllegalStateException("Unable to freeze graph without any defined storages.")
     val storedTimestamps = graph.node.freezeRead { modelNode ⇒
-      // commit elements
-      modelNode.iteratorRecursive.grouped(64).foreach { nodes ⇒
-        nodes.par.foreach(_.projectionBoxes.foreach(_._2.e.eOnCommit()))
-      }
       // freeze graph
       graph.storages.map {
         case storageURI if storageURI.isAbsolute() ⇒

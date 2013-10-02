@@ -156,8 +156,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   def eModel: Model.Like = eNode.graph.model
   /** Get element node. */
   def eNode: Node[ElementType] = eBox.node
-  /** Throw an exception or adjust the element before save. */
-  def eOnCommit() {}
+  /** On element visit. */
+  def eOnVisit(visitor: Element.Visitor):Unit = visitor.visit(this)
   /** Get graph origin identifier. */
   def eOrigin: Symbol = eBox.node.graph.origin
   /** Get a container. */
@@ -406,5 +406,9 @@ object Element extends Loggable {
       }
 
     override def toString() = s"Timestamp[$milliseconds:$nanoShift]"
+  }
+  /** Element visitor. */
+  abstract class Visitor() {
+    def visit(element: Element)
   }
 }

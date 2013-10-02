@@ -347,6 +347,25 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       //  record.eSet('file, Some(unknownValue))
       // }
     }
+    it("should be compatible with visitor pattern") {
+      import TestDSL._
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      graph.model.takeRecord('root) { r ⇒
+        r.name = "root"
+        r.takeNote('level2) { r ⇒
+          r.name = "level2"
+          r.takeTask('level3) { r ⇒
+            r.name = "level3"
+          }
+        }
+      }
+      var elements = Seq[Element]()
+      val visitor = new Element.Visitor() {
+        def visit(element: Element) = synchronized { elements = elements :+ element}
+      }
+      graph.visit(visitor)
+      elements should have size(3)
+    }
   }
 
   override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
