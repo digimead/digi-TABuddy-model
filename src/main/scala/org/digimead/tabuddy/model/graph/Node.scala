@@ -196,7 +196,7 @@ object Node extends Loggable {
 
   /** Simple implementation of the mutable part of a node. */
   class State[A <: Element](val children: Seq[Node[_ <: Element]], val graph: Graph[_ <: Model.Like], val parentNodeReference: WeakReference[Node[_ <: Element]],
-    val projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]]) extends NodeState[A] {
+    val projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]]) extends NodeState[A] with Equals {
     lazy val rootBox: ElementBox[A] = projectionBoxes.get(Coordinate.root).getOrElse(null)
     type NodeStateType = State[A]
 
@@ -207,6 +207,16 @@ object Node extends Loggable {
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.parentNodeReference,
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionBoxes): NodeStateType =
       new State(children, graph, parentNodeReference, projectionElementBoxes)
+
+    override def canEqual(that: Any): Boolean = that.isInstanceOf[State[A]]
+    override def equals(that: Any): Boolean = that match {
+      case that: State[A] ⇒ (this eq that) ||
+        (this.canEqual(that) && that.canEqual(this) && this.## == that.##)
+      case _ ⇒ false
+    }
+    override def hashCode() = lazyHashCode
+    protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.children, this.graph, this.parentNodeReference.get, this.projectionBoxes))
+    override def toString() = s"NodeState(children:${children}. graph:${graph}, parent:${parentNodeReference.get}, projections:${projectionBoxes})."
   }
   /**
    * Node companion object realization
@@ -302,9 +312,6 @@ object Node extends Loggable {
     override def clear() = {
       iteratorRecursive.foreach { node ⇒ graph.nodes -= node.unique }
       updateState(children = Seq())
-      /* notify */
-      //val undoF = () ⇒ {}
-      //internalState.graph.publish(Event.ChildrenReset(this)(undoF))
     }
     /** Clone this node. */
     override def clone(): Node.ThreadUnsafe[A] = new Node.ThreadUnsafe[A](id, unique, internalState, this.modifiedTimestamp)(elementType)
@@ -352,7 +359,7 @@ object Node extends Loggable {
         nextChild
       } else Iterator.empty.next()
     }
-    /** Removes a single element to the set. */
+    /** Removes a single element from the set. */
     override def remove(elem: Node[_ <: Element]): Boolean = if (internalState.children.contains(elem)) {
       /* remove node */
       elem.safeWrite { node ⇒
@@ -360,9 +367,6 @@ object Node extends Loggable {
         graph.nodes -= elem.unique
         node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
       }
-      /* notify */
-      //val undoF = () ⇒ {}
-      //internalState.graph.publish(Event.ChildRemove(this, elem)(undoF))
       true
     } else
       false
@@ -370,9 +374,12 @@ object Node extends Loggable {
     override def size: Int = internalState.children.size
     /** Update state of the current node. */
     def updateState(state: NodeState[A], modified: Element.Timestamp): Node.ThreadUnsafe[A] = {
+      val previous = internalState
       internalState = state
       if (modified != null)
         this.modified = modified
+      val undoF = () ⇒ {}
+      internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
       this
     }
     /** Update state of the current node. */
@@ -381,16 +388,22 @@ object Node extends Loggable {
       modified: Element.Timestamp = Element.timestamp(),
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.internalState.parentNodeReference,
       projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionBoxes): Node.ThreadUnsafe[A] = {
+      val previous = internalState
       internalState = new State[A](children, graph, parentNodeReference, projectionBoxes)
       if (modified != null)
         this.modified = modified
+      val undoF = () ⇒ {}
+      internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
       this
     }
     /** Update element box at the specific coordinates. */
     def updateBox(coordinate: Coordinate, box: ElementBox[A], modified: Element.Timestamp = Element.timestamp()): Node.ThreadUnsafe[A] = {
+      val previous = internalState
       internalState = internalState.copy(projectionBoxes = internalState.projectionBoxes + (coordinate -> box))
       if (modified != null)
         this.modified = modified
+      val undoF = () ⇒ {}
+      internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
       this
     }
 

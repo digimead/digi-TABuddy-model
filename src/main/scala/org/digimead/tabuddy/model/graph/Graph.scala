@@ -148,6 +148,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
     // catch all other subscriber exceptions
     case e: Throwable ⇒
       Graph.log.error(e.getMessage(), e)
+      throw e
   }
   /** Visit graph elements. */
   def visit(visitor: Element.Visitor, onlyModified: Boolean = true): Unit = node.freezeRead {

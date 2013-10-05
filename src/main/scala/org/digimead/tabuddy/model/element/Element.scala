@@ -24,6 +24,7 @@ import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.collection.TraversableOnce.flattenTraversableOnce
 import scala.collection.immutable
 import scala.util.DynamicVariable
 
@@ -35,6 +36,7 @@ import org.digimead.tabuddy.model.element.compare.Compare
 import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.ElementBox.box2interface
+import org.digimead.tabuddy.model.graph.Event
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Modifiable
 import org.digimead.tabuddy.model.graph.Node
@@ -157,7 +159,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   /** Get element node. */
   def eNode: Node[ElementType] = eBox.node
   /** On element visit. */
-  def eOnVisit(visitor: Element.Visitor):Unit = visitor.visit(this)
+  def eOnVisit(visitor: Element.Visitor): Unit = visitor.visit(this)
   /** Get graph origin identifier. */
   def eOrigin: Symbol = eBox.node.graph.origin
   /** Get a container. */
@@ -213,10 +215,10 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
               previousValue match {
                 case Some(previous) ⇒
                   val undoF = () ⇒ {}
-                //Element.Event.publish(Element.Event.ValueUpdate(this, previous, value, eModified)(undoF))
+                  eGraph.publish(Event.ValueUpdate(this, previous, value)(undoF))
                 case None ⇒
                   val undoF = () ⇒ {}
-                //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
+                  eGraph.publish(Event.ValueInclude(this, value)(undoF))
               }
               eCopy(eBox, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
@@ -224,8 +226,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
             case None ⇒
               val newValue = value
               val undoF = () ⇒ {}
-              //Element.Event.publish(Element.Event.ValueInclude(this, value, eModified)(undoF))
-              None
+              eGraph.publish(Event.ValueInclude(this, value)(undoF))
               eCopy(eBox, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
                 asInstanceOf[ElementType#StashType])
@@ -237,7 +238,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
               val previousValue = valueHash.get(typeSymbol)
               previousValue.foreach { previous ⇒
                 val undoF = () ⇒ {}
-                //Element.Event.publish(Element.Event.ValueRemove(this, previous, eModified)(undoF))
+                eGraph.publish(Event.ValueRemove(this, previous)(undoF))
               }
               eCopy(eBox, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])

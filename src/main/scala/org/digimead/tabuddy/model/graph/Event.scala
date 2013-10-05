@@ -41,25 +41,25 @@ object Event extends mutable.Publisher[Event] {
   import scala.language.existentials
 
   /** This event is generated when element is changed. */
-  case class ElementBoxChange[T <: Element](sourceArg: ElementBox[T], oldValueArg: Element, newValueArg: Element)(val undoF: () ⇒ Unit)
+  case class ElementBoxChange[A <: Element](sourceArg: ElementBox[A], oldValueArg: Element, newValueArg: Element)(val undoF: () ⇒ Unit)
     extends PropertyChangeEvent(sourceArg, sourceArg.node.id.name, oldValueArg, newValueArg) with Event
-  /** This event is generated when element box is changed. */
-  case class NodeChange[T <: Element](sourceArg: Node[T], oldValueArg: ElementBox[T], newValueArg: ElementBox[T])(val undoF: () ⇒ Unit)
-    extends PropertyChangeEvent(sourceArg, sourceArg.id.name, oldValueArg, newValueArg) with Event
-  /** This event is generated when new node is added or exists node is removed from graph index. */
-  case class GraphChange(sourceArg: Node[_ <: Element], oldValueArg: Node[_ <: Element], newValueArg: Node[_ <: Element])(val undoF: () ⇒ Unit)
-    extends PropertyChangeEvent(sourceArg, sourceArg.id.name, oldValueArg, newValueArg) with Event
-  /** This event is generated when graph index is cleared. */
-  case class GraphReset(sourceArg: Graph[_ <: Model.Like])(val undoF: () ⇒ Unit)
-    extends PropertyChangeEvent(sourceArg, sourceArg.origin.name, null, null) with Event
+  /** This event is generated when new node is added or exists node is removed from graph. */
+  case class GraphChange(parentNodeArg: Node[_ <: Element], oldChildNodeArg: Node[_ <: Element], newChildNodeArg: Node[_ <: Element])(val undoF: () ⇒ Unit)
+    extends PropertyChangeEvent(parentNodeArg, parentNodeArg.id.name, oldChildNodeArg, newChildNodeArg) with Event
+  /** This event is generated when all graph nodes are removed. */
+  case class GraphReset(graphArg: Graph[_ <: Model.Like])(val undoF: () ⇒ Unit)
+    extends PropertyChangeEvent(graphArg, graphArg.origin.name, null, null) with Event
+  /** This event is generated when state of the node is changed. */
+  case class NodeChange[A <: Element](nodeArg: Node[A], oldStateArg: NodeState[A], newStateArg: NodeState[A])(val undoF: () ⇒ Unit)
+    extends PropertyChangeEvent(nodeArg, nodeArg.id.name, oldStateArg, newStateArg) with Event
   /** This event is generated when new value is added via element eSet */
-  case class ValueInclude[T <: Element](sourceArg: T, newValueArg: Value[_ <: AnyRef with java.io.Serializable])(val undoF: () ⇒ Unit)
+  case class ValueInclude[A <: Element](sourceArg: A, newValueArg: Value[_ <: AnyRef with java.io.Serializable])(val undoF: () ⇒ Unit)
     extends PropertyChangeEvent(sourceArg, sourceArg.eId.name, null, newValueArg) with Event
   /** This event is generated when exists value is removed via element eSet/eRemove */
-  case class ValueRemove[T <: Element](sourceArg: T, oldValueArg: Value[_ <: AnyRef with java.io.Serializable])(val undoF: () ⇒ Unit)
+  case class ValueRemove[A <: Element](sourceArg: A, oldValueArg: Value[_ <: AnyRef with java.io.Serializable])(val undoF: () ⇒ Unit)
     extends PropertyChangeEvent(sourceArg, sourceArg.eId.name, oldValueArg, null) with Event
   /** This event is generated when value is replaced via element eSet */
-  case class ValueUpdate[T <: Element](sourceArg: T, oldValueArg: Value[_ <: AnyRef with java.io.Serializable],
+  case class ValueUpdate[A <: Element](sourceArg: A, oldValueArg: Value[_ <: AnyRef with java.io.Serializable],
     newValueArg: Value[_ <: AnyRef with java.io.Serializable])(val undoF: () ⇒ Unit)
     extends PropertyChangeEvent(sourceArg, sourceArg.eId.name, oldValueArg, newValueArg) with Event
 }
