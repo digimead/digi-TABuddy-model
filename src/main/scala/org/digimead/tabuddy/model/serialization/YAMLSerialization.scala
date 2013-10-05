@@ -51,9 +51,9 @@ class YAMLSerialization extends Mechanism with Loggable {
     val elementContent = transport.read(elementURI)
     log.debug(s"Load optional ${elementBox} from ${optionalURI}.")
     val optionalContent = transport.read(optionalURI)
-    val optional = yaml.YAML.loadAs(new String(optionalContent, io.Codec.UTF8.charSet), classOf[yaml.Optional]).asInstanceOf[yaml.Optional]
+    val optional = yaml.YAML.block.loadAs(new String(optionalContent, io.Codec.UTF8.charSet), classOf[yaml.Optional]).asInstanceOf[yaml.Optional]
     Serialization.stash.set(optional)
-    val stash = yaml.YAML.loadAs(new String(elementContent, io.Codec.UTF8.charSet), classOf[Stash.Like]).asInstanceOf[A#StashType]
+    val stash = yaml.YAML.block.loadAs(new String(elementContent, io.Codec.UTF8.charSet), classOf[Stash.Like]).asInstanceOf[A#StashType]
     Element(elementBox, stash)
   }
   /**
@@ -70,9 +70,9 @@ class YAMLSerialization extends Mechanism with Loggable {
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     val optional = yaml.Optional.getOptional(element.eStash)
     log.debug(s"Save ${element.eBox} to ${elementURI}.")
-    transport.write(yaml.YAML.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), elementURI)
+    transport.write(yaml.YAML.block.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), elementURI)
     log.debug(s"Save optional ${element.eBox} to ${optionalURI}.")
-    transport.write(yaml.YAML.dump(optional).getBytes(io.Codec.UTF8.charSet), optionalURI)
+    transport.write(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optionalURI)
   }
 }
 

@@ -19,7 +19,6 @@
 package org.digimead.tabuddy.model.serialization.yaml
 
 import org.digimead.tabuddy.model.element.Element
-import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.AbstractConstruct
 import org.yaml.snakeyaml.nodes.Node
@@ -34,9 +33,9 @@ object Timestamp {
   val tag = new Tag(Tag.PREFIX + "ts")
 
   /** Convert Element.Timestamp to string. */
-  def dump(arg: Element.Timestamp): String = YAML.dump(arg).trim
+  def dump(arg: Element.Timestamp): String = YAML.block.dump(arg).trim
   /** Convert string to Element.Timestamp. */
-  def load(arg: String): Element.Timestamp = YAML.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
+  def load(arg: String): Element.Timestamp = YAML.block.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
 
   class Construct extends AbstractConstruct {
     YAML.constructor.getYAMLConstructors.put(Timestamp.tag, this)

@@ -18,6 +18,8 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
+import java.io.Writer
+
 import scala.Option.option2Iterable
 import scala.collection.JavaConverters._
 import scala.collection.immutable
@@ -38,36 +40,38 @@ import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.representer.Represent
 import org.yaml.snakeyaml.representer.{ Representer ⇒ YAMLRepresenter }
 
-import scala.language.implicitConversions
-
 /**
  * Provide YAML API for application.
  */
 object YAML extends Loggable {
-  implicit def yaml2implementation(y: YAML.type): Yaml = block
   /** Default YAML constructor. */
   lazy val constructor = DI.constructor
   /** Default YAML representer. */
   lazy val representer = DI.representer
 
   /** YAML de/serializer with BLOCK flow style. */
-  lazy val block = {
+  lazy val blockOption = {
     val options = new DumperOptions()
     options.setAllowUnicode(true)
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK)
     DI.constructs.foreach(c ⇒ log.debug(s"Add ${c} as YAML contruct to BLOCK serializer."))
     DI.represents.foreach(r ⇒ log.debug(s"Add ${r} as YAML represent to BLOCK serializer."))
-    new Yaml(DI.constructor, DI.representer, options)
+    options
   }
   /** YAML de/serializer with FLAT flow style. */
-  lazy val flat = {
+  lazy val flatOption = {
     val options = new DumperOptions()
     options.setAllowUnicode(true)
     options.setDefaultFlowStyle(DumperOptions.FlowStyle.FLOW)
     DI.constructs.foreach(c ⇒ log.debug(s"Add ${c} as YAML contruct to FLOW serializer."))
     DI.represents.foreach(r ⇒ log.debug(s"Add ${r} as YAML represent to FLOW serializer."))
-    new Yaml(DI.constructor, DI.representer, options)
+    options
   }
+
+  /** Create the new serializer each time. Prevents overflow. */
+  def block = new Yaml(DI.constructor, DI.representer, blockOption)
+  /** Create the new serializer each time. Prevents overflow. */
+  def flat = new Yaml(DI.constructor, DI.representer, flatOption)
 
   /** YAML constructor. */
   class Constructor extends YAMLConstructor {

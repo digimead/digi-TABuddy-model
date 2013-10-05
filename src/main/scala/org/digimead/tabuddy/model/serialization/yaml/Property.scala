@@ -30,9 +30,9 @@ object Property {
   val tag = new Tag(Tag.PREFIX + "property")
 
   /** Convert Stash to string. */
-  def dump(arg: Wrapper): String = YAML.dump(arg).trim
+  def dump(arg: Wrapper): String = YAML.block.dump(arg).trim
   /** Convert string to Stash. */
-  def load(arg: String): Wrapper = YAML.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper]
+  def load(arg: String): Wrapper = YAML.block.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper]
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Property.tag, this)

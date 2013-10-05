@@ -25,7 +25,6 @@ import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
 import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.Tag
@@ -38,10 +37,10 @@ object Axis extends Loggable {
   val tag = new Tag(Tag.PREFIX + "axis")
 
   /** Convert Axis to string. */
-  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAML.dump(arg).trim
+  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAML.block.dump(arg).trim
   /** Convert string to Axis. */
   def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] =
-    YAML.loadAs(arg, classOf[EAxis[_ <: AnyRef with java.io.Serializable]]).asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
+    YAML.block.loadAs(arg, classOf[EAxis[_ <: AnyRef with java.io.Serializable]]).asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Axis.tag, this)

@@ -30,7 +30,6 @@ import org.digimead.tabuddy.model.element.{ Stash ⇒ EStash }
 import org.digimead.tabuddy.model.element.Stash.Like
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.serialization.Serialization
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.SequenceNode
@@ -46,9 +45,9 @@ object Stash extends Loggable {
   val defaultStatic = true
 
   /** Convert Stash to string. */
-  def dump(arg: EStash.Like): String = YAML.dump(arg).trim
+  def dump(arg: EStash.Like): String = YAML.block.dump(arg).trim
   /** Convert string to Stash. */
-  def load(arg: String): EStash.Like = YAML.loadAs(arg, classOf[EStash.Like]).asInstanceOf[EStash.Like]
+  def load(arg: String): EStash.Like = YAML.block.loadAs(arg, classOf[EStash.Like]).asInstanceOf[EStash.Like]
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Stash.tag, this)

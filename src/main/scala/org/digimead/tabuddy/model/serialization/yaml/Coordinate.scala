@@ -23,7 +23,6 @@ import scala.collection.JavaConverters._
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
 import org.digimead.tabuddy.model.element.{ Coordinate ⇒ ECoordinate }
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.Node
 import org.yaml.snakeyaml.nodes.SequenceNode
@@ -34,9 +33,9 @@ object Coordinate extends Loggable {
   val tag = new Tag(Tag.PREFIX + "coord")
 
   /** Convert Coordinate to string. */
-  def dump(arg: ECoordinate): String = YAML.dump(arg).trim
+  def dump(arg: ECoordinate): String = YAML.block.dump(arg).trim
   /** Convert string to Coordinate. */
-  def load(arg: String): ECoordinate = YAML.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate]
+  def load(arg: String): ECoordinate = YAML.block.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate]
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Coordinate.tag, this)

@@ -74,7 +74,7 @@ object DSL {
     def &(l: LocationGeneric): l.ElementType =
       element.eFind[l.ElementType](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
         l.unique.map(_ == e.eNode.unique).getOrElse(true))(l.elementType).
-        getOrElse { throw new IllegalArgumentException(s"Unable to find ${l}.") }
+        getOrElse { throw new NoSuchElementException(l.toString()) }
 
     /**
      * Create a new element or retrieve exists one, convert it to relative and apply fTransform to.

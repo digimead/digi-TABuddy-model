@@ -32,9 +32,9 @@ object Symbol {
   val tag = new Tag(Tag.PREFIX + "sym")
 
   /** Convert Symbol to string. */
-  def dump(arg: scala.Symbol): String = YAML.dump(arg).trim
+  def dump(arg: scala.Symbol): String = YAML.block.dump(arg).trim
   /** Convert string to Symbol. */
-  def load(arg: String): scala.Symbol = YAML.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
+  def load(arg: String): scala.Symbol = YAML.block.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
 
   class Construct extends AbstractConstruct {
     YAML.constructor.getYAMLConstructors.put(Symbol.tag, this)

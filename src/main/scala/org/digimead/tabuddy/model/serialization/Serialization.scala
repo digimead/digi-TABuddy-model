@@ -42,7 +42,6 @@ import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.graph.NodeState
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.YAML
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.nodes.SequenceNode
 import org.yaml.snakeyaml.nodes.Tag
 import org.yaml.snakeyaml.nodes.{ Node ⇒ YAMLNode }
@@ -261,7 +260,7 @@ class Serialization extends Serialization.Interface with Loggable {
   }
   /** Create element descriptor from YAML. */
   protected def elementDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Element[_ <: Element] =
-    yaml.YAML.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]])
+    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]])
   /** Create YAML element descriptor. */
   protected def elementDescriptorToYAML(elementBox: ElementBox[_ <: Element]): Array[Byte] = {
     val descriptorMap = new java.util.TreeMap[String, AnyRef]()
@@ -270,7 +269,7 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("element_unique_id", elementBox.elementUniqueId)
     descriptorMap.put("modified", elementBox.modified)
     descriptorMap.put("serialization_identifier", elementBox.serialization.extension)
-    yaml.YAML.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
+    yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
   }
   /** Internal method that saves the element content. */
   protected def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI,
@@ -314,7 +313,7 @@ class Serialization extends Serialization.Interface with Loggable {
   }
   /** Create element descriptor from YAML. */
   protected def graphDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Graph[_ <: Model.Like] =
-    yaml.YAML.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Graph[_ <: Model.Like]])
+    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Graph[_ <: Model.Like]])
   /** Create YAML graph descriptor. */
   protected def graphDescriptorToYAML(model: Node.ThreadUnsafe[_ <: Model.Like]): Array[Byte] = {
     val storages = model.graph.storages.map(_.toString).asJava
@@ -326,11 +325,11 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("origin", model.graph.origin)
     descriptorMap.put("storages", storages)
     descriptorMap.put("stored", model.graph.stored.asJava)
-    yaml.YAML.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
+    yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
   }
   /** Create node descriptor from YAML content. */
   protected def nodeDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Node[_ <: Element] =
-    yaml.YAML.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Node[_ <: Element]])
+    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Node[_ <: Element]])
   /** Create YAML node descriptor. */
   protected def nodeDescriptorToYAML(elementType: Manifest[_ <: Element], id: Symbol, modified: Element.Timestamp, state: NodeState[_ <: Element],
     unique: UUID, fTransform: Serialization.FreezeTransformation): Array[Byte] = {
@@ -347,7 +346,7 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("id", id.name)
     descriptorMap.put("modified", modified)
     descriptorMap.put("unique", unique.toString())
-    yaml.YAML.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
+    yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
   }
 }
 

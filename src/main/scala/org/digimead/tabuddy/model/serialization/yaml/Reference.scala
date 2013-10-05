@@ -27,7 +27,6 @@ import scala.collection.mutable
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.{ Coordinate ⇒ ECoordinate }
 import org.digimead.tabuddy.model.element.{ Reference ⇒ EReference }
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.MappingNode
 import org.yaml.snakeyaml.nodes.Node
@@ -42,9 +41,9 @@ object Reference extends Loggable {
   val tag = new Tag(Tag.PREFIX + "ref")
 
   /** Convert Reference to string. */
-  def dump(arg: EReference): String = YAML.dump(arg).trim
+  def dump(arg: EReference): String = YAML.block.dump(arg).trim
   /** Convert string to Reference. */
-  def load(arg: String): EReference = YAML.loadAs(arg, classOf[EReference]).asInstanceOf[EReference]
+  def load(arg: String): EReference = YAML.block.loadAs(arg, classOf[EReference]).asInstanceOf[EReference]
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Reference.tag, this)

@@ -26,7 +26,6 @@ import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.{ Element ⇒ EElement }
 import org.digimead.tabuddy.model.element.{ Stash ⇒ EStash }
-import org.digimead.tabuddy.model.serialization.yaml.YAML.yaml2implementation
 import org.yaml.snakeyaml.error.YAMLException
 import org.yaml.snakeyaml.nodes.MappingNode
 import org.yaml.snakeyaml.nodes.Node
@@ -41,7 +40,7 @@ object Optional {
   val tag = new Tag(Tag.PREFIX + "optional")
 
   /** Convert Optional to string. */
-  def dump(arg: Optional): String = YAML.dump(arg).trim
+  def dump(arg: Optional): String = YAML.block.dump(arg).trim
   /** Get optional container from element. */
   def getOptional(element: EElement): Optional = getOptional(element.eStash)
   /** Get optional container from stash. */
@@ -59,7 +58,7 @@ object Optional {
     Optional(perElement)
   }
   /** Convert string to Optional. */
-  def load(arg: String): Optional = YAML.loadAs(arg, classOf[Optional]).asInstanceOf[Optional]
+  def load(arg: String): Optional = YAML.block.loadAs(arg, classOf[Optional]).asInstanceOf[Optional]
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Optional.tag, this)
