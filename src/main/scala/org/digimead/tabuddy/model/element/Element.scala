@@ -212,6 +212,9 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
               val newValue = value
+              val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(),
+                property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
+                asInstanceOf[ElementType#StashType])
               previousValue match {
                 case Some(previous) ⇒
                   val undoF = () ⇒ {}
@@ -220,28 +223,28 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
                   val undoF = () ⇒ {}
                   eGraph.publish(Event.ValueInclude(this, value)(undoF))
               }
-              eCopy(eBox, eStash.copy(modified = Element.timestamp(),
-                property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
-                asInstanceOf[ElementType#StashType])
+              modifiedElement
             case None ⇒
               val newValue = value
               val undoF = () ⇒ {}
-              eGraph.publish(Event.ValueInclude(this, value)(undoF))
-              eCopy(eBox, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
+              val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
                 asInstanceOf[ElementType#StashType])
+              eGraph.publish(Event.ValueInclude(this, value)(undoF))
+              modifiedElement
           }
         case _ ⇒
           // Set default value or None
           eStash.property.get(id) match {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
+              val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(),
+                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])
               previousValue.foreach { previous ⇒
                 val undoF = () ⇒ {}
                 eGraph.publish(Event.ValueRemove(this, previous)(undoF))
               }
-              eCopy(eBox, eStash.copy(modified = Element.timestamp(),
-                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])
+              modifiedElement
             case None ⇒
               Element.this.asInstanceOf[ElementType]
           }

@@ -154,7 +154,7 @@ class Serialization extends Serialization.Interface with Loggable {
     graphEarlyAccess(graph)
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, nodeDescriptorˈ.modified)
-      /* Get element boxes */
+      // 1st stage: setup projections
       val elementBoxes = nodeDescriptorˈ.elements.map {
         case (elementUniqueId, elementModificationTimestamp) ⇒
           val descriptor = elementDescriptorFromYaml(transport.acquireElementBox(Seq(targetNode), elementUniqueId, elementModificationTimestamp, storageURI))
@@ -164,15 +164,17 @@ class Serialization extends Serialization.Interface with Loggable {
       if (!elementBoxes.exists(_.coordinate == Coordinate.root))
         throw new IllegalStateException("Root element not found.")
       val projectionBoxes: Seq[(Coordinate, ElementBox[Model.Like])] = elementBoxes.map(e ⇒ e.coordinate -> e)
-      /* Get children */
+      targetNode.updateState(modified = null, projectionBoxes = immutable.HashMap(projectionBoxes: _*)) // modification is already assigned
+      // Graph is valid at this point
+      // 2nd stage: add children
       val children = nodeDescriptorˈ.children.flatMap {
         case (childId, childModificationTimestamp) ⇒
           acquireNode(childId, childModificationTimestamp, fTransform, Seq(targetNode))
       }
-      targetNode.updateState(children = children,
-        modified = null, // modification is already assigned
-        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
-      targetNode.children.foreach(_.safeRead(_.registerWithAncestors()))
+      if (children.nonEmpty) {
+        targetNode.updateState(children = children, modified = null) // modification is already assigned
+        targetNode.children.foreach(_.safeRead(_.registerWithAncestors()))
+      }
       if (graph.modelType != graph.node.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
     }
@@ -234,7 +236,7 @@ class Serialization extends Serialization.Interface with Loggable {
       projectionBoxes = immutable.HashMap())
     val targetNode = Node[Element](nodeDescriptor.id, nodeDescriptor.unique, targetNodeInitialState, nodeDescriptor.modified)(Manifest.classType(nodeDescriptor.clazz))
     targetNode.safeWrite { targetNode ⇒
-      /* Get element boxes */
+      // 1st stage: setup projections
       val elementBoxes = nodeDescriptor.elements.map {
         case (elementUniqueId, elementModificationTimestamp) ⇒
           log.debug(s"Acquire element box ${elementUniqueId}.")
@@ -245,16 +247,18 @@ class Serialization extends Serialization.Interface with Loggable {
       if (!elementBoxes.exists(_.coordinate == Coordinate.root))
         throw new IllegalStateException("Root element not found.")
       val projectionBoxes: Seq[(Coordinate, ElementBox[Element])] = elementBoxes.map(e ⇒ e.coordinate -> e)
-      /* Get children */
+      targetNode.updateState(modified = null, projectionBoxes = immutable.HashMap(projectionBoxes: _*)) // modification is already assigned
+      targetNode.registerWithAncestors()
+      // Node is valid at this point
+      // 2nd stage: add children
       val children = nodeDescriptor.children.flatMap {
         case (childId, childModificationTimestamp) ⇒
           acquireNode(childId, childModificationTimestamp, fTransform, ancestors :+ targetNode)
       }
-      children.foreach(_.safeRead(_.registerWithAncestors()))
-      targetNode.updateState(
-        children = children,
-        modified = null, // modification is already assigned
-        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
+      if (children.nonEmpty) {
+        children.foreach(_.safeRead(_.registerWithAncestors()))
+        targetNode.updateState(children = children, modified = null) // modification is already assigned
+      }
       targetNode
     }
   }
