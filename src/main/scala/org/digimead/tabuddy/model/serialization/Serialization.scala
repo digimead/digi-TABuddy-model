@@ -374,14 +374,14 @@ object Serialization extends Loggable {
 
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Element.Timestamp): Graph[_ <: Model.Like] =
-    acquireLoaders(origin, bootstrapStorageURI).last.load()
+    acquireLoaders(origin, bootstrapStorageURI, Some(modified)).maxBy(_.modified).load()
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation): Graph[_ <: Model.Like] =
     acquireLoaders(origin, bootstrapStorageURI, fTransform = fTransform).maxBy(_.modified).load()
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None,
     fTransform: AcquireTransformation = defaultAcquireTransformation): Graph[_ <: Model.Like] =
-    acquireLoaders(origin, bootstrapStorageURI, modified, fTransform).head.load()
+    acquireLoaders(origin, bootstrapStorageURI, modified, fTransform).maxBy(_.modified).load()
 
   /** Get graph loaders with the specific origin. */
   def acquireLoaders(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None,
