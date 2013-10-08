@@ -151,13 +151,20 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
       throw e
   }
   /** Visit graph elements. */
-  def visit(visitor: Element.Visitor, onlyModified: Boolean = true): Unit = node.freezeRead {
-    _.iteratorRecursive.grouped(64).foreach { nodes ⇒
-      nodes.par.foreach(_.projectionBoxes.values.foreach(box ⇒ if (onlyModified)
-        box.getModified.foreach(_.eOnVisit(visitor))
-      else
-        box.e.eOnVisit(visitor)))
+  def visit[A](visitor: Element.Visitor[A], onlyModified: Boolean = true,
+    multithread: Boolean = true)(implicit param: Element.Visitor.Param = Element.Visitor.defaultParam): Iterator[A] = {
+    val lazyIterator = node.freezeRead {
+      if (multithread) {
+        _.iteratorRecursive.grouped(param.multithreadGroupSize).flatMap { nodes ⇒
+          nodes.par.flatMap(_.projectionBoxes.values.flatMap(box ⇒
+            if (onlyModified) box.getModified.flatMap(_.eOnVisit(visitor)) else box.e.eOnVisit(visitor)))
+        }
+      } else {
+        _.iteratorRecursive.flatMap(_.projectionBoxes.values.flatMap(box ⇒
+          if (onlyModified) box.getModified.flatMap(_.eOnVisit(visitor)) else box.e.eOnVisit(visitor)))
+      }
     }
+    if (param.lazyVizit) lazyIterator else lazyIterator.toVector.toIterator
   }
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[Graph[_]]

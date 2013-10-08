@@ -361,10 +361,10 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
       }
       var elements = Seq[Element]()
       val visitor = new Element.Visitor() {
-        def visit(element: Element) = synchronized { elements = elements :+ element}
+        def visit(element: Element) = synchronized { elements = elements :+ element; None }
       }
-      graph.visit(visitor)
-      elements should have size(3)
+      graph.visit(visitor).toVector
+      elements should have size (3)
     }
   }
 

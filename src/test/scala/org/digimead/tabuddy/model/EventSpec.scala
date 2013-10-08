@@ -93,15 +93,15 @@ class EventSpec extends FunSpec with ShouldMatchers with StorageHelper with Logg
         testCreation(graphCopy, events)
 
         val timestamp = Serialization.freeze(graph)
-        val graph2 = Serialization.acquire(graph.origin, folder.toURI) {
-          _.subscribe(new Subscriber[Event, Publisher[Event]] {
+        val graph2Loader = Serialization.acquireLoaders(graph.origin, folder.toURI).last
+        graph2Loader.graph.subscribe(new Subscriber[Event, Publisher[Event]] {
             def notify(pub: Publisher[Event], event: Event) = event match {
               case Event.NodeChange(a, b, c) ⇒ if (b == c) fail("State is the same: " + b)
               case event: Event.GraphChange ⇒ events += event
               case _ ⇒
             }
           })
-        }
+        val graph2 = graph2Loader.load
         graph2.nodes.size should be(6)
         testCreation(graphCopy, events)
       }

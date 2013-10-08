@@ -50,9 +50,9 @@ import scala.language.implicitConversions
 
 /** Common serialization implementation. */
 class Serialization extends Serialization.Interface with Loggable {
-  /** Load graph with the specific origin and timestamp. */
-  def acquireGraph(origin: Symbol, bootstrapStorageURI: URI, fTransform: Serialization.AcquireTransformation,
-    modified: Option[Element.Timestamp])(graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] = {
+  /** Get graph loaders for the specific origin. */
+  def acquireGraph(origin: Symbol, bootstrapStorageURI: URI,
+    fTransform: Serialization.AcquireTransformation, modified: Option[Element.Timestamp]): Seq[Serialization.Loader] = {
     log.debug(s"Acquire graph ${origin}.")
     // Bootstrap graph from here. After that we may check another locations with more up to date elements.
     val storages = Serialization.perScheme.get(bootstrapStorageURI.getScheme()) match {
@@ -93,9 +93,34 @@ class Serialization extends Serialization.Interface with Loggable {
         log.fatal(s"Unable to process relative storage URI as base: ${storageURI}.")
         None
     }
-    val mostUpToDate = graphDescriptors.flatten.maxBy(_._1.modified)
+
+    graphDescriptors.flatten.sortBy(_._1.modified).flatMap {
+      case (currentGraphDescriptor, currentGraphStorageURI, currentGraphTransport) ⇒ try {
+        val currentGraphModified = modified.getOrElse(currentGraphDescriptor.stored.max)
+        // skip if modified is specified, but not exists in currentGraphDescriptor.stored
+        if (currentGraphDescriptor.stored.exists(_ == currentGraphModified)) {
+          val nodeDescriptor = nodeDescriptorFromYaml(currentGraphTransport.acquireModel(currentGraphDescriptor.modelId,
+            currentGraphDescriptor.origin, currentGraphModified, currentGraphStorageURI))
+          val nodeDescriptorˈ = fTransform(Seq(), nodeDescriptor.asInstanceOf[Serialization.Descriptor.Node[Element]])
+          if (nodeDescriptor.elements.isEmpty)
+            throw new IllegalStateException("There are no elements in the model node.")
+          if (nodeDescriptor.id == null)
+            throw new IllegalStateException("Id value not found in model node descriptor file.")
+          if (nodeDescriptor.unique == null)
+            throw new IllegalStateException("Unique value not found in model node descriptor file.")
+          if (nodeDescriptor.id.name != currentGraphDescriptor.modelId.name)
+            throw new IllegalStateException(s"Incorrect saved model id value ${nodeDescriptor.id.name} vs required ${currentGraphDescriptor.modelId.name}.")
+          Some(new Serialization.Loader(currentGraphDescriptor, nodeDescriptorˈ,
+            currentGraphModified, currentGraphStorageURI, currentGraphTransport, fTransform))
+        } else
+          None
+      } catch {
+        case e: Throwable ⇒
+          log.error(s"Unable to acquire graph loader for ${currentGraphDescriptor}: " + e.getMessage, e)
+          None
+      }
+    }
     // TODO Synchronize obsolete graphs
-    acquireGraph(mostUpToDate._1, modified.getOrElse(mostUpToDate._1.stored.last), mostUpToDate._2, mostUpToDate._3, fTransform, graphEarlyAccess)
   }
   /** Save graph. */
   def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: Serialization.FreezeTransformation): Element.Timestamp = {
@@ -128,37 +153,20 @@ class Serialization extends Serialization.Interface with Loggable {
     storedTimestamps.sorted.last
   }
 
-  /** Internal method that loads graph from the graph descriptor. */
-  protected def acquireGraph(graphDescriptor: Serialization.Descriptor.Graph[_ <: Model.Like], modified: Element.Timestamp,
-    storageURI: URI, transport: Transport, fTransform: Serialization.AcquireTransformation, graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] = {
-    // Load a model with respect for the specific modification
-    val nodeDescriptor = nodeDescriptorFromYaml(transport.acquireModel(graphDescriptor.modelId,
-      graphDescriptor.origin, modified, storageURI))
-    val nodeDescriptorˈ = fTransform(Seq(), nodeDescriptor.asInstanceOf[Serialization.Descriptor.Node[Element]])
-    if (nodeDescriptor.elements.isEmpty)
-      throw new IllegalStateException("There are no elements in the model node.")
-    if (nodeDescriptor.id == null)
-      throw new IllegalStateException("Id value not found in model node descriptor file.")
-    if (nodeDescriptor.unique == null)
-      throw new IllegalStateException("Unique value not found in model node descriptor file.")
-    if (nodeDescriptor.id.name != graphDescriptor.modelId.name)
-      throw new IllegalStateException(s"Incorrect saved model id value ${nodeDescriptor.id.name} vs required ${graphDescriptor.modelId.name}.")
+  /** Method that loads graph with the graph loader. */
+  def acquireGraph(loader: Serialization.Loader): Graph[_ <: Model.Like] = {
     /*
      * Create graph and model node
      */
-    log.debug(s"Acquire node ${nodeDescriptor.id} from ${storageURI}.")
-    val modelTypeManifest = Manifest.classType[Model.Like](graphDescriptor.modelType)
-    val targetModelNode = Node.model[Model.Like](nodeDescriptorˈ.id, nodeDescriptorˈ.unique, nodeDescriptorˈ.modified)(modelTypeManifest)
-    val graph = new Graph[Model.Like](graphDescriptor.created, targetModelNode, graphDescriptor.origin)(modelTypeManifest)
-    graph.storages ++= graphDescriptor.storages
-    graphEarlyAccess(graph)
-    targetModelNode.safeWrite { targetNode ⇒
-      targetModelNode.initializeModelNode(graph, nodeDescriptorˈ.modified)
+    log.debug(s"Acquire node ${loader.modelDescriptor.id} from ${loader.storageURI}.")
+    loader.targetModelNode.safeWrite { targetNode ⇒
+      loader.targetModelNode.initializeModelNode(loader.graph, loader.modelDescriptor.modified)
       // 1st stage: setup projections
-      val elementBoxes = nodeDescriptorˈ.elements.map {
+      val elementBoxes = loader.modelDescriptor.elements.map {
         case (elementUniqueId, elementModificationTimestamp) ⇒
-          val descriptor = elementDescriptorFromYaml(transport.acquireElementBox(Seq(targetNode), elementUniqueId, elementModificationTimestamp, storageURI))
-          ElementBox[Model.Like](descriptor.coordinate, descriptor.elementUniqueId, targetNode, storageURI,
+          val descriptor = elementDescriptorFromYaml(loader.transport.acquireElementBox(Seq(targetNode),
+            elementUniqueId, elementModificationTimestamp, loader.storageURI))
+          ElementBox[Model.Like](descriptor.coordinate, descriptor.elementUniqueId, targetNode, loader.storageURI,
             descriptor.serializationIdentifier, descriptor.modified)(Manifest.classType(descriptor.clazz))
       }
       if (!elementBoxes.exists(_.coordinate == Coordinate.root))
@@ -167,18 +175,18 @@ class Serialization extends Serialization.Interface with Loggable {
       targetNode.updateState(modified = null, projectionBoxes = immutable.HashMap(projectionBoxes: _*)) // modification is already assigned
       // Graph is valid at this point
       // 2nd stage: add children
-      val children = nodeDescriptorˈ.children.flatMap {
+      val children = loader.modelDescriptor.children.flatMap {
         case (childId, childModificationTimestamp) ⇒
-          acquireNode(childId, childModificationTimestamp, fTransform, Seq(targetNode))
+          acquireNode(childId, childModificationTimestamp, loader.fTransform, Seq(targetNode))
       }
       if (children.nonEmpty) {
         targetNode.updateState(children = children, modified = null) // modification is already assigned
         targetNode.children.foreach(_.safeRead(_.registerWithAncestors()))
       }
-      if (graph.modelType != graph.node.elementType)
-        throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
+      if (loader.graph.modelType != loader.graph.node.elementType)
+        throw new IllegalArgumentException(s"Unexpected model type ${loader.graph.modelType} vs ${loader.graph.node.elementType}")
     }
-    graph
+    loader.graph
   }
   /** Internal method that loads node with the specific id for the specific parent. */
   protected def acquireNode(id: Symbol, modified: Element.Timestamp, fTransform: Serialization.AcquireTransformation,
@@ -337,7 +345,7 @@ class Serialization extends Serialization.Interface with Loggable {
   /** Create YAML node descriptor. */
   protected def nodeDescriptorToYAML(elementType: Manifest[_ <: Element], id: Symbol, modified: Element.Timestamp, state: NodeState[_ <: Element],
     unique: UUID, fTransform: Serialization.FreezeTransformation): Array[Byte] = {
-    val elements = (Seq[ElementBox[_ <: Element]](state.rootBox) ++ state.projectionBoxes.values).map(box ⇒
+    val elements = state.projectionBoxes.values.toSeq.map(box ⇒
       Array(box.elementUniqueId, box.modified)).asJava
     val children = state.children.map(_.safeRead { child ⇒
       val childˈ = fTransform(child.asInstanceOf[Node.ThreadUnsafe[Element]])
@@ -365,15 +373,20 @@ object Serialization extends Loggable {
   val stash = new ThreadLocal[AnyRef]()
 
   /** Load graph with the specific origin. */
-  def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Element.Timestamp)(graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] =
-    inner.acquireGraph(origin, bootstrapStorageURI, defaultAcquireTransformation, Some(modified))(graphEarlyAccess)
+  def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Element.Timestamp): Graph[_ <: Model.Like] =
+    acquireLoaders(origin, bootstrapStorageURI).last.load()
   /** Load graph with the specific origin. */
-  def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation)(graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] =
-    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, None)(graphEarlyAccess)
+  def acquire(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation): Graph[_ <: Model.Like] =
+    acquireLoaders(origin, bootstrapStorageURI, fTransform = fTransform).maxBy(_.modified).load()
   /** Load graph with the specific origin. */
   def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None,
-    fTransform: AcquireTransformation = defaultAcquireTransformation)(graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like] =
-    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, modified)(graphEarlyAccess)
+    fTransform: AcquireTransformation = defaultAcquireTransformation): Graph[_ <: Model.Like] =
+    acquireLoaders(origin, bootstrapStorageURI, modified, fTransform).head.load()
+
+  /** Get graph loaders with the specific origin. */
+  def acquireLoaders(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None,
+    fTransform: AcquireTransformation = defaultAcquireTransformation): Seq[Serialization.Loader] =
+    inner.acquireGraph(origin, bootstrapStorageURI, fTransform, modified)
   /**
    * AcquasScalaBufferConverter
    * import scala.collection.JavaConverters.seqAsJavaListConverterire transformation that keeps arguments unmodified.
@@ -518,11 +531,34 @@ object Serialization extends Loggable {
     /** Skip broken nodes on load. */
     val skipBrokenNodes = false
 
-    /** Load graph with the specific origin. */
-    def acquireGraph(origin: Symbol, bootstrapStorageURI: URI, fTransform: AcquireTransformation,
-      modified: Option[Element.Timestamp])(graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit): Graph[_ <: Model.Like]
+    /** Get graph loaders for the specific origin. */
+    def acquireGraph(origin: Symbol, bootstrapStorageURI: URI,
+      fTransform: AcquireTransformation, modified: Option[Element.Timestamp]): Seq[Serialization.Loader]
+    /** Load graph with the graph loader. */
+    def acquireGraph(loader: Serialization.Loader): Graph[_ <: Model.Like]
     /** Save graph. */
     def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation): Element.Timestamp
+  }
+  /**
+   * Graph loader.
+   */
+  class Loader(val graphDescriptor: Serialization.Descriptor.Graph[_ <: Model.Like], val modelDescriptor: Serialization.Descriptor.Node[_ <: Element],
+    val modified: Element.Timestamp, val storageURI: URI, val transport: Transport, val fTransform: Serialization.AcquireTransformation) {
+    /** Model class. */
+    lazy val modelTypeManifest = Manifest.classType[Model.Like](graphDescriptor.modelType)
+    /** Model node. */
+    lazy val targetModelNode = Node.model[Model.Like](modelDescriptor.id, modelDescriptor.unique, modelDescriptor.modified)(modelTypeManifest)
+    /** Model graph. */
+    lazy val graph = {
+      val graph = new Graph[Model.Like](graphDescriptor.created, targetModelNode, graphDescriptor.origin)(modelTypeManifest)
+      graph.storages ++= graphDescriptor.storages
+      graph
+    }
+
+    /** Load graph with this graph loader. */
+    def load(): Graph[_ <: Model.Like] = Serialization.inner.acquireGraph(this)
+
+    override def toString() = s"Loader(${graphDescriptor})"
   }
   /**
    * Dependency injection routines
