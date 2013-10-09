@@ -203,6 +203,9 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
         graph.stored should be('empty)
         val before = model.eBox.modified
         val timestamp1 = Serialization.freeze(graph)
+        val graphX = graph.copy() { g ⇒ }
+        graphX.storages should be(graph.storages)
+        graphX.stored should be(graph.stored)
         timestamp1 should be(graph.stored.last)
         timestamp1 should be(graph.node.modified)
         timestamp1 should be(graph.modified)
@@ -243,6 +246,9 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
 
         // deserialize
         val graph2 = Serialization.acquire(graph.origin, folder.toURI)
+        graph2.storages should be(graph.storages)
+        graph2.stored should be(graph.stored)
+
         /* compare graph */
         graph2 should not be (null)
         graph2 should be(graph)

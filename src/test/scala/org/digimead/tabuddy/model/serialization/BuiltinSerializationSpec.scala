@@ -53,6 +53,7 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
     it("should provide serialization mechanism for graph") {
       withTempFolder { folder ⇒
         import TestDSL._
+
         // graph
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -82,6 +83,9 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         graph.stored should be('empty)
         val before = model.eBox.modified
         val timestamp1 = Serialization.freeze(graph)
+        val graphX = graph.copy() { g ⇒ }
+        graphX.storages should be(graph.storages)
+        graphX.stored should be(graph.stored)
         timestamp1 should be(graph.stored.last)
         timestamp1 should be(graph.node.modified)
         timestamp1 should be(graph.modified)
@@ -122,6 +126,9 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
 
         // deserialize
         val graph2 = Serialization.acquire(graph.origin, folder.toURI)
+        graph2.storages should be(graph.storages)
+        graph2.stored should be(graph.stored)
+
         /* compare graph */
         graph2 should not be (null)
         graph2 should be(graph)
@@ -308,8 +315,8 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
         record_level3_rel.eNode.safeRead(_.children) should be('empty)
 
         record_level3_rel.eReference should be(record_level3.eReference)
-        record_level3_rel.eReference.node.hashCode() should be(record_level3.eReference.node.hashCode())
         record_level3_rel.eReference.model.hashCode() should be(record_level3.eReference.model.hashCode())
+        record_level3_rel.eReference.node.hashCode() should be(record_level3.eReference.node.hashCode())
         record_level3_rel.eReference.origin.hashCode() should be(record_level3.eReference.origin.hashCode())
         record_level3_rel.eReference.coordinate.hashCode() should be(record_level3.eReference.coordinate.hashCode())
         record_level3_rel.eReference.hashCode() should be(record_level3.eReference.hashCode())

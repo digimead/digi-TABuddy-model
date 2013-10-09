@@ -135,7 +135,7 @@ class Serialization extends Serialization.Interface with Loggable {
             case Some(transport) ⇒
               val modelˈ = fTransform(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
               if (!graph.stored.contains(modelˈ.modified))
-                graph.stored = (graph.stored :+ modelˈ.modified).sorted
+                graph.stored = (graph.stored :+ modelˈ.modified).distinct.sorted
               transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ))
               freezeNode(modelˈ, storageURI, transport, fTransform, Seq(modelˈ))
               Some(modelˈ.modified)
@@ -552,6 +552,7 @@ object Serialization extends Loggable {
     lazy val graph = {
       val graph = new Graph[Model.Like](graphDescriptor.created, targetModelNode, graphDescriptor.origin)(modelTypeManifest)
       graph.storages ++= graphDescriptor.storages
+      graph.stored ++= graphDescriptor.stored
       graph
     }
 
