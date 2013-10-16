@@ -40,7 +40,7 @@ class YAMLSerialization extends Mechanism with Loggable {
    *
    * @return element
    */
-  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = {
+  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = synchronized {
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
@@ -64,7 +64,7 @@ class YAMLSerialization extends Mechanism with Loggable {
    * @param storageURI storage URI
    * @param ancestorsNSelf sequence of ancestors
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) {
+  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) = synchronized {
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, storageURI)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
@@ -77,7 +77,6 @@ class YAMLSerialization extends Mechanism with Loggable {
 }
 
 object YAMLSerialization extends Loggable {
-
   /** YAMLSerialization identifier. */
   object Identifier extends Serialization.Identifier { val extension = "yaml" }
 }
