@@ -42,7 +42,7 @@ import scala.language.implicitConversions
  * @param origin graph owner identifier
  */
 class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
-  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with mutable.Publisher[Event] with Equals {
+  val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with ConsumerData with mutable.Publisher[Event] with Equals {
   /**
    * HashMap for index of graph nodes.
    * Please, keep it consistent.

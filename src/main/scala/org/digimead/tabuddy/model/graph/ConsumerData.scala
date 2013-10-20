@@ -16,18 +16,16 @@
  * limitations under the License.
  */
 
-package org.digimead.tabuddy
+package org.digimead.tabuddy.model.graph
 
-import java.util.UUID
+import scala.collection.mutable
 
-import org.digimead.digi.lib.DependencyInjection
-import org.digimead.tabuddy.model.Model
+/** Consumer data for external needs. */
+trait ConsumerData {
+  /** Consumer data. */
+  @transient protected lazy val consumerData = mutable.HashMap[Any, Any]()
 
-import com.escalatesoft.subcut.inject.NewBindingModule
-
-package object model {
-  lazy val default = org.digimead.tabuddy.model.dsl.default ~
-    org.digimead.tabuddy.model.serialization.default ~
-    org.digimead.tabuddy.model.serialization.yaml.default
-  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.element.Reference$DI$")
+  /** Manipulate consumer data. */
+  def withData[A](f: mutable.HashMap[Any, Any] ⇒ A): A =
+    consumerData.synchronized { f(consumerData) }
 }

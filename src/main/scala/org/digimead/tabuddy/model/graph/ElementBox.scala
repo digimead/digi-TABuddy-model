@@ -60,7 +60,7 @@ import language.implicitConversions
  * (<- ElementBox <-> Element) is CG'ed part.
  */
 abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementUniqueId: UUID, initial: ⇒ Either[URI, A],
-  val node: Node[A], val serialization: Serialization.Identifier, unmodified: Element.Timestamp) extends Modifiable.Read with Equals {
+  val node: Node[A], val serialization: Serialization.Identifier, unmodified: Element.Timestamp) extends Modifiable.Read with ConsumerData with Equals {
   def this(coordinate: Coordinate, elementUniqueId: UUID, initial: Either[URI, AtomicReference[A]], node: Node[A],
     serialization: Serialization.Identifier, unmodified: Element.Timestamp) =
     this(coordinate, elementUniqueId, initial match {

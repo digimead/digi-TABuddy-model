@@ -40,7 +40,7 @@ import scala.language.implicitConversions
 /**
  * Node is a brick of graph.
  */
-trait Node[A <: Element] extends Modifiable.Write with Equals {
+trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals {
   /** Node element type. */
   val elementType: Manifest[A]
   /** Element verbose id. */
