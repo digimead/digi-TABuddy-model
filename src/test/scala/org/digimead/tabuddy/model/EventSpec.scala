@@ -35,11 +35,11 @@ import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.serialization.BuiltinSerialization
 import org.digimead.tabuddy.model.serialization.Serialization
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 
 import TestDSL._
 
-class EventSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
+class EventSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
@@ -212,5 +212,5 @@ class EventSpec extends FunSpec with ShouldMatchers with StorageHelper with Logg
 
     events should be('empty)
   }
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

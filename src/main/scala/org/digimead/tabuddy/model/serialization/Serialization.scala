@@ -387,10 +387,7 @@ object Serialization extends Loggable {
   def acquireLoaders(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None,
     fTransform: AcquireTransformation = defaultAcquireTransformation): Seq[Serialization.Loader] =
     inner.acquireGraph(origin, bootstrapStorageURI, fTransform, modified)
-  /**
-   * AcquasScalaBufferConverter
-   * import scala.collection.JavaConverters.seqAsJavaListConverterire transformation that keeps arguments unmodified.
-   */
+  /** Acquire transformation that keeps arguments unmodified. */
   def defaultAcquireTransformation(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Descriptor.Node[Element]) = nodeDescriptor
   /** Freeze transformation that keeps arguments unmodified. */
   def defaultFreezeTransformation(node: Node.ThreadUnsafe[Element]): Node.ThreadUnsafe[Element] = node

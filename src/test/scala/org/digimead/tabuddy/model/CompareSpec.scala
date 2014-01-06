@@ -31,9 +31,9 @@ import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 
-class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+class CompareSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
@@ -227,5 +227,5 @@ class CompareSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
   }
 
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

@@ -57,10 +57,9 @@ object Record extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    case class RecordLocation(val id: Symbol, val unique: Option[UUID] = None,
-      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Record],
+    case class RecordLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
+        val scope: Scope = Record.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Record],
         val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric {
-      val scope = Record.scope
       type ElementType = Record
     }
   }

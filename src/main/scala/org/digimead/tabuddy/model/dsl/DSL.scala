@@ -72,10 +72,11 @@ object DSL {
       }
     /** Retrieve child of the current element. */
     def &(l: LocationGeneric): l.ElementType =
+      elementAt(l) getOrElse { throw new NoSuchElementException(l.toString()) }
+    /** Retrieve child of the current element. */
+    def elementAt(l: LocationGeneric): Option[l.ElementType] =
       element.eFind[l.ElementType](e ⇒ e.eId == l.id && e.eCoordinate == l.coordinate &&
-        l.unique.map(_ == e.eNode.unique).getOrElse(true))(l.elementType).
-        getOrElse { throw new NoSuchElementException(l.toString()) }
-
+        l.unique.map(_ == e.eNode.unique).getOrElse(true))(l.elementType)
     /**
      * Create a new element or retrieve exists one, convert it to relative and apply fTransform to.
      */

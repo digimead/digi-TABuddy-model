@@ -71,29 +71,53 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
     try { ancestors(this, Seq()) }
     finally { rwl.readLock().unlock() }
   }
-  /** Copy this node and attach it to target. */
-  def copy[B <: Element](target: Node.ThreadUnsafe[B],
+  /** Copy this node and attach it to target if needed. */
+  def copy[B <: Element](attach: Boolean = true,
+    id: Symbol = this.id,
+    modified: Element.Timestamp = this.modified,
+    unique: UUID = this.unique,
     recursive: Boolean = true,
-    modified: Element.Timestamp = this.modified): Node[A] = safeRead { currentNode ⇒
-    implicit val m = elementType
-    val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
-      graph = target.graph,
-      parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
-      projectionBoxes = immutable.HashMap()), modified)
-    val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = currentNode.internalState.projectionBoxes.map {
-      case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
-    }.toSeq
-    assert(copyNode.modified == modified)
-    val children = if (recursive)
-      currentNode.internalState.children.map { _.copy(copyNode, recursive) }.toSeq
-    else
-      currentNode.internalState.children
-    copyNode.updateState(
-      children = children,
-      modified = null, // modification is already assigned
-      projectionBoxes = immutable.HashMap(projectionBoxes: _*))
-    copyNode.registerWithAncestors()
-    copyNode
+    target: Node.ThreadUnsafe[B] = null): Node[A] = safeRead { currentNode ⇒
+    def fn(target: Node.ThreadUnsafe[B]): Node[A] = {
+      implicit val m = elementType
+      val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
+        graph = target.graph,
+        parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
+        projectionBoxes = immutable.HashMap()), modified)
+      val projectionBoxes: Seq[(Coordinate, ElementBox[A])] = currentNode.internalState.projectionBoxes.map {
+        case (coordinate, box) ⇒ coordinate -> box.copy(node = copyNode)
+      }.toSeq
+      assert(copyNode.modified == modified)
+      val children = if (recursive) {
+        if (unique == this.unique)
+          currentNode.internalState.children.map { _.copy(attach = false, target = copyNode, recursive = recursive) }.toSeq
+        else
+          currentNode.internalState.children.map { _.copy(attach = false, target = copyNode, recursive = recursive, unique = UUID.randomUUID()) }.toSeq
+      } else
+        Seq()
+      copyNode.updateState(
+        children = children,
+        modified = null, // modification is already assigned
+        projectionBoxes = immutable.HashMap(projectionBoxes: _*))
+      copyNode.registerWithAncestors()
+      copyNode
+    }
+    if (target == null)
+      // Copy this node to the same parent.
+      currentNode.parent.getOrElse { throw new IllegalArgumentException("Parent not found.") }.safeWrite {
+        case target: Node.ThreadUnsafe[B] ⇒
+          val copyNode = fn(target)
+          if (attach)
+            target += fn(target)
+          copyNode
+      }
+    else {
+      // Copy this node to the different parent.
+      val copyNode = fn(target)
+      if (attach)
+        target += fn(target)
+      copyNode
+    }
   }
   /**
    * Lock this node and all child nodes.

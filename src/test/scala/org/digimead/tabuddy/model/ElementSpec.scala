@@ -18,33 +18,23 @@
 
 package org.digimead.tabuddy.model
 
+import TestDSL._
 import java.util.UUID
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.element.Axis.intToAxis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Stash
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.Value.int2someValue
+import org.digimead.tabuddy.model.element.Value.{ int2someValue, string2someValue }
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, Stash }
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.predef.Note
-import org.digimead.tabuddy.model.predef.Task
+import org.digimead.tabuddy.model.predef.{ Note, Task }
 import org.digimead.tabuddy.model.serialization.StubSerialization
-import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{ FunSpec, Matchers }
+import scala.language.implicitConversions
 
-import com.escalatesoft.subcut.inject.NewBindingModule
-
-import language.implicitConversions
-
-class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+class ElementSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
@@ -368,7 +358,7 @@ class ElementSpec extends FunSpec with ShouldMatchers with LoggingHelper with Lo
     }
   }
 
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }
 
 object ElementSpec {

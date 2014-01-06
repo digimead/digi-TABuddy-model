@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,24 +18,26 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import scala.collection.JavaConverters._
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
 import org.digimead.tabuddy.model.element.{ Coordinate ⇒ ECoordinate }
+import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.error.YAMLException
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.SequenceNode
-import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.nodes.{ Node, SequenceNode, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
+import scala.collection.JavaConverters.{ asScalaBufferConverter, asScalaIteratorConverter, seqAsJavaListConverter }
 
 object Coordinate extends Loggable {
   val tag = new Tag(Tag.PREFIX + "coord")
 
   /** Convert Coordinate to string. */
-  def dump(arg: ECoordinate): String = YAML.block.dump(arg).trim
+  def dump(arg: ECoordinate): String = YAMLSerialization.globalLock.synchronized {
+    YAML.block.dump(arg).trim
+  }
   /** Convert string to Coordinate. */
-  def load(arg: String): ECoordinate = YAML.block.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate]
+  def load(arg: String): ECoordinate = YAMLSerialization.globalLock.synchronized {
+    YAML.block.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate]
+  }
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Coordinate.tag, this)

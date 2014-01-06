@@ -33,9 +33,9 @@ import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.serialization.BuiltinSerialization
 import org.digimead.tabuddy.model.serialization.Serialization
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 
-class ReferenceSpec extends FunSpec with StorageHelper with ShouldMatchers with LoggingHelper with Loggable {
+class ReferenceSpec extends FunSpec with StorageHelper with Matchers with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
   before {
     DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)

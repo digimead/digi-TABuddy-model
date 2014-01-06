@@ -131,7 +131,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
        * Copy model children
        */
       targetNode.updateState(
-        children = sourceModelNode.children.map(_.copy(targetNode, true)),
+        children = sourceModelNode.children.map(_.copy(attach = false, target = targetNode, recursive = true)),
         modified = null, // modification is already assigned
         projectionBoxes = immutable.HashMap(projectionBoxes: _*))
     }

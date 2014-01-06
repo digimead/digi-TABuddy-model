@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class YAMLSerialization extends Mechanism with Loggable {
    *
    * @return element
    */
-  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = synchronized {
+  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = YAMLSerialization.globalLock.synchronized  {
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
@@ -64,7 +64,7 @@ class YAMLSerialization extends Mechanism with Loggable {
    * @param storageURI storage URI
    * @param ancestorsNSelf sequence of ancestors
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) = synchronized {
+  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) = YAMLSerialization.globalLock.synchronized {
     val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, storageURI)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
@@ -76,7 +76,53 @@ class YAMLSerialization extends Mechanism with Loggable {
   }
 }
 
+/*
+
+  java.util.NoSuchElementException:
+  at java.util.LinkedHashMap$LinkedHashIterator.nextEntry(LinkedHashMap.java:375)
+  at java.util.LinkedHashMap$ValueIterator.next(LinkedHashMap.java:388)
+  at org.yaml.snakeyaml.scanner.ScannerImpl.nextPossibleSimpleKey(ScannerImpl.java:436)
+  at org.yaml.snakeyaml.scanner.ScannerImpl.needMoreTokens(ScannerImpl.java:281)
+  at org.yaml.snakeyaml.scanner.ScannerImpl.checkToken(ScannerImpl.java:225)
+  at org.yaml.snakeyaml.parser.ParserImpl$ParseImplicitDocumentStart.produce(ParserImpl.java:195)
+  at org.yaml.snakeyaml.parser.ParserImpl.peekEvent(ParserImpl.java:158)
+  at org.yaml.snakeyaml.parser.ParserImpl.checkEvent(ParserImpl.java:143)
+  at org.yaml.snakeyaml.composer.Composer.getSingleNode(Composer.java:104)
+  at org.yaml.snakeyaml.constructor.BaseConstructor.getSingleData(BaseConstructor.java:120)
+  at org.yaml.snakeyaml.Yaml.loadFromReader(Yaml.java:481)
+  at org.yaml.snakeyaml.Yaml.loadAs(Yaml.java:458)
+
+  java.util.ConcurrentModificationException:
+  at java.util.LinkedHashMap$LinkedHashIterator.nextEntry(LinkedHashMap.java:373)
+  at java.util.LinkedHashMap$ValueIterator.next(LinkedHashMap.java:388)
+  at org.yaml.snakeyaml.scanner.ScannerImpl.stalePossibleSimpleKeys(ScannerImpl.java:455)
+  at org.yaml.snakeyaml.scanner.ScannerImpl.fetchMoreTokens(ScannerImpl.java:291)
+  at org.yaml.snakeyaml.scanner.ScannerImpl.checkToken(ScannerImpl.java:226)
+  at org.yaml.snakeyaml.parser.ParserImpl$ParseImplicitDocumentStart.produce(ParserImpl.java:195)
+  at org.yaml.snakeyaml.parser.ParserImpl.peekEvent(ParserImpl.java:158)
+  at org.yaml.snakeyaml.parser.ParserImpl.checkEvent(ParserImpl.java:143)
+  at org.yaml.snakeyaml.composer.Composer.getSingleNode(Composer.java:104)
+  at org.yaml.snakeyaml.constructor.BaseConstructor.getSingleData(BaseConstructor.java:120)
+
+  java.util.ConcurrentModificationException:
+  at java.util.AbstractList$Itr.checkForComodification(AbstractList.java:372)
+  at java.util.AbstractList$Itr.next(AbstractList.java:343)
+  at org.yaml.snakeyaml.serializer.Serializer.anchorNode(Serializer.java:142)
+  at org.yaml.snakeyaml.serializer.Serializer.anchorNode(Serializer.java:145)
+  at org.yaml.snakeyaml.serializer.Serializer.serialize(Serializer.java:108)
+  at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:272)
+  at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:262)
+  at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:234)
+  at org.yaml.snakeyaml.Yaml.dump(Yaml.java:209)
+  at org.digimead.tabuddy.model.serialization.Serialization.graphDescriptorToYAML(Serialization.scala:340)
+
+  :-( Shit. Wrong library. Replacement required.
+
+*/
+
 object YAMLSerialization extends Loggable {
+  /** SnakeYAML is unstable. */
+  val globalLock = new Object()
   /** YAMLSerialization identifier. */
   object Identifier extends Serialization.Identifier { val extension = "yaml" }
 }

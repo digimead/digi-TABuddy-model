@@ -52,10 +52,9 @@ object Task extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    case class TaskLocation(val id: Symbol, val unique: Option[UUID] = None,
-      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Task],
+    case class TaskLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
+      val scope: Scope = Task.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Task],
         val stashClass: Class[_ <: Task#StashType]) extends LocationGeneric {
-      val scope = Task.scope
       type ElementType = Task
     }
   }

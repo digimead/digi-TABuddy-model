@@ -179,9 +179,28 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
     eSet(id, typeSymbol, None)
   }
   /** Remove all property's values */
+  def eRemoveAll(): ElementType = {
+    Element.log.trace(s"Remove all property's values from $eId.")
+    if (eStash.property.nonEmpty) {
+      val modifiedElement = eCopy(eNode, eCoordinate, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
+      val undoF = () ⇒ {}
+      eGraph.publish(Event.ValueRemove(this, null)(undoF))
+      modifiedElement
+    } else
+      this.asInstanceOf[ElementType]
+  }
+  /** Remove all property's values */
   def eRemoveAll(id: Symbol): ElementType = {
     Element.log.trace(s"Remove all $id from $eId.")
-    eCopy(eNode, eCoordinate, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
+    eStash.property.get(id) match {
+      case Some(values) ⇒
+        val modifiedElement = eCopy(eNode, eCoordinate, this.eStash.copy(property = eStash.property - id).asInstanceOf[ElementType#StashType], eBox.serialization)
+        val undoF = () ⇒ {}
+        eGraph.publish(Event.ValueRemove(this, null)(undoF))
+        modifiedElement
+      case None ⇒
+        this.asInstanceOf[ElementType]
+    }
   }
   /** Get the root element from the current origin if any. */
   def eRoot: Element = eNode.rootBox.e

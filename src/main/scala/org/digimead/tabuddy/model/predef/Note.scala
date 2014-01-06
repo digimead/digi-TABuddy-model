@@ -54,10 +54,9 @@ object Note extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    case class NoteLocation(val id: Symbol, val unique: Option[UUID] = None,
-      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Note],
+    case class NoteLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
+      val scope: Scope = Note.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Note],
         val stashClass: Class[_ <: Note#StashType]) extends LocationGeneric {
-      val scope = Note.scope
       type ElementType = Note
     }
   }

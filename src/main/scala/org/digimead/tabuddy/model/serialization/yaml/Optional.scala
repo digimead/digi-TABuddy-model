@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,15 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import scala.collection.JavaConverters._
-import scala.collection.immutable
-import scala.collection.mutable
-
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.{ Element ⇒ EElement }
-import org.digimead.tabuddy.model.element.{ Stash ⇒ EStash }
+import org.digimead.tabuddy.model.element.{ Element ⇒ EElement, Stash ⇒ EStash }
+import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.error.YAMLException
-import org.yaml.snakeyaml.nodes.MappingNode
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.SequenceNode
-import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.nodes.{ Node, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
+import scala.collection.JavaConverters.mapAsScalaMapConverter
+import scala.collection.{ immutable, mutable }
 
 /** Container for optional information: Value Id -> Type Id -> (Static/Dynamic) */
 case class Optional(values: immutable.HashMap[scala.Symbol, immutable.HashMap[scala.Symbol, (Boolean)]])
@@ -40,7 +35,9 @@ object Optional {
   val tag = new Tag(Tag.PREFIX + "optional")
 
   /** Convert Optional to string. */
-  def dump(arg: Optional): String = YAML.block.dump(arg).trim
+  def dump(arg: Optional): String = YAMLSerialization.globalLock.synchronized {
+    YAML.block.dump(arg).trim
+  }
   /** Get optional container from element. */
   def getOptional(element: EElement): Optional = getOptional(element.eStash)
   /** Get optional container from stash. */
@@ -58,7 +55,9 @@ object Optional {
     Optional(perElement)
   }
   /** Convert string to Optional. */
-  def load(arg: String): Optional = YAML.block.loadAs(arg, classOf[Optional]).asInstanceOf[Optional]
+  def load(arg: String): Optional = YAMLSerialization.globalLock.synchronized {
+    YAML.block.loadAs(arg, classOf[Optional]).asInstanceOf[Optional]
+  }
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Optional.tag, this)

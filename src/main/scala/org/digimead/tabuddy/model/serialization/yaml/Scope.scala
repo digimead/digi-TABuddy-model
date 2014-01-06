@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,22 +18,25 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import scala.collection.JavaConverters._
-
 import org.digimead.tabuddy.model.element.{ Element ⇒ EElement }
+import org.digimead.tabuddy.model.element.Element.Scope
+import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.error.YAMLException
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.SequenceNode
-import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.nodes.{ Node, SequenceNode, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
+import scala.collection.JavaConverters.seqAsJavaListConverter
 
 object Scope {
   val tag = new Tag(Tag.PREFIX + "scope")
 
   /** Convert Scope to string. */
-  def dump(arg: EElement.Scope): String = YAML.block.dump(arg).trim
+  def dump(arg: EElement.Scope): String = YAMLSerialization.globalLock.synchronized {
+    YAML.block.dump(arg).trim
+  }
   /** Convert string to Scope. */
-  def load(arg: String): EElement.Scope = YAML.block.loadAs(arg, classOf[EElement.Scope]).asInstanceOf[EElement.Scope]
+  def load(arg: String): EElement.Scope = YAMLSerialization.globalLock.synchronized {
+    YAML.block.loadAs(arg, classOf[EElement.Scope]).asInstanceOf[EElement.Scope]
+  }
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Scope.tag, this)

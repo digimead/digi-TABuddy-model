@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,14 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import scala.collection.immutable
-import scala.collection.mutable
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
 import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
+import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.error.YAMLException
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.nodes.{ Node, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
+import scala.collection.{ immutable, mutable }
 
 /**
  * YAML de/serialization helper for Axis.
@@ -37,10 +34,11 @@ object Axis extends Loggable {
   val tag = new Tag(Tag.PREFIX + "axis")
 
   /** Convert Axis to string. */
-  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAML.block.dump(arg).trim
+  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAMLSerialization.globalLock.synchronized { YAML.block.dump(arg).trim }
   /** Convert string to Axis. */
-  def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] =
+  def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] = YAMLSerialization.globalLock.synchronized {
     YAML.block.loadAs(arg, classOf[EAxis[_ <: AnyRef with java.io.Serializable]]).asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]]
+  }
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Axis.tag, this)

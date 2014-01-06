@@ -18,24 +18,11 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import scala.collection.mutable
-import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.lib.test.LoggingHelper
-import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.ModelIndex
-import org.digimead.tabuddy.model.Record
-import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.element.Value
-import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
-import org.digimead.lib.test.StorageHelper
-import org.digimead.tabuddy.model.TestDSL
-import org.digimead.tabuddy.model.graph.Graph
-import java.util.UUID
 import java.io.File
 import java.util.UUID
+
 import scala.collection.immutable
+
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
@@ -44,7 +31,10 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.Record
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.dsl.DSLType
+import org.digimead.tabuddy.model.element.Axis
+import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.element.Value
 import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.Graph
@@ -53,14 +43,9 @@ import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
-import org.digimead.tabuddy.model.serialization
-import org.digimead.tabuddy.model.element.Axis
-import scala.collection.JavaConverters._
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Reference
+import org.scalatest.Matchers
 
-class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
+class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
   before {
     DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
@@ -541,5 +526,5 @@ class YAMLSerializationSpec extends FunSpec with ShouldMatchers with StorageHelp
     }
   }
 
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

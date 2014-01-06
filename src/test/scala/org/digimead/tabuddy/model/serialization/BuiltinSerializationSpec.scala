@@ -40,9 +40,9 @@ import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 
-class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageHelper with LoggingHelper with Loggable {
+class BuiltinSerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
   before {
     DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
@@ -447,5 +447,5 @@ class BuiltinSerializationSpec extends FunSpec with ShouldMatchers with StorageH
     }
   }
 
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

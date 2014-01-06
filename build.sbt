@@ -19,7 +19,7 @@ import sbt.osgi.manager._
 
 OSGiManager ++ sbtprotobuf.ProtobufPlugin.protobufSettings //  ++ sbt.scct.ScctPlugin.instrumentSettings
 
-name := "Digi-TABuddy-Model"
+name := "digi-tabuddy-model"
 
 description := "TABuddy data model"
 
@@ -81,7 +81,7 @@ libraryDependencies ++= Seq(
 
 parallelExecution in Test := false
 
-testGrouping <<= (definedTests in Test) map { tests =>
+testGrouping in Test <<= (definedTests in Test) map { tests =>
   tests map { test =>
     new Tests.Group(
       name = test.name,

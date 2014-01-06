@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,23 +18,17 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import scala.collection.JavaConverters._
-import scala.collection.immutable
-import scala.collection.mutable
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
-import org.digimead.tabuddy.model.element.{ Element ⇒ EElement }
-import org.digimead.tabuddy.model.element.{ Stash ⇒ EStash }
+import org.digimead.tabuddy.model.element.{ Element ⇒ EElement, Stash ⇒ EStash }
 import org.digimead.tabuddy.model.element.Stash.Like
 import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.serialization.Serialization
+import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
 import org.yaml.snakeyaml.error.YAMLException
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.SequenceNode
-import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.nodes.{ Node, SequenceNode, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
+import scala.collection.{ immutable, mutable }
+import scala.collection.JavaConverters.{ asScalaBufferConverter, seqAsJavaListConverter }
 
 /**
  * YAML de/serialization helper for Stash.
@@ -45,9 +39,13 @@ object Stash extends Loggable {
   val defaultStatic = true
 
   /** Convert Stash to string. */
-  def dump(arg: EStash.Like): String = YAML.block.dump(arg).trim
+  def dump(arg: EStash.Like): String = YAMLSerialization.globalLock.synchronized {
+    YAML.block.dump(arg).trim
+  }
   /** Convert string to Stash. */
-  def load(arg: String): EStash.Like = YAML.block.loadAs(arg, classOf[EStash.Like]).asInstanceOf[EStash.Like]
+  def load(arg: String): EStash.Like = YAMLSerialization.globalLock.synchronized {
+    YAML.block.loadAs(arg, classOf[EStash.Like]).asInstanceOf[EStash.Like]
+  }
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Stash.tag, this)

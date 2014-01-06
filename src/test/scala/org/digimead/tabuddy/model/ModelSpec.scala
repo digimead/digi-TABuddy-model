@@ -29,11 +29,11 @@ import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 
 import com.escalatesoft.subcut.inject.NewBindingModule
 
-class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+class ModelSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   after { adjustLoggingAfter }
   before {
@@ -84,7 +84,33 @@ class ModelSpec extends FunSpec with ShouldMatchers with LoggingHelper with Logg
       q.eSet[String]('abc, "abc")
       graph.modified should be > (m2)
     }
+    it("should proper nodes copy functions") {
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val rA1 = model1.takeRecord('rA) { r ⇒
+        r.takeRecord('rB) { r ⇒
+          r.takeRecord('rLeaf) { r ⇒
+            r.name = "123"
+          }
+        }
+      }.eRelative
+      graph.node.safeRead(_.iteratorRecursive.size) should be(3)
+      val rA2Node = rA1.eNode.copy(id = 'rA2, unique = UUID.randomUUID())
+      rA1.eNode.safeRead { node ⇒
+        rA2Node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒
+            a.ne(b) && a.unique != b.unique && a.id == b.id && a.modified == b.modified && a.elementType == b.elementType
+          }
+        }
+      } should be(true)
+      graph.node.safeRead(_.iteratorRecursive.size) should be(6)
+      val rA3Node = rA1.eNode.copy(id = 'rA3, unique = UUID.randomUUID(), recursive = false)
+      println(model1.eDump(true))
+      graph.node.safeRead(_.iteratorRecursive.size) should be(7)
+    }
   }
 
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

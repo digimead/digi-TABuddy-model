@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,27 +18,15 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import java.io.Writer
-
-import scala.Option.option2Iterable
-import scala.collection.JavaConverters._
-import scala.collection.immutable
-import scala.collection.mutable
-
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
-import org.yaml.snakeyaml.DumperOptions
-import org.yaml.snakeyaml.Yaml
-import org.yaml.snakeyaml.constructor.Construct
-import org.yaml.snakeyaml.constructor.{ Constructor ⇒ YAMLConstructor }
+import org.yaml.snakeyaml.{ DumperOptions, Yaml }
+import org.yaml.snakeyaml.constructor.{ Construct, Constructor ⇒ YAMLConstructor }
 import org.yaml.snakeyaml.error.YAMLException
-import org.yaml.snakeyaml.nodes.MappingNode
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.ScalarNode
-import org.yaml.snakeyaml.nodes.SequenceNode
-import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.Represent
-import org.yaml.snakeyaml.representer.{ Representer ⇒ YAMLRepresenter }
+import org.yaml.snakeyaml.nodes.{ MappingNode, Node, ScalarNode, SequenceNode, Tag }
+import org.yaml.snakeyaml.representer.{ Represent, Representer ⇒ YAMLRepresenter }
+import scala.collection.{ immutable, mutable }
+import scala.collection.JavaConverters.{ asScalaBufferConverter, iterableAsScalaIterableConverter, mapAsScalaMapConverter }
 
 /**
  * Provide YAML API for application.

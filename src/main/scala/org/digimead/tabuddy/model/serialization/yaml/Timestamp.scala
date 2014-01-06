@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,9 @@
 package org.digimead.tabuddy.model.serialization.yaml
 
 import org.digimead.tabuddy.model.element.Element
-import org.yaml.snakeyaml.Yaml
+import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.constructor.AbstractConstruct
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.ScalarNode
-import org.yaml.snakeyaml.nodes.Tag
+import org.yaml.snakeyaml.nodes.{ Node, ScalarNode, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 /**
@@ -33,9 +31,13 @@ object Timestamp {
   val tag = new Tag(Tag.PREFIX + "ts")
 
   /** Convert Element.Timestamp to string. */
-  def dump(arg: Element.Timestamp): String = YAML.block.dump(arg).trim
+  def dump(arg: Element.Timestamp): String = YAMLSerialization.globalLock.synchronized {
+    YAML.block.dump(arg).trim
+  }
   /** Convert string to Element.Timestamp. */
-  def load(arg: String): Element.Timestamp = YAML.block.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
+  def load(arg: String): Element.Timestamp = YAMLSerialization.globalLock.synchronized {
+    YAML.block.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
+  }
 
   class Construct extends AbstractConstruct {
     YAML.constructor.getYAMLConstructors.put(Timestamp.tag, this)

@@ -32,9 +32,9 @@ import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.Value
 //import org.digimead.tabuddy.model.predef.Note
 import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.Matchers
 
-class ProtobufSerializationSpec extends FunSpec with ShouldMatchers with LoggingHelper with Loggable {
+class ProtobufSerializationSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   after { adjustLoggingAfter }
   before {
     DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
@@ -245,5 +245,5 @@ class ProtobufSerializationSpec extends FunSpec with ShouldMatchers with Logging
     }
   }
 
-  override def beforeAll(configMap: Map[String, Any]) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

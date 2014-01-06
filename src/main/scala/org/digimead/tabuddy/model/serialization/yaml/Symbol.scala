@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,11 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
+import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.constructor.AbstractConstruct
-import org.yaml.snakeyaml.nodes.Node
-import org.yaml.snakeyaml.nodes.ScalarNode
-import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 import org.yaml.snakeyaml.error.YAMLException
+import org.yaml.snakeyaml.nodes.{ Node, ScalarNode, Tag }
+import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 
 /**
  * YAML de/serialization helper for scala.Symbol.
@@ -32,9 +31,13 @@ object Symbol {
   val tag = new Tag(Tag.PREFIX + "sym")
 
   /** Convert Symbol to string. */
-  def dump(arg: scala.Symbol): String = YAML.block.dump(arg).trim
+  def dump(arg: scala.Symbol): String = YAMLSerialization.globalLock.synchronized {
+    YAML.block.dump(arg).trim
+  }
   /** Convert string to Symbol. */
-  def load(arg: String): scala.Symbol = YAML.block.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
+  def load(arg: String): scala.Symbol = YAMLSerialization.globalLock.synchronized {
+    YAML.block.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol]
+  }
 
   class Construct extends AbstractConstruct {
     YAML.constructor.getYAMLConstructors.put(Symbol.tag, this)
