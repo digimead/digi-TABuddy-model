@@ -30,13 +30,10 @@ object Scope {
   val tag = new Tag(Tag.PREFIX + "scope")
 
   /** Convert Scope to string. */
-  def dump(arg: EElement.Scope): String = YAMLSerialization.globalLock.synchronized {
-    YAML.block.dump(arg).trim
-  }
+  def dump(arg: EElement.Scope): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
   /** Convert string to Scope. */
-  def load(arg: String): EElement.Scope = YAMLSerialization.globalLock.synchronized {
-    YAML.block.loadAs(arg, classOf[EElement.Scope]).asInstanceOf[EElement.Scope]
-  }
+  def load(arg: String): EElement.Scope = YAMLSerialization.snakeYAMLShitCatcher(
+    YAML.block.loadAs(arg, classOf[EElement.Scope]).asInstanceOf[EElement.Scope], arg)
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Scope.tag, this)

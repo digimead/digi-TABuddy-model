@@ -28,13 +28,10 @@ object Property {
   val tag = new Tag(Tag.PREFIX + "property")
 
   /** Convert Stash to string. */
-  def dump(arg: Wrapper): String = YAMLSerialization.globalLock.synchronized {
-    YAML.block.dump(arg).trim
-  }
+  def dump(arg: Wrapper): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
   /** Convert string to Stash. */
-  def load(arg: String): Wrapper = YAMLSerialization.globalLock.synchronized {
-    YAML.block.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper]
-  }
+  def load(arg: String): Wrapper = YAMLSerialization.snakeYAMLShitCatcher(
+    YAML.block.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper], arg)
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Property.tag, this)

@@ -31,13 +31,10 @@ object UUID {
   val tag = new Tag(Tag.PREFIX + "uuid")
 
   /** Convert UUID to string. */
-  def dump(arg: JUUID): String = YAMLSerialization.globalLock.synchronized {
-    YAML.block.dump(arg).trim
-  }
+  def dump(arg: JUUID): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
   /** Convert string to UUID. */
-  def load(arg: String): JUUID = YAMLSerialization.globalLock.synchronized {
-    YAML.block.loadAs(arg, classOf[JUUID]).asInstanceOf[JUUID]
-  }
+  def load(arg: String): JUUID = YAMLSerialization.snakeYAMLShitCatcher(
+    YAML.block.loadAs(arg, classOf[JUUID]).asInstanceOf[JUUID], arg)
 
   class Construct extends AbstractConstruct {
     YAML.constructor.getYAMLConstructors.put(UUID.tag, this)

@@ -31,13 +31,10 @@ object Timestamp {
   val tag = new Tag(Tag.PREFIX + "ts")
 
   /** Convert Element.Timestamp to string. */
-  def dump(arg: Element.Timestamp): String = YAMLSerialization.globalLock.synchronized {
-    YAML.block.dump(arg).trim
-  }
+  def dump(arg: Element.Timestamp): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
   /** Convert string to Element.Timestamp. */
-  def load(arg: String): Element.Timestamp = YAMLSerialization.globalLock.synchronized {
-    YAML.block.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp]
-  }
+  def load(arg: String): Element.Timestamp = YAMLSerialization.snakeYAMLShitCatcher(
+    YAML.block.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp], arg)
 
   class Construct extends AbstractConstruct {
     YAML.constructor.getYAMLConstructors.put(Timestamp.tag, this)
