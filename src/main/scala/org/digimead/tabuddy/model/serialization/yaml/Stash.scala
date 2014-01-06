@@ -39,9 +39,9 @@ object Stash extends Loggable {
   val defaultStatic = true
 
   /** Convert Stash to string. */
-  def dump(arg: EStash.Like): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: EStash.Like): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Stash. */
-  def load(arg: String): EStash.Like = YAMLSerialization.snakeYAMLShitCatcher(
+  def load(arg: String): EStash.Like = YAMLSerialization.wrapper(
     YAML.block.loadAs(arg, classOf[EStash.Like]).asInstanceOf[EStash.Like], arg)
 
   class Construct extends YAML.constructor.CustomConstruct {

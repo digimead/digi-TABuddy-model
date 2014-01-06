@@ -31,9 +31,9 @@ object Timestamp {
   val tag = new Tag(Tag.PREFIX + "ts")
 
   /** Convert Element.Timestamp to string. */
-  def dump(arg: Element.Timestamp): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: Element.Timestamp): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Element.Timestamp. */
-  def load(arg: String): Element.Timestamp = YAMLSerialization.snakeYAMLShitCatcher(
+  def load(arg: String): Element.Timestamp = YAMLSerialization.wrapper(
     YAML.block.loadAs(arg, classOf[Element.Timestamp]).asInstanceOf[Element.Timestamp], arg)
 
   class Construct extends AbstractConstruct {

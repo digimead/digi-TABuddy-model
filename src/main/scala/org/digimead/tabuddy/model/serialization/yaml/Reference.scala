@@ -33,9 +33,9 @@ object Reference extends Loggable {
   val tag = new Tag(Tag.PREFIX + "ref")
 
   /** Convert Reference to string. */
-  def dump(arg: EReference): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: EReference): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Reference. */
-  def load(arg: String): EReference = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.loadAs(arg, classOf[EReference]).asInstanceOf[EReference], arg)
+  def load(arg: String): EReference = YAMLSerialization.wrapper(YAML.block.loadAs(arg, classOf[EReference]).asInstanceOf[EReference], arg)
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Reference.tag, this)

@@ -31,9 +31,9 @@ object Coordinate extends Loggable {
   val tag = new Tag(Tag.PREFIX + "coord")
 
   /** Convert Coordinate to string. */
-  def dump(arg: ECoordinate): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: ECoordinate): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Coordinate. */
-  def load(arg: String): ECoordinate = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate], arg)
+  def load(arg: String): ECoordinate = YAMLSerialization.wrapper(YAML.block.loadAs(arg, classOf[ECoordinate]).asInstanceOf[ECoordinate], arg)
 
   class Construct extends YAML.constructor.ConstructSequence {
     YAML.constructor.getYAMLConstructors.put(Coordinate.tag, this)

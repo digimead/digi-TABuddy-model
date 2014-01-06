@@ -28,9 +28,9 @@ object Property {
   val tag = new Tag(Tag.PREFIX + "property")
 
   /** Convert Stash to string. */
-  def dump(arg: Wrapper): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: Wrapper): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Stash. */
-  def load(arg: String): Wrapper = YAMLSerialization.snakeYAMLShitCatcher(
+  def load(arg: String): Wrapper = YAMLSerialization.wrapper(
     YAML.block.loadAs(arg, classOf[Wrapper]).asInstanceOf[Wrapper], arg)
 
   class Construct extends YAML.constructor.ConstructSequence {

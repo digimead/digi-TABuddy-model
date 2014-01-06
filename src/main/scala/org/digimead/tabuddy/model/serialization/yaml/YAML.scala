@@ -56,6 +56,12 @@ object YAML extends Loggable {
     options
   }
 
+  /*
+   * We MUST recreate SnakeYAML instances for every operation since
+   * a garbage from the previous one may affect the next one.
+   *
+   * Also all (de)serialization operations MUST be wrapped with YAMLSerialization.wrapper
+   */
   /** Create the new serializer each time. Prevents overflow. */
   def block = new Yaml(DI.constructor, DI.representer, blockOption)
   /** Create the new serializer each time. Prevents overflow. */

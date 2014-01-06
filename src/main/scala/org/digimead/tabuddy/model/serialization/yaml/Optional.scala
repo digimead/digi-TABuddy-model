@@ -35,7 +35,7 @@ object Optional {
   val tag = new Tag(Tag.PREFIX + "optional")
 
   /** Convert Optional to string. */
-  def dump(arg: Optional): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: Optional): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Get optional container from element. */
   def getOptional(element: EElement): Optional = getOptional(element.eStash)
   /** Get optional container from stash. */
@@ -53,7 +53,7 @@ object Optional {
     Optional(perElement)
   }
   /** Convert string to Optional. */
-  def load(arg: String): Optional = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.loadAs(arg, classOf[Optional]).asInstanceOf[Optional], arg)
+  def load(arg: String): Optional = YAMLSerialization.wrapper(YAML.block.loadAs(arg, classOf[Optional]).asInstanceOf[Optional], arg)
 
   class Construct extends YAML.constructor.CustomConstruct {
     YAML.constructor.getYAMLConstructors.put(Optional.tag, this)

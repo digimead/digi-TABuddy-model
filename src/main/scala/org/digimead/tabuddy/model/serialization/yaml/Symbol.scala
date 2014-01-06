@@ -31,9 +31,9 @@ object Symbol {
   val tag = new Tag(Tag.PREFIX + "sym")
 
   /** Convert Symbol to string. */
-  def dump(arg: scala.Symbol): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: scala.Symbol): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Symbol. */
-  def load(arg: String): scala.Symbol = YAMLSerialization.snakeYAMLShitCatcher(
+  def load(arg: String): scala.Symbol = YAMLSerialization.wrapper(
     YAML.block.loadAs(arg, classOf[scala.Symbol]).asInstanceOf[scala.Symbol], arg)
 
   class Construct extends AbstractConstruct {

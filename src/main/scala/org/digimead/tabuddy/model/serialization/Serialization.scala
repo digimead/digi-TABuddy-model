@@ -271,8 +271,8 @@ class Serialization extends Serialization.Interface with Loggable {
     }
   }
   /** Create element descriptor from YAML. */
-  protected def elementDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Element[_ <: Element] =
-    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]])
+  protected def elementDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Element[_ <: Element] = YAMLSerialization.wrapper(
+    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]]), descriptor)
   /** Create YAML element descriptor. */
   protected def elementDescriptorToYAML(elementBox: ElementBox[_ <: Element]): Array[Byte] = {
     val descriptorMap = new java.util.TreeMap[String, AnyRef]()
@@ -281,7 +281,7 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("element_unique_id", elementBox.elementUniqueId)
     descriptorMap.put("modified", elementBox.modified)
     descriptorMap.put("serialization_identifier", elementBox.serialization.extension)
-    yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
+    YAMLSerialization.wrapper(yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet), descriptorMap)
   }
   /** Internal method that saves the element content. */
   protected def freezeElementBox(elementBox: ElementBox[_ <: Element], storageURI: URI,
@@ -324,8 +324,8 @@ class Serialization extends Serialization.Interface with Loggable {
     })
   }
   /** Create element descriptor from YAML. */
-  protected def graphDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Graph[_ <: Model.Like] =
-    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Graph[_ <: Model.Like]])
+  protected def graphDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Graph[_ <: Model.Like] = YAMLSerialization.wrapper(
+    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Graph[_ <: Model.Like]]), descriptor)
   /** Create YAML graph descriptor. */
   protected def graphDescriptorToYAML(model: Node.ThreadUnsafe[_ <: Model.Like]): Array[Byte] = {
     val storages = model.graph.storages.map(_.toString).asJava
@@ -337,11 +337,11 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("origin", model.graph.origin)
     descriptorMap.put("storages", storages)
     descriptorMap.put("stored", model.graph.stored.asJava)
-    yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
+    YAMLSerialization.wrapper(yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet), descriptorMap)
   }
   /** Create node descriptor from YAML content. */
-  protected def nodeDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Node[_ <: Element] =
-    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Node[_ <: Element]])
+  protected def nodeDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Node[_ <: Element] = YAMLSerialization.wrapper(
+    yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Node[_ <: Element]]), descriptor)
   /** Create YAML node descriptor. */
   protected def nodeDescriptorToYAML(elementType: Manifest[_ <: Element], id: Symbol, modified: Element.Timestamp, state: NodeState[_ <: Element],
     unique: UUID, fTransform: Serialization.FreezeTransformation): Array[Byte] = {
@@ -358,7 +358,7 @@ class Serialization extends Serialization.Interface with Loggable {
     descriptorMap.put("id", id.name)
     descriptorMap.put("modified", modified)
     descriptorMap.put("unique", unique.toString())
-    yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet)
+    YAMLSerialization.wrapper(yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet), descriptorMap)
   }
 }
 

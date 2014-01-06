@@ -52,10 +52,10 @@ class YAMLSerialization extends Mechanism with Loggable {
     log.debug(s"Load optional ${elementBox} from ${optionalURI}.")
     val optionalContent = transport.read(optionalURI)
     val optionalYAML = new String(optionalContent, io.Codec.UTF8.charSet)
-    val optional = YAMLSerialization.snakeYAMLShitCatcher(yaml.YAML.block.loadAs(optionalYAML, classOf[yaml.Optional]).asInstanceOf[yaml.Optional], optionalYAML)
+    val optional = YAMLSerialization.wrapper(yaml.YAML.block.loadAs(optionalYAML, classOf[yaml.Optional]).asInstanceOf[yaml.Optional], optionalYAML)
     Serialization.stash.set(optional)
     val stashYAML = new String(elementContent, io.Codec.UTF8.charSet)
-    val stash = YAMLSerialization.snakeYAMLShitCatcher(yaml.YAML.block.loadAs(stashYAML, classOf[Stash.Like]).asInstanceOf[A#StashType], stashYAML)
+    val stash = YAMLSerialization.wrapper(yaml.YAML.block.loadAs(stashYAML, classOf[Stash.Like]).asInstanceOf[A#StashType], stashYAML)
     Element(elementBox, stash)
   }
   /**
@@ -72,13 +72,15 @@ class YAMLSerialization extends Mechanism with Loggable {
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     val optional = yaml.Optional.getOptional(element.eStash)
     log.debug(s"Save ${element.eBox} to ${elementURI}.")
-    transport.write(YAMLSerialization.snakeYAMLShitCatcher(yaml.YAML.block.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), element.eStash), elementURI)
+    transport.write(YAMLSerialization.wrapper(yaml.YAML.block.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), element.eStash), elementURI)
     log.debug(s"Save optional ${element.eBox} to ${optionalURI}.")
-    transport.write(YAMLSerialization.snakeYAMLShitCatcher(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optional), optionalURI)
+    transport.write(YAMLSerialization.wrapper(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optional), optionalURI)
   }
 }
 
 /*
+
+  SnakeYAML isn't thread safe. Even different instances.
 
   org.yaml.snakeyaml.parser.ParserException: null; expected '<document start>', but found Scalar;  in 'string', line 1, column 15:
     created: 143673A05FEms.671FF263ns
@@ -149,27 +151,19 @@ class YAMLSerialization extends Mechanism with Loggable {
 
 object YAMLSerialization extends Loggable {
   /** SnakeYAML is unstable. */
-  val globalLock = new Object()
-  /** YAMLSerialization identifier. */
-  object Identifier extends Serialization.Identifier { val extension = "yaml" }
+  protected val globalLock = new Object()
 
-  def snakeYAMLShitCatcher[T](f: ⇒ T, from: Any) = globalLock.synchronized {
+  /**
+   * SnakeYAML wrapper that make operations thread safe
+   */
+  def wrapper[T](f: ⇒ T, from: Any) = globalLock.synchronized {
     try f catch {
       case e: Throwable ⇒
-        // re launch with the same arguments #2
-        val loaded = try f catch {
-          case e: Throwable ⇒
-            // re launch with the same arguments #3
-            try f catch {
-              case e: Throwable ⇒
-                log.error("YAML error at: --->" + from + "<---", e)
-                throw e
-            }
-        }
-        log.error("TODO: replace SnakeYAML with sowething more stable.\n" +
-          "From: --->" + from + "<---\n" +
-          "To: " + loaded, e)
-        loaded
+        log.error("YAML error at: --->" + from + "<---", e)
+        throw e
     }
   }
+
+  /** YAMLSerialization identifier. */
+  object Identifier extends Serialization.Identifier { val extension = "yaml" }
 }

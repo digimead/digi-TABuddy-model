@@ -34,9 +34,9 @@ object Axis extends Loggable {
   val tag = new Tag(Tag.PREFIX + "axis")
 
   /** Convert Axis to string. */
-  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAMLSerialization.snakeYAMLShitCatcher(YAML.block.dump(arg).trim, arg)
+  def dump(arg: EAxis[_ <: AnyRef with java.io.Serializable]): String = YAMLSerialization.wrapper(YAML.block.dump(arg).trim, arg)
   /** Convert string to Axis. */
-  def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] = YAMLSerialization.snakeYAMLShitCatcher(
+  def load(arg: String): EAxis[_ <: AnyRef with java.io.Serializable] = YAMLSerialization.wrapper(
     YAML.block.loadAs(arg, classOf[EAxis[_ <: AnyRef with java.io.Serializable]]).asInstanceOf[EAxis[_ <: AnyRef with java.io.Serializable]], arg)
 
   class Construct extends YAML.constructor.CustomConstruct {
