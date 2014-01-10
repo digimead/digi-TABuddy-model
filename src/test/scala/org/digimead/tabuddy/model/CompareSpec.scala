@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +19,14 @@
 package org.digimead.tabuddy.model
 
 import java.util.UUID
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Value.string2someValue
-import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
-import org.digimead.tabuddy.model.element.compare.CompareByTimestampAndThenContent
+import org.digimead.tabuddy.model.element.compare.{ CompareByTimespamp, CompareByTimestampAndThenContent }
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.serialization.StubSerialization
-import org.scalatest.FunSpec
-import org.scalatest.Matchers
+import org.scalatest.{ FunSpec, Matchers }
 
 class CompareSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
@@ -155,14 +150,15 @@ class CompareSpec extends FunSpec with Matchers with LoggingHelper with Loggable
         val rA2 = (model2 & RecordLocation('rA)).eRelative
         val rB2 = (rA2 & RecordLocation('rB)).eRelative
         val rLeaf2 = (rB2 & RecordLocation('rLeaf)).eRelative
+        model1.absolute should be(model2.absolute)
 
         CompareByTimestampAndThenContent.doWith {
           Element.comparator.value should be(CompareByTimestampAndThenContent)
           rB1.compare(rA1) should be(1) // rB1 modified after rA1 record
-          model1.absolute should not be (model2.absolute)
-          rA1.absolute should not be (rA2.absolute)
-          rB1.absolute should not be (rB2.absolute)
-          rLeaf1.absolute should not be (rLeaf2.absolute)
+          model1.absolute should be(model2.absolute)
+          rA1.absolute should be(rA2.absolute)
+          rB1.absolute should be(rB2.absolute)
+          rLeaf1.absolute should be(rLeaf2.absolute)
           model1.eModel.eq(model1.absolute) should be(true)
           model2.eModel.eq(model2.absolute) should be(true)
           model1.compare(model2) should be(0)
@@ -183,7 +179,7 @@ class CompareSpec extends FunSpec with Matchers with LoggingHelper with Loggable
 
           // modify model
           model1.compare(model2) should be(0)
-          model1 should not be (model2)
+          model1 should be(model2)
           model1.name = "111"
           model1.compare(model2) should be(1) // model1 modified after Model
           model1 should not be (model2)

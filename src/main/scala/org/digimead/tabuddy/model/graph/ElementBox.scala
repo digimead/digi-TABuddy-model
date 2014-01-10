@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,11 +69,12 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
     }, node, serialization, unmodified)
   /** Copy current element box. */
   def copy(coordinate: Coordinate = this.coordinate,
+    elementUniqueId: UUID = this.elementUniqueId,
     node: Node[A] = this.node,
     serialization: Serialization.Identifier = this.serialization): ElementBox[A] = {
     val element = this.e
     val elementForwardReference = new AtomicReference[A](null.asInstanceOf[A])
-    val elementBox = ElementBox[A](coordinate, UUID.randomUUID(), Right(elementForwardReference),
+    val elementBox = ElementBox[A](coordinate, elementUniqueId, Right(elementForwardReference),
       element.modified)(elementType = node.elementType, node = node, serialization = serialization)
     val elementCopy = Element[A](elementBox, element.eStash.asInstanceOf[A#StashType])(node.elementType)
     elementForwardReference.set(elementCopy)

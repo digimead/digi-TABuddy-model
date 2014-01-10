@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,35 +18,23 @@
 
 package org.digimead.tabuddy.model.serialization
 
+import java.io.IOException
 import java.net.URI
-import java.util.LinkedHashMap
 import java.util.UUID
-import java.util.concurrent.locks.ReentrantReadWriteLock
-
-import scala.Option.option2Iterable
-import scala.collection.JavaConverters._
-import scala.collection.immutable
-import scala.collection.mutable
-import scala.ref.WeakReference
-
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.element.{ Coordinate, Element }
+import org.digimead.tabuddy.model.graph.{ Graph, Node }
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
-import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.graph.NodeState
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.YAML
-import org.yaml.snakeyaml.nodes.SequenceNode
-import org.yaml.snakeyaml.nodes.Tag
-import org.yaml.snakeyaml.nodes.{ Node ⇒ YAMLNode }
-
+import org.yaml.snakeyaml.nodes.{ Node ⇒ YAMLNode, SequenceNode, Tag }
+import scala.collection.{ immutable, mutable }
+import scala.collection.JavaConverters.{ asScalaBufferConverter, seqAsJavaListConverter }
 import scala.language.implicitConversions
+import scala.ref.WeakReference
 
 /** Common serialization implementation. */
 class Serialization extends Serialization.Interface with Loggable {
@@ -72,7 +60,7 @@ class Serialization extends Serialization.Interface with Loggable {
     if (storages.isEmpty)
       throw new IllegalArgumentException("Unable to aquire graph without any defined storages.")
     val graphDescriptors: Seq[Option[(Serialization.Descriptor.Graph[_ <: Model.Like], URI, Transport)]] = storages.map {
-      case storageURI if storageURI.isAbsolute() ⇒
+      case storageURI if storageURI.isAbsolute() ⇒ try {
         Serialization.perScheme.get(storageURI.getScheme()) match {
           case Some(transport) ⇒
             val descriptor = graphDescriptorFromYaml(transport.acquireGraph(origin, storageURI))
@@ -81,14 +69,22 @@ class Serialization extends Serialization.Interface with Loggable {
             if (descriptor.origin.name != origin.name)
               throw new IllegalStateException(s"Incorrect saved origin value ${descriptor.origin.name} vs required ${origin.name}.")
             val graphDescriptor = if (!descriptor.storages.contains(bootstrapStorageURI))
-              descriptor.copy(storages = bootstrapStorageURI +: descriptor.storages)
+              descriptor.copy(storages = Serialization.normalizeURI(bootstrapStorageURI) +: descriptor.storages.map(Serialization.normalizeURI))
             else
-              descriptor
+              descriptor.copy(storages = descriptor.storages.map(Serialization.normalizeURI))
             Some(graphDescriptor, storageURI, transport)
           case None ⇒
             log.error(s"Unable to acquire graph ${origin} from URI with unknown scheme ${storageURI.getScheme}.")
             None
         }
+      } catch {
+        case e: IOException ⇒
+          log.warn(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage())
+          None
+        case e: Throwable ⇒
+          log.error(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage(), e)
+          None
+      }
       case storageURI ⇒
         log.fatal(s"Unable to process relative storage URI as base: ${storageURI}.")
         None
@@ -123,20 +119,31 @@ class Serialization extends Serialization.Interface with Loggable {
     // TODO Synchronize obsolete graphs
   }
   /** Save graph. */
-  def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: Serialization.FreezeTransformation): Element.Timestamp = {
+  def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: Serialization.FreezeTransformation,
+    storages: Option[Serialization.ExplicitStorages]): Element.Timestamp = {
     log.debug(s"Freeze ${graph}.")
-    if (graph.storages.isEmpty)
+    val actualStorages = (storages.map(_.storages) getOrElse graph.storages).map(Serialization.normalizeURI)
+    if (actualStorages.isEmpty)
       throw new IllegalStateException("Unable to freeze graph without any defined storages.")
     val storedTimestamps = graph.node.freezeRead { modelNode ⇒
       // freeze graph
-      graph.storages.map {
+      actualStorages.map {
         case storageURI if storageURI.isAbsolute() ⇒
           Serialization.perScheme.get(storageURI.getScheme()) match {
             case Some(transport) ⇒
               val modelˈ = fTransform(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
               if (!graph.stored.contains(modelˈ.modified))
                 graph.stored = (graph.stored :+ modelˈ.modified).distinct.sorted
-              transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ))
+              val serializedStorages = storages match {
+                case Some(Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeAppend)) ⇒
+                  transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ, (graph.storages ++ actualStorages).map(Serialization.normalizeURI).distinct))
+                case Some(Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeIgnore)) ⇒
+                  transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ, graph.storages.map(Serialization.normalizeURI)))
+                case Some(Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeReplace)) ⇒
+                  transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ, actualStorages))
+                case None ⇒
+                  transport.freezeGraph(modelˈ, storageURI, graphDescriptorToYAML(modelˈ, graph.storages.map(Serialization.normalizeURI)))
+              }
               freezeNode(modelˈ, storageURI, transport, fTransform, Seq(modelˈ))
               Some(modelˈ.modified)
             case None ⇒
@@ -327,15 +334,14 @@ class Serialization extends Serialization.Interface with Loggable {
   protected def graphDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Graph[_ <: Model.Like] = YAMLSerialization.wrapper(
     yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Graph[_ <: Model.Like]]), descriptor)
   /** Create YAML graph descriptor. */
-  protected def graphDescriptorToYAML(model: Node.ThreadUnsafe[_ <: Model.Like]): Array[Byte] = {
-    val storages = model.graph.storages.map(_.toString).asJava
+  protected def graphDescriptorToYAML(model: Node.ThreadUnsafe[_ <: Model.Like], storages: Seq[URI]): Array[Byte] = {
     val descriptorMap = new java.util.TreeMap[String, AnyRef]()
     descriptorMap.put("created", model.graph.created)
     descriptorMap.put("model_id", model.id)
     descriptorMap.put("model_type", model.elementType.runtimeClass.getName())
     descriptorMap.put("modified", model.modified)
     descriptorMap.put("origin", model.graph.origin)
-    descriptorMap.put("storages", storages)
+    descriptorMap.put("storages", storages.map(_.toString).asJava)
     descriptorMap.put("stored", model.graph.stored.asJava)
     YAMLSerialization.wrapper(yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet), descriptorMap)
   }
@@ -392,10 +398,16 @@ object Serialization extends Loggable {
   /** Freeze transformation that keeps arguments unmodified. */
   def defaultFreezeTransformation(node: Node.ThreadUnsafe[Element]): Node.ThreadUnsafe[Element] = node
   /** Save graph. */
-  def freeze(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation = defaultFreezeTransformation): Element.Timestamp =
-    inner.freezeGraph(graph, fTransform)
+  def freeze(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation = defaultFreezeTransformation, storages: Option[Serialization.ExplicitStorages] = None): Element.Timestamp =
+    inner.freezeGraph(graph, fTransform, storages)
   /** Serialization implementation. */
   def inner = DI.implementation
+  /** Normalize URI. Add trailing slash to URI since graph always located inside container. */
+  def normalizeURI(arg: URI): URI =
+    if (arg.getPath().endsWith("/"))
+      arg
+    else
+      new URI(arg.getScheme(), arg.getAuthority(), arg.getPath() + "/", arg.getQuery(), arg.getFragment())
   /** Consumer defined map of per identifier serialization. */
   def perIdentifier = DI.perIdentifier
   /** Consumer defined map of per scheme transport. */
@@ -506,6 +518,19 @@ object Serialization extends Loggable {
     }
   }
   /**
+   * Explicit serialization storages
+   */
+  case class ExplicitStorages(val storages: Seq[URI], mode: ExplicitStorages.Mode)
+  object ExplicitStorages {
+    sealed trait Mode
+    /** Append this storages to graph ones. */
+    case object ModeAppend extends Mode
+    /** Preserve graph storages. */
+    case object ModeIgnore extends Mode
+    /** Replace graph storages with this ones. */
+    case object ModeReplace extends Mode
+  }
+  /**
    * Serialization identifier that is associated with serialization mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
@@ -534,7 +559,8 @@ object Serialization extends Loggable {
     /** Load graph with the graph loader. */
     def acquireGraph(loader: Serialization.Loader): Graph[_ <: Model.Like]
     /** Save graph. */
-    def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation): Element.Timestamp
+    def freezeGraph(graph: Graph[_ <: Model.Like], fTransform: FreezeTransformation,
+      storages: Option[Serialization.ExplicitStorages]): Element.Timestamp
   }
   /**
    * Graph loader.
