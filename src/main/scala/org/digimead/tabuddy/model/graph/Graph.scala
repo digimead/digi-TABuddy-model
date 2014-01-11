@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -175,7 +175,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   }
   override def hashCode() = lazyHashCode
   protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.created, this.node, this.origin, this.modelType))
-  override def toString() = s"Graph[${origin}]#${modified}"
+  override def toString() = s"Graph[${model.eId.name}@${origin.name}]#${modified}"
 }
 
 object Graph extends Loggable {
