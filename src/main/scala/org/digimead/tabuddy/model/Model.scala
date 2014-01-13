@@ -72,10 +72,9 @@ object Model extends Loggable {
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
-    case class ModelLocation(val id: Symbol, val unique: Option[UUID],
-      val coordinate: Coordinate = Coordinate.root)(implicit val elementType: Manifest[Model],
+    case class ModelLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
+      val scope: Scope = Model.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Model],
         val stashClass: Class[_ <: Model#StashType]) extends LocationGeneric {
-      val scope = Model.scope
       type ElementType = Model
     }
   }
