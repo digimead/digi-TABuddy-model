@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ trait NodeState[A <: Element] {
   /** NodeState type. */
   type NodeStateType <: NodeState[A]
 
+  /** Flag indicating whether the node is attached to the graph. */
+  val attached: Boolean
   /** Children nodes. */
   val children: Seq[Node[_ <: Element]]
   /** Graph to which the node belongs. */
@@ -50,6 +52,7 @@ trait NodeState[A <: Element] {
 
   /** Copy constructor. */
   def copy(
+    attached: Boolean = this.attached,
     children: Seq[Node[_ <: Element]] = this.children,
     graph: Graph[_ <: Model.Like] = this.graph,
     parentNodeReference: WeakReference[Node[_ <: Element]] = this.parentNodeReference,

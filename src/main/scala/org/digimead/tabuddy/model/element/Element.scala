@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -183,8 +183,10 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
     Element.log.trace(s"Remove all property's values from $eId.")
     if (eStash.property.nonEmpty) {
       val modifiedElement = eCopy(eNode, eCoordinate, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
-      val undoF = () ⇒ {}
-      eGraph.publish(Event.ValueRemove(this, null)(undoF))
+      if (eNode.safeRead(_.state.attached)) {
+        val undoF = () ⇒ {}
+        eGraph.publish(Event.ValueRemove(this, null)(undoF))
+      }
       modifiedElement
     } else
       this.asInstanceOf[ElementType]
@@ -195,8 +197,10 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
     eStash.property.get(id) match {
       case Some(values) ⇒
         val modifiedElement = eCopy(eNode, eCoordinate, this.eStash.copy(property = eStash.property - id).asInstanceOf[ElementType#StashType], eBox.serialization)
-        val undoF = () ⇒ {}
-        eGraph.publish(Event.ValueRemove(this, null)(undoF))
+        if (eNode.safeRead(_.state.attached)) {
+          val undoF = () ⇒ {}
+          eGraph.publish(Event.ValueRemove(this, null)(undoF))
+        }
         modifiedElement
       case None ⇒
         this.asInstanceOf[ElementType]
@@ -234,22 +238,25 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
               val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
                 asInstanceOf[ElementType#StashType])
-              previousValue match {
-                case Some(previous) ⇒
-                  val undoF = () ⇒ {}
-                  eGraph.publish(Event.ValueUpdate(this, previous, value)(undoF))
-                case None ⇒
-                  val undoF = () ⇒ {}
-                  eGraph.publish(Event.ValueInclude(this, value)(undoF))
-              }
+              if (eNode.safeRead(_.state.attached))
+                previousValue match {
+                  case Some(previous) ⇒
+                    val undoF = () ⇒ {}
+                    eGraph.publish(Event.ValueUpdate(this, previous, newValue)(undoF))
+                  case None ⇒
+                    val undoF = () ⇒ {}
+                    eGraph.publish(Event.ValueInclude(this, newValue)(undoF))
+                }
               modifiedElement
             case None ⇒
               val newValue = value
-              val undoF = () ⇒ {}
               val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
                 immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
                 asInstanceOf[ElementType#StashType])
-              eGraph.publish(Event.ValueInclude(this, value)(undoF))
+              if (eNode.safeRead(_.state.attached)) {
+                val undoF = () ⇒ {}
+                eGraph.publish(Event.ValueInclude(this, newValue)(undoF))
+              }
               modifiedElement
           }
         case _ ⇒
@@ -259,10 +266,11 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
               val previousValue = valueHash.get(typeSymbol)
               val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(),
                 property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])
-              previousValue.foreach { previous ⇒
-                val undoF = () ⇒ {}
-                eGraph.publish(Event.ValueRemove(this, previous)(undoF))
-              }
+              if (eNode.safeRead(_.state.attached))
+                previousValue.foreach { previous ⇒
+                  val undoF = () ⇒ {}
+                  eGraph.publish(Event.ValueRemove(this, previous)(undoF))
+                }
               modifiedElement
             case None ⇒
               Element.this.asInstanceOf[ElementType]

@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,20 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
   /** Element system id. */
   val unique: UUID
 
+  /** Attach note to graph. */
+  def attach(): Option[Node[A]] = safeWrite { newChild ⇒
+    if (newChild.state.attached)
+      throw new IllegalStateException(s"${newChild} is already attached.")
+    newChild.parent.get.safeWrite { parent ⇒
+      val existsNode = parent.find(existsChild ⇒ existsChild.## == newChild.## && existsChild.elementType == newChild.elementType).map { existsNode ⇒
+        parent.remove(existsNode)
+        existsNode.asInstanceOf[Node[A]]
+      }
+      if (!parent.add(newChild))
+        throw new IllegalStateException(s"Unable to add ${newChild} to ${parent}.")
+      existsNode
+    }
+  }
   /** Build an ancestors sequence (head:top parent -> last:this). */
   def ancestors: Seq[Node[_ <: Element]] = {
     @tailrec
@@ -77,10 +91,12 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
     modified: Element.Timestamp = this.modified,
     unique: UUID = this.unique,
     recursive: Boolean = true,
-    target: Node.ThreadUnsafe[B] = null): Node[A] = safeRead { currentNode ⇒
+    target: Node.ThreadUnsafe[B] = null): Node[A] = safeWrite { currentNode ⇒
     def fn(target: Node.ThreadUnsafe[B]): Node[A] = {
       implicit val m = elementType
-      val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(children = Seq(),
+      val copyNode: Node.ThreadUnsafe[A] = Node[A](id, unique, new Node.State(
+        attached = attach,
+        children = Seq(),
         graph = target.graph,
         parentNodeReference = WeakReference(target.asInstanceOf[Node[_ <: Element]]),
         projectionBoxes = immutable.HashMap()), modified)
@@ -102,20 +118,25 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
       copyNode.registerWithAncestors()
       copyNode
     }
-    if (target == null)
+    if (target == null) {
       // Copy this node to the same parent.
       currentNode.parent.getOrElse { throw new IllegalArgumentException("Parent not found.") }.safeWrite {
         case target: Node.ThreadUnsafe[B] ⇒
           val copyNode = fn(target)
-          if (attach)
-            target += fn(target)
+          if (attach) {
+            if (copyNode == this)
+              target.remove(this) // replace
+            if (!target.add(copyNode))
+              throw new IllegalStateException(s"Unable to add ${copyNode} to ${target}.")
+          }
           copyNode
       }
-    else {
+    } else {
       // Copy this node to the different parent.
       val copyNode = fn(target)
       if (attach)
-        target += fn(target)
+        if (!target.add(copyNode))
+          throw new IllegalStateException(s"Unable to add ${copyNode} to ${target}.")
       copyNode
     }
   }
@@ -148,7 +169,16 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
   /** Set modified timestamp. */
   def modified_=(arg: Element.Timestamp) = {
     modifiedTimestamp = arg
-    internalState.parentNodeReference.get.foreach(_.updateModification(arg))
+    internalState.parentNodeReference.get.foreach { parent ⇒
+      if (internalState.attached)
+        parent.updateModification(arg)
+      else {
+        parent.safeRead { safeParent ⇒
+          if (safeParent.state.attached == internalState.attached)
+            parent.updateModification(arg)
+        }
+      }
+    }
   }
   /** Get parent node. */
   def parent: Option[Node[_ <: Element]] = {
@@ -209,7 +239,16 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
   /** Update modified timestamp only if argument is greater than current value. */
   def updateModification(arg: Element.Timestamp) = {
     if (modifiedTimestamp < arg) modifiedTimestamp = arg else modifiedTimestamp = Element.timestamp()
-    internalState.parentNodeReference.get.foreach(_.updateModification(arg))
+    internalState.parentNodeReference.get.foreach { parent ⇒
+      if (internalState.attached)
+        parent.updateModification(arg)
+      else {
+        parent.safeRead { safeParent ⇒
+          if (safeParent.state.attached == internalState.attached)
+            parent.updateModification(arg)
+        }
+      }
+    }
   }
 
   override def toString = s"graph.Node[${unique}(${id})]"
@@ -219,18 +258,20 @@ object Node extends Loggable {
   implicit def node2interface(g: Node.type): Interface = DI.implementation
 
   /** Simple implementation of the mutable part of a node. */
-  class State[A <: Element](val children: Seq[Node[_ <: Element]], val graph: Graph[_ <: Model.Like], val parentNodeReference: WeakReference[Node[_ <: Element]],
+  class State[A <: Element](val attached: Boolean, val children: Seq[Node[_ <: Element]],
+    val graph: Graph[_ <: Model.Like], val parentNodeReference: WeakReference[Node[_ <: Element]],
     val projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]]) extends NodeState[A] with Equals {
     lazy val rootBox: ElementBox[A] = projectionBoxes.get(Coordinate.root).getOrElse(null)
     type NodeStateType = State[A]
 
     /** Copy constructor. */
     def copy(
+      attached: Boolean = this.attached,
       children: Seq[Node[_ <: Element]] = this.children,
       graph: Graph[_ <: Model.Like] = this.graph,
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.parentNodeReference,
       projectionElementBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.projectionBoxes): NodeStateType =
-      new State(children, graph, parentNodeReference, projectionElementBoxes)
+      new State(attached, children, graph, parentNodeReference, projectionElementBoxes)
 
     override def canEqual(that: Any): Boolean = that.isInstanceOf[State[A]]
     override def equals(that: Any): Boolean = that match {
@@ -240,7 +281,7 @@ object Node extends Loggable {
     }
     override def hashCode() = lazyHashCode
     protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.children, this.graph, this.parentNodeReference.get, this.projectionBoxes))
-    override def toString() = s"NodeState(children:${children}. graph:${graph}, parent:${parentNodeReference.get}, projections:${projectionBoxes})."
+    override def toString() = s"NodeState(attached: ${attached}, children:${children}. graph:${graph}, parent:${parentNodeReference.get}, projections:${projectionBoxes})."
   }
   /**
    * Node companion object realization
@@ -284,7 +325,9 @@ object Node extends Loggable {
       rwl.writeLock().lock()
       try {
         assert(internalState == null)
-        internalState = new State(children = Seq(),
+        internalState = new State(
+          attached = true, // model are attached by default
+          children = Seq(),
           graph = graph,
           parentNodeReference = WeakReference(null),
           projectionBoxes = immutable.HashMap())
@@ -310,17 +353,25 @@ object Node extends Loggable {
         elem.safeWrite { node ⇒
           if (node.parentNodeReference.get != Some(ThreadUnsafe.this)) {
             // Update parent reference
-            node.updateState(parentNodeReference = WeakReference(ThreadUnsafe.this))
+            node.updateState(attached = internalState.attached, parentNodeReference = WeakReference(ThreadUnsafe.this))
             if (node.graph != graph) {
               // Update graph
               node.iteratorRecursive.foreach(_.safeWrite { child ⇒
                 val projectionBoxes = child.projectionBoxes
-                child.updateState(graph = graph,
+                child.updateState(
+                  attached = internalState.attached,
+                  graph = graph,
                   parentNodeReference = WeakReference(ThreadUnsafe.this),
                   projectionBoxes = immutable.HashMap(projectionBoxes.
                     map { case (coordinate, box) ⇒ coordinate -> box.copy(node = child) }.toSeq: _*))
               })
             }
+          } else if (node.attached != internalState.attached) {
+            node.updateState(attached = internalState.attached)
+            node.iteratorRecursive.foreach(_.safeWrite { child ⇒
+              val projectionBoxes = child.projectionBoxes
+              child.updateState(attached = internalState.attached)
+            })
           }
           /* add node */
           updateState(children = internalState.children :+ elem)
@@ -349,7 +400,9 @@ object Node extends Loggable {
         if (child.unique == unique)
           throw new IllegalArgumentException(s"Node with the same identifier '${unique}' is already exists.")
       }
-      val newNode = Node[B](id, unique, new State(children = Seq(),
+      val newNode = Node[B](id, unique, new State(
+        attached = internalState.attached,
+        children = Seq(),
         graph = graph,
         parentNodeReference = WeakReference(this),
         projectionBoxes = immutable.HashMap()), Element.timestamp())
@@ -387,8 +440,9 @@ object Node extends Loggable {
     override def remove(elem: Node[_ <: Element]): Boolean = if (internalState.children.contains(elem)) {
       /* remove node */
       elem.safeWrite { node ⇒
-        updateState(children = internalState.children.filterNot(_.eq(elem)))
-        graph.nodes -= elem.unique
+        node.updateState(attached = false)
+        updateState(children = internalState.children.filterNot(_.eq(node)))
+        graph.nodes -= node.unique
         node.iteratorRecursive.foreach { subChildNode ⇒ graph.nodes -= subChildNode.unique }
       }
       true
@@ -402,22 +456,29 @@ object Node extends Loggable {
       internalState = state
       if (modified != null)
         this.modified = modified
-      val undoF = () ⇒ {}
-      internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
+      if (internalState.attached) {
+        val undoF = () ⇒ {}
+        internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
+      }
       this
     }
     /** Update state of the current node. */
-    def updateState(children: Seq[Node[_ <: Element]] = this.internalState.children,
+    def updateState(attached: Boolean = this.internalState.attached,
+      children: Seq[Node[_ <: Element]] = this.internalState.children,
       graph: Graph[_ <: Model.Like] = this.internalState.graph,
       modified: Element.Timestamp = Element.timestamp(),
       parentNodeReference: WeakReference[Node[_ <: Element]] = this.internalState.parentNodeReference,
       projectionBoxes: immutable.HashMap[Coordinate, ElementBox[A]] = this.internalState.projectionBoxes): Node.ThreadUnsafe[A] = {
       val previous = internalState
-      internalState = new State[A](children, graph, parentNodeReference, projectionBoxes)
-      if (modified != null)
-        this.modified = modified
-      val undoF = () ⇒ {}
-      internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
+      internalState = new State[A](attached, children, graph, parentNodeReference, projectionBoxes)
+      if (attached) {
+        if (modified != null)
+          this.modified = modified
+        if (internalState.attached) {
+          val undoF = () ⇒ {}
+          internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
+        }
+      }
       this
     }
     /** Update element box at the specific coordinates. */
@@ -426,15 +487,17 @@ object Node extends Loggable {
       internalState = internalState.copy(projectionBoxes = internalState.projectionBoxes + (coordinate -> box))
       if (modified != null)
         this.modified = modified
-      val undoF = () ⇒ {}
-      internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
+      if (internalState.attached) {
+        val undoF = () ⇒ {}
+        internalState.graph.publish(Event.NodeChange(this, previous, internalState)(undoF))
+      }
       this
     }
 
     /** Register node and ancestors at graph. */
     def registerWithAncestors() {
       if (!internalState.graph.nodes.contains(unique)) {
-        internalState.parentNodeReference.get.foreach(_.safeRead(_.registerWithAncestors))
+        internalState.parentNodeReference.get.foreach(_.safeWrite(_.registerWithAncestors))
         internalState.graph.nodes += unique -> this.asInstanceOf[Node[_ <: Element]]
       }
     }

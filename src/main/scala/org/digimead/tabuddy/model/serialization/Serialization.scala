@@ -245,7 +245,9 @@ class Serialization extends Serialization.Interface with Loggable {
       throw new IllegalStateException("Id value not found in model node descriptor file.")
     if (nodeDescriptor.unique == null)
       throw new IllegalStateException("Unique value not found in model node descriptor file.")
-    val targetNodeInitialState = new Node.State[Element](children = Seq(),
+    val targetNodeInitialState = new Node.State[Element](
+      attached = true, // yes, there is
+      children = Seq(),
       graph = ancestors.head.graph,
       parentNodeReference = WeakReference(ancestors.last),
       projectionBoxes = immutable.HashMap())
