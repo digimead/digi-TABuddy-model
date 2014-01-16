@@ -65,6 +65,13 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
    */
   @transient val eBox: ElementBox[ElementType]
 
+  /**
+   * Get common element.
+   *
+   * Derivative from Element trait is invariant.
+   * Element trait itself returns common type.
+   */
+  def **(): Element = this
   /** Compares this object with the specified object for order. */
   def compare(that: Element): Int = Element.comparator.value.compare(this, that)
   /** Build an ancestors sequence. */
@@ -376,6 +383,14 @@ object Element extends Loggable {
   abstract class Relative[A <: Element] private (protected val node: Node[A], protected val coordinate: Coordinate) extends Equals {
     def this(element: A) = this(element.eNode.asInstanceOf[Node[A]], element.eBox.coordinate)
 
+    /**
+     * Get common relative element.
+     *
+     * Derivative from Element trait is invariant.
+     * Element trait itself returns common type.
+     * Using .asInstanceOf[Relative[Element]] here since A+ is not suitable.
+     */
+    def **(): Relative[Element] = this.asInstanceOf[Relative[Element]]
     /** Get absolute element representation. */
     def absolute: A = if (coordinate.isRoot)
       node.safeRead(_.rootBox).asInstanceOf[ElementBox[A]].e

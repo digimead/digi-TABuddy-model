@@ -54,6 +54,14 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
   /** Element system id. */
   val unique: UUID
 
+  /**
+   * Get node with common element.
+   *
+   * Derivative from Element trait is invariant.
+   * Element trait itself returns common type.
+   * Using .asInstanceOf[Node[Element]] here since A+ is not suitable.
+   */
+  def **(): Node[Element] = this.asInstanceOf[Node[Element]]
   /** Attach note to graph. */
   def attach(): Option[Node[A]] = safeWrite { newChild ⇒
     if (newChild.state.attached)
@@ -497,7 +505,7 @@ object Node extends Loggable {
     /** Register node and ancestors at graph. */
     def registerWithAncestors() {
       if (!internalState.graph.nodes.contains(unique)) {
-        internalState.parentNodeReference.get.foreach(_.safeWrite(_.registerWithAncestors))
+        internalState.parentNodeReference.get.foreach(_.safeRead(_.registerWithAncestors))
         internalState.graph.nodes += unique -> this.asInstanceOf[Node[_ <: Element]]
       }
     }
