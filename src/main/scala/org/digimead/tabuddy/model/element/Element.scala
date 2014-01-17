@@ -66,7 +66,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   @transient val eBox: ElementBox[ElementType]
 
   /**
-   * Get common element.
+   * Get explicit general element.
    *
    * Derivative from Element trait is invariant.
    * Element trait itself returns common type.
@@ -384,7 +384,7 @@ object Element extends Loggable {
     def this(element: A) = this(element.eNode.asInstanceOf[Node[A]], element.eBox.coordinate)
 
     /**
-     * Get common relative element.
+     * Get explicit general relative element.
      *
      * Derivative from Element trait is invariant.
      * Element trait itself returns common type.

@@ -20,22 +20,14 @@ package org.digimead.tabuddy.model.graph
 
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantReadWriteLock
-
-import scala.Array.canBuildFrom
-import scala.Option.option2Iterable
-import scala.annotation.tailrec
-import scala.collection.immutable
-import scala.collection.mutable
-import scala.ref.WeakReference
-
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
-
+import org.digimead.tabuddy.model.element.{ Coordinate, Element }
+import scala.annotation.tailrec
+import scala.collection.{ immutable, mutable }
 import scala.language.implicitConversions
+import scala.ref.WeakReference
 
 /**
  * Node is a brick of graph.
@@ -55,24 +47,24 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
   val unique: UUID
 
   /**
-   * Get node with common element.
+   * Get explicit general node.
    *
    * Derivative from Element trait is invariant.
    * Element trait itself returns common type.
    * Using .asInstanceOf[Node[Element]] here since A+ is not suitable.
    */
   def **(): Node[Element] = this.asInstanceOf[Node[Element]]
-  /** Attach note to graph. */
-  def attach(): Option[Node[A]] = safeWrite { newChild ⇒
-    if (newChild.state.attached)
-      throw new IllegalStateException(s"${newChild} is already attached.")
-    newChild.parent.get.safeWrite { parent ⇒
-      val existsNode = parent.find(existsChild ⇒ existsChild.## == newChild.## && existsChild.elementType == newChild.elementType).map { existsNode ⇒
+  /** Attach node to graph. */
+  def attach(): Option[Node[A]] = safeWrite { node ⇒
+    if (node.state.attached)
+      throw new IllegalStateException(s"${node} is already attached.")
+    node.parent.get.safeWrite { parent ⇒
+      val existsNode = parent.find(existsChild ⇒ existsChild.## == node.## && existsChild.elementType == node.elementType).map { existsNode ⇒
         parent.remove(existsNode)
         existsNode.asInstanceOf[Node[A]]
       }
-      if (!parent.add(newChild))
-        throw new IllegalStateException(s"Unable to add ${newChild} to ${parent}.")
+      if (!parent.add(node))
+        throw new IllegalStateException(s"Unable to add ${node} to ${parent}.")
       existsNode
     }
   }
@@ -94,7 +86,7 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
     finally { rwl.readLock().unlock() }
   }
   /** Copy this node and attach it to target if needed. */
-  def copy[B <: Element](attach: Boolean = true,
+  def copy[B <: Element](attach: Boolean = this.safeRead(_.state.attached),
     id: Symbol = this.id,
     modified: Element.Timestamp = this.modified,
     unique: UUID = this.unique,
@@ -146,6 +138,16 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
         if (!target.add(copyNode))
           throw new IllegalStateException(s"Unable to add ${copyNode} to ${target}.")
       copyNode
+    }
+  }
+  /** Detach node from graph. */
+  def detach(): Unit = safeWrite { node ⇒
+    if (!node.state.attached)
+      throw new IllegalStateException(s"${node} is already detached.")
+    node.parent.get.safeWrite { parent ⇒
+      parent.remove(node)
+      if (!parent.remove(node))
+        throw new IllegalStateException(s"Unable to remove ${node} from ${parent}.")
     }
   }
   /**
@@ -401,7 +403,7 @@ object Node extends Loggable {
     /** Tests whether this set contains a given node as a children. */
     def contains(elem: Node[_ <: Element]): Boolean = internalState.children.contains(elem)
     /** Create new children node. */
-    def createChild[B <: Element: Manifest](id: Symbol, unique: UUID): Node[B] = {
+    def createChild[B <: Element: Manifest](id: Symbol, unique: UUID, attach: Boolean = true): Node[B] = {
       internalState.children.foreach { child ⇒
         if (child.id == id)
           throw new IllegalArgumentException(s"Node with the same identifier '${id}' is already exists.")
@@ -409,12 +411,13 @@ object Node extends Loggable {
           throw new IllegalArgumentException(s"Node with the same identifier '${unique}' is already exists.")
       }
       val newNode = Node[B](id, unique, new State(
-        attached = internalState.attached,
+        attached = if (attach) internalState.attached else attach,
         children = Seq(),
         graph = graph,
         parentNodeReference = WeakReference(this),
         projectionBoxes = immutable.HashMap()), Element.timestamp())
-      add(newNode)
+      if (attach)
+        add(newNode)
       newNode
     }
     /**
