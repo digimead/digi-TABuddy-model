@@ -35,15 +35,11 @@ import org.scalatest.FunSpec
 import org.scalatest.Matchers
 
 class ProtobufSerializationSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A ProtobufSerialization") {
     it("should provide serialization mechanism for Model") {
-//      Model.reset()
+      //      Model.reset()
       /*val record = Model.record('root) { r => }
       val note = Model.note('note) { n => }
       val task = Model.task('task) { t => }

@@ -18,26 +18,13 @@
 
 package org.digimead.tabuddy.model.dsl
 
-import java.util.UUID
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
-import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.TestDSL
-import org.digimead.tabuddy.model.element.Value.string2someValue
-import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.serialization.StubSerialization
-import org.scalatest.FunSpec
-import org.scalatest.Matchers
+import org.scalatest.{ FunSpec, Matchers }
 
 class BasicDSLTypesSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A BasicDSLTypes") {
     it("should have proper equality") {

@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,37 +20,21 @@ package org.digimead.tabuddy.model.serialization
 
 import java.io.File
 import java.util.UUID
-
-import scala.collection.immutable
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.lib.test.LoggingHelper
-import org.digimead.lib.test.StorageHelper
-import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.Record
+import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.element.Axis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Reference
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.Value.string2someValue
+import org.digimead.tabuddy.model.element.{ Axis, Coordinate, Element, Reference, Value }
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.graph.Node.node2interface
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
-import org.scalatest.FunSpec
-import org.scalatest.Matchers
+import org.digimead.tabuddy.model.{ Model, Record }
+import org.scalatest.{ FunSpec, Matchers }
+import scala.collection.immutable
 
 class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A YAMLSerialization") {
     it("should convert Symbol") {

@@ -29,11 +29,7 @@ import org.digimead.tabuddy.model.graph.Graph
 import org.scalatest.{ FunSpec, Matchers }
 
 class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("An ExplicitStorages") {
     it("should provide ExplicitStorages.Append mode") {

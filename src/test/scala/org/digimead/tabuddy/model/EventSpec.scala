@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,34 +18,20 @@
 
 package org.digimead.tabuddy.model
 
+import TestDSL._
 import java.util.UUID
-
-import scala.collection.mutable
-import scala.collection.mutable.Publisher
-import scala.collection.mutable.Subscriber
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.lib.test.LoggingHelper
-import org.digimead.lib.test.StorageHelper
-import org.digimead.tabuddy.model.element.Value.string2someValue
-import org.digimead.tabuddy.model.graph.Event
-import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Graph.graph2interface
-import org.digimead.tabuddy.model.serialization.BuiltinSerialization
-import org.digimead.tabuddy.model.serialization.Serialization
-import org.scalatest.FunSpec
-import org.scalatest.Matchers
-
-import TestDSL._
+import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
+import org.digimead.tabuddy.model.graph.{ Event, Graph }
+import org.digimead.tabuddy.model.serialization.{ BuiltinSerialization, Serialization }
+import org.scalatest.{ FunSpec, Matchers }
+import scala.collection.mutable
+import scala.collection.mutable.{ Publisher, Subscriber }
 
 class EventSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(diConfig, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(diConfig, false) }
 
   describe("An Event") {
     it("should be fired while graph is changed") {
@@ -95,12 +81,12 @@ class EventSpec extends FunSpec with Matchers with StorageHelper with LoggingHel
         val timestamp = Serialization.freeze(graph)
         val graph2Loader = Serialization.acquireLoaders(graph.origin, folder.toURI).last
         graph2Loader.graph.subscribe(new Subscriber[Event, Publisher[Event]] {
-            def notify(pub: Publisher[Event], event: Event) = event match {
-              case Event.NodeChange(a, b, c) ⇒ if (b == c) fail("State is the same: " + b)
-              case event: Event.GraphChange ⇒ events += event
-              case _ ⇒
-            }
-          })
+          def notify(pub: Publisher[Event], event: Event) = event match {
+            case Event.NodeChange(a, b, c) ⇒ if (b == c) fail("State is the same: " + b)
+            case event: Event.GraphChange ⇒ events += event
+            case _ ⇒
+          }
+        })
         val graph2 = graph2Loader.load
         graph2.nodes.size should be(6)
         testCreation(graphCopy, events)

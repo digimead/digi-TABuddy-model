@@ -30,11 +30,7 @@ import scala.language.implicitConversions
 
 class NodeSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(diConfig, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(diConfig, false) }
 
   describe("A Node") {
     it("should preserve modification timestamp when is not attached.") {
@@ -74,7 +70,7 @@ class NodeSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
       rA1NodeCopyNA.safeRead(_.state.attached) should be(false)
       val size = graph1.nodes.size
       rA1NodeCopyNA.attach.get.eq(rA1NodeCopy) should be(true)
-      graph1.nodes.size should be (size)
+      graph1.nodes.size should be(size)
       rA1NodeCopyNA.safeRead(_.state.attached) should be(true)
       modifiedAfterCopyWithAttach should be < (graph1.modified)
     }

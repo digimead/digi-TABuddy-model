@@ -30,11 +30,7 @@ import org.scalatest.{ FunSpec, Matchers }
 
 class CompareSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(diConfig, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(diConfig, false) }
 
   def multithread[A](nIterations: Int, nThreads: Int, visible: Boolean = true)(f: Int ⇒ A) {
     if (org.apache.log4j.Logger.getRootLogger().getAllAppenders().nextElement().getClass().getSimpleName() != "NullAppender") {

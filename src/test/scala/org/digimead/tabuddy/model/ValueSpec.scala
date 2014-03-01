@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,26 +18,18 @@
 
 package org.digimead.tabuddy.model
 
+import TestDSL._
 import java.util.UUID
-
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.Value.string2someValue
-import org.digimead.tabuddy.model.element.Value.value2x
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Graph.graph2interface
 import org.digimead.tabuddy.model.serialization.StubSerialization
-import org.scalatest.FunSpec
-import org.scalatest.Matchers
+import org.scalatest.{ FunSpec, Matchers }
 
 class ValueSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A Value") {
     it("should have a proper equality") {

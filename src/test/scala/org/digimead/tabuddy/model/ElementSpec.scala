@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@ import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.LoggingHelper
-import org.digimead.tabuddy.model.element.Axis.intToAxis
-import org.digimead.tabuddy.model.element.Value.{ int2someValue, string2someValue }
 import org.digimead.tabuddy.model.element.{ Coordinate, Element, Stash }
 import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.graph.Graph
@@ -36,11 +34,7 @@ import scala.language.implicitConversions
 
 class ElementSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
-  after { adjustLoggingAfter }
-  before {
-    DependencyInjection(diConfig, false)
-    adjustLoggingBefore
-  }
+  before { DependencyInjection(diConfig, false) }
 
   def multithread[A](nIterations: Int, nThreads: Int, visible: Boolean = true)(f: Int ⇒ A) {
     if (org.apache.log4j.Logger.getRootLogger().getAllAppenders().nextElement().getClass().getSimpleName() != "NullAppender") {
@@ -294,7 +288,7 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with Loggable
       }
       myModel.eNode.safeRead { modelNode ⇒
         val modelIterator = modelNode.iteratorRecursive
-        assert(modelIterator.length === 3) // Model + 3 children
+        assert((modelIterator.length: Integer) === 3) // Model + 3 children
         val modelChildren = modelNode.iteratorRecursive.foldLeft(Seq[Node[_ <: Element]]())((acc, e) ⇒ acc :+ e).sortBy(_.unique)
         Seq(e1.eNode, e2.eNode, e3.eNode).sortBy(_.unique).sameElements(modelChildren)
         assert(e2.eNode.safeRead { _.iteratorRecursive.length === 1 })
