@@ -99,10 +99,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
       super.clear()
     }
   }
-  /** Path to graph storages. */
-  @volatile var storages: Seq[URI] = Seq()
-  /** List of timestamp to stored graphs. */
-  @volatile var stored = Seq[Element.Timestamp]()
+  /** List of stored graphs. */
+  @volatile var retrospective = Graph.Retrospective(immutable.HashMap(), Seq(origin), Seq.empty)
   /** Check if such node is already exists. */
   @volatile var strict = true
 
@@ -117,8 +115,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
      */
     val targetModelNode = Node.model[A](id, unique, modified)
     val graph = new Graph[A](created, targetModelNode, origin)
-    graph.storages ++= this.storages
-    graph.stored ++= this.stored
+    graph.retrospective = this.retrospective
     graphEarlyAccess(graph)
     targetModelNode.safeWrite { targetNode ⇒
       targetModelNode.initializeModelNode(graph, modified)
@@ -150,6 +147,8 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
       Graph.log.error(e.getMessage(), e)
       throw e
   }
+  /** Get actual storages. */
+  def storages: Seq[URI] = if (retrospective.history.isEmpty) Seq() else retrospective.getStorages(retrospective.history.keys.max)
   /** Visit graph elements. */
   def visit[A](visitor: Element.Visitor[A], onlyModified: Boolean = true,
     multithread: Boolean = true)(implicit param: Element.Visitor.Param = Element.Visitor.defaultParam): Iterator[A] = {
@@ -209,6 +208,31 @@ object Graph extends Loggable {
       val childrenDump = Node.dump(graph.node, brief, padding)
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
+  }
+  /**
+   * Container with graph evolution.
+   */
+  case class Retrospective(val history: immutable.Map[Element.Timestamp, Retrospective.Indexes], val origins: Seq[Symbol], val storages: Seq[URI]) {
+    /** Get last modification. */
+    def last: Option[Element.Timestamp] = if (history.isEmpty) None else Some(history.keys.max)
+    /** Get head modification. */
+    def head: Option[Element.Timestamp] = if (history.isEmpty) None else Some(history.keys.min)
+    /** Get origin. */
+    def getOrigin(ts: Element.Timestamp): Symbol = history.get(ts) match {
+      case Some(Retrospective.Indexes(originIndex, storageIndexes)) ⇒ origins(originIndex)
+      case None ⇒ throw new NoSuchElementException("Timestamp not found: " + ts)
+    }
+    /** Get storages. */
+    def getStorages(ts: Element.Timestamp): Seq[URI] = history.get(ts) match {
+      case Some(Retrospective.Indexes(originIndex, storageIndexes)) ⇒ storageIndexes.map(storages)
+      case None ⇒ throw new NoSuchElementException("Timestamp not found: " + ts)
+    }
+  }
+  object Retrospective {
+    /**
+     * History value.
+     */
+    case class Indexes(val originIndex: Int, val storageIndexes: Seq[Int])
   }
   /**
    * Dependency injection routines.

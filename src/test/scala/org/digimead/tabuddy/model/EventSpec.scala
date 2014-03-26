@@ -40,7 +40,6 @@ class EventSpec extends FunSpec with Matchers with StorageHelper with LoggingHel
 
         val events = mutable.ListBuffer[Event]()
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒
-          g.storages = g.storages :+ folder.getAbsoluteFile().toURI()
           g.subscribe(new g.Sub {
             def notify(pub: g.Pub, event: Event) = event match {
               case Event.NodeChange(a, b, c) ⇒ if (b == c) fail("State is the same: " + b)
@@ -78,16 +77,15 @@ class EventSpec extends FunSpec with Matchers with StorageHelper with LoggingHel
         graphCopy.nodes.size should be(6)
         testCreation(graphCopy, events)
 
-        val timestamp = Serialization.freeze(graph)
-        val graph2Loader = Serialization.acquireLoaders(graph.origin, folder.toURI).last
-        graph2Loader.graph.subscribe(new Subscriber[Event, Publisher[Event]] {
+        val timestamp = Serialization.freeze(graph, folder.getAbsoluteFile().toURI)
+        val graph2Loader = Serialization.acquireLoader(graph.origin, folder.toURI)
+        val graph2 = graph2Loader.load(graphEarlyAccess = _.subscribe(new Subscriber[Event, Publisher[Event]] {
           def notify(pub: Publisher[Event], event: Event) = event match {
             case Event.NodeChange(a, b, c) ⇒ if (b == c) fail("State is the same: " + b)
             case event: Event.GraphChange ⇒ events += event
             case _ ⇒
           }
-        })
-        val graph2 = graph2Loader.load
+        }))
         graph2.nodes.size should be(6)
         testCreation(graphCopy, events)
       }

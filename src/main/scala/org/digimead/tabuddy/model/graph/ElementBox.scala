@@ -21,16 +21,16 @@ package org.digimead.tabuddy.model.graph
 import java.net.URI
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
-
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.element.Reference
+import org.digimead.tabuddy.model.serialization.SData
 import org.digimead.tabuddy.model.serialization.Serialization
-
-import language.implicitConversions
+import org.digimead.tabuddy.model.serialization.transport.Transport
+import scala.language.implicitConversions
 
 /**
  * ElementBox class holds element instance.
@@ -59,12 +59,12 @@ import language.implicitConversions
  * It's looks like: Node (<- ElementBox <-> Element)
  * (<- ElementBox <-> Element) is CG'ed part.
  */
-abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementUniqueId: UUID, initial: ⇒ Either[URI, A],
+abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementUniqueId: UUID, initial: ⇒ Either[SData, A],
   val node: Node[A], val serialization: Serialization.Identifier, unmodified: Element.Timestamp) extends Modifiable.Read with ConsumerData with Equals {
-  def this(coordinate: Coordinate, elementUniqueId: UUID, initial: Either[URI, AtomicReference[A]], node: Node[A],
+  def this(coordinate: Coordinate, elementUniqueId: UUID, initial: Either[SData, AtomicReference[A]], node: Node[A],
     serialization: Serialization.Identifier, unmodified: Element.Timestamp) =
     this(coordinate, elementUniqueId, initial match {
-      case initial @ Left(baseURIForLazyLoading) ⇒ Left(baseURIForLazyLoading)
+      case initial @ Left(serializationState) ⇒ Left(serializationState)
       case Right(explicitElement) ⇒ Right(explicitElement.get)
     }, node, serialization, unmodified)
   /** Copy current element box. */
@@ -99,7 +99,7 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
    * @param ancestorsNSelf sequence of modified(if needed) ancestors
    * @param storageURI explicit storage URI
    */
-  def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]] = Seq(), storageURI: Option[URI] = None)
+  def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData)
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[ElementBox[_]]
   override def equals(that: Any): Boolean = that match {
@@ -126,12 +126,12 @@ object ElementBox extends Loggable {
      * @param coordinate element coordinate
      * @param elementUniqueId identifier which is uniquely identify the specific element
      * @param initial initial element value, which is erased after save
-     * @param node container of the element box
-     * @param serialization type of the serialization mechanism
      * @param unmodified the modification timestamp of unmodified element
      * @param elementType manifest with element type
+     * @param node container of the element box
+     * @param serialization type of the serialization mechanism
      */
-    def apply[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, initial: Either[URI, AtomicReference[A]],
+    def apply[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, initial: Either[SData, AtomicReference[A]],
       unmodified: Element.Timestamp)(implicit elementType: Manifest[A], node: Node[A], serialization: Serialization.Identifier): ElementBox[A] = {
       val boxClass = DI.elementBoxClass
       val newBoxCtor = boxClass.getConstructor(
@@ -145,10 +145,9 @@ object ElementBox extends Loggable {
       newBoxCtor.newInstance(coordinate, elementUniqueId, initial, node, serialization, unmodified, elementType).asInstanceOf[ElementBox[A]]
     }
     /** Create element box except element and assign it to node. */
-    def apply[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, node: Node.ThreadUnsafe[A], base: URI,
-      serialization: Serialization.Identifier, unmodified: Element.Timestamp)(implicit m: Manifest[A]): ElementBox[A] = {
-      apply[A](coordinate, elementUniqueId, Left(base), unmodified)(m, node, serialization)
-    }
+    def apply[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, node: Node.ThreadUnsafe[A], serialization: Serialization.Identifier,
+      sData: SData, unmodified: Element.Timestamp)(implicit m: Manifest[A]): ElementBox[A] =
+      apply[A](coordinate, elementUniqueId, Left(sData), unmodified)(m, node, serialization)
     /** Create element, element box with specific parameters. */
     def apply[A <: Element](coordinate: Coordinate, created: Element.Timestamp, elementNode: Node.ThreadUnsafe[A],
       modified: Element.Timestamp, scope: A#StashType#ScopeType, serialization: Serialization.Identifier)(implicit m: Manifest[A],
@@ -213,13 +212,13 @@ object ElementBox extends Loggable {
   /**
    * Hard element reference that always contains element instance.
    */
-  class Hard[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, initial: ⇒ Either[URI, A], node: Node[A],
+  class Hard[A <: Element](coordinate: Coordinate, elementUniqueId: UUID, initial: ⇒ Either[SData, A], node: Node[A],
     serialization: Serialization.Identifier, unmodified: Element.Timestamp)(implicit elementType: Manifest[A])
     extends ElementBox[A](coordinate, elementUniqueId, initial, node, serialization, unmodified) {
-    def this(coordinate: Coordinate, elementUniqueId: UUID, initial: Either[URI, AtomicReference[A]], node: Node[A],
+    def this(coordinate: Coordinate, elementUniqueId: UUID, initial: Either[SData, AtomicReference[A]], node: Node[A],
       serialization: Serialization.Identifier, unmodified: Element.Timestamp)(implicit elementType: Manifest[A]) =
       this(coordinate, elementUniqueId, initial match {
-        case initial @ Left(baseURIForLazyLoading) ⇒ Left(baseURIForLazyLoading)
+        case initial @ Left(serializationState) ⇒ Left(serializationState)
         case Right(explicitElement) ⇒ Right(explicitElement.get)
       }, node, serialization, unmodified)(elementType)
     /** Modified element object. */
@@ -245,18 +244,23 @@ object ElementBox extends Loggable {
           // Element is explicitly passed to this box
           unmodifiedCache = Some(element)
           element
-        case Left(baseURIForLazyLoading) ⇒
+        case Left(sData) ⇒
           // Base URI that is passed instead of element.
           val element = Serialization.perIdentifier.get(serialization) match {
             case Some(mechanism) ⇒
-              Serialization.perScheme.get(baseURIForLazyLoading.getScheme()) match {
-                case Some(transport) ⇒
-                  mechanism.load(this, baseURIForLazyLoading, transport)
+              sData.get(SData.Key.storageURI) match {
+                case Some(storageURI) ⇒
+                  Serialization.perScheme.get(storageURI.getScheme()) match {
+                    case Some(transport) ⇒
+                      mechanism.load(this, transport, sData)
+                    case None ⇒
+                      throw new IllegalStateException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
+                  }
                 case None ⇒
-                  throw new IllegalArgumentException(s"Transport for the specified scheme '${baseURIForLazyLoading.getScheme()}' not found.")
+                  throw new IllegalStateException(s"Storage URI for the specified ${serialization} not found.")
               }
             case None ⇒
-              throw new IllegalArgumentException(s"Serialization for the specified ${serialization} not found.")
+              throw new IllegalStateException(s"Serialization for the specified ${serialization} not found.")
           }
           unmodifiedCache = Some(element)
           element
@@ -265,24 +269,19 @@ object ElementBox extends Loggable {
     // get modified timestamp or get unmodified timestamp or get unmodified if not loaded
     override def modified: Element.Timestamp = modifiedCache.map(_.modified) orElse
       unmodifiedCache.map(_.modified) getOrElse unmodified
-    def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]] = Seq(), storageURI: Option[URI] = None) =
+    def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) =
       synchronized {
         getModified match {
           case Some(element) ⇒
             Serialization.perIdentifier.get(serialization) match {
               case Some(mechanism) ⇒
-                val storages = storageURI match {
-                  case Some(storage) ⇒ Seq(storage)
-                  case None ⇒ node.graph.storages
-                }
+                val storageURI = sData(SData.Key.storageURI)
                 val ancestors = if (ancestorsNSelf.nonEmpty) ancestorsNSelf else node.safeRead(node ⇒ node.ancestors.reverse :+ node)
-                storages.foreach { storageURI ⇒
-                  Serialization.perScheme.get(storageURI.getScheme()) match {
-                    case Some(transport) ⇒
-                      mechanism.save(ancestors, element, storageURI, transport)
-                    case None ⇒
-                      throw new IllegalArgumentException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
-                  }
+                Serialization.perScheme.get(storageURI.getScheme()) match {
+                  case Some(transport) ⇒
+                    mechanism.save(ancestors, element, transport, sData)
+                  case None ⇒
+                    throw new IllegalArgumentException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
                 }
                 unmodifiedCache = Some(element)
                 modifiedCache = None

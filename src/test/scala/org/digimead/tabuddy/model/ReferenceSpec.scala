@@ -58,16 +58,14 @@ class ReferenceSpec extends FunSpec with StorageHelper with Matchers with Loggin
         Reference.resolve(record_0.eReference, Element.timestamp(0, 0)) should be('empty)
         Reference.register(graph)
         Reference.resolve(record_0.eReference, Element.timestamp(0, 0)) should be('empty)
-        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
-        val timestamp1 = Serialization.freeze(graph)
-        timestamp1 should be(graph.stored.last)
+        val timestamp1 = Serialization.freeze(graph, folder.getAbsoluteFile().toURI)
         timestamp1 should be(graph.node.modified)
         timestamp1 should be(graph.modified)
         Reference.resolve(record_0.eReference, Element.timestamp(0, 0)) should be('empty)
         Reference.resolve(record_0.eReference, timestamp1) should not be ('empty)
         val timestamp2 = Serialization.freeze(graph)
         timestamp2 should be(timestamp1) // no changes
-        graph.stored should have size (1)
+        graph.retrospective.history should have size (1)
         record_0.name = "111"
         val timestamp3 = Serialization.freeze(graph)
         timestamp3 should not be (timestamp1)
@@ -102,4 +100,6 @@ class ReferenceSpec extends FunSpec with StorageHelper with Matchers with Loggin
       }
     }
   }
+
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

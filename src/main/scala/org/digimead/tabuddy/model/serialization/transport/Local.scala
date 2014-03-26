@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,15 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.InputStream
+import java.io.{ BufferedInputStream, BufferedOutputStream, File, FileInputStream, FileOutputStream, IOException, InputStream }
 import java.net.URI
 import java.util.UUID
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.serialization.Serialization
-import org.digimead.tabuddy.model.serialization.YAMLSerialization
+import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
+import org.digimead.tabuddy.model.serialization.{ Serialization, SData, YAMLSerialization }
 
 /**
  * Local transport.
@@ -52,99 +42,97 @@ class Local extends Transport with Loggable {
   val scheme: String = "file"
 
   /** Load element with the specific UUID for the specific container. */
-  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI = {
+  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], sData: SData, part: String*): URI = {
     val serializationMechanism = Serialization.perIdentifier.get(elementBox.serialization) match {
       case Some(mechanism) ⇒
         mechanism
       case None ⇒
         throw new IllegalArgumentException(s"Serialization for the specified ${elementBox.serialization} not found.")
     }
-    val storageDirectory = new File(storageURI)
+    val storageDirectory = new File(sData(SData.Key.storageURI))
     val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, elementBox, false).toURI
     append(elementDirectory, part: _*)
   }
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, storageURI: URI): Array[Byte] = {
-    val storageDirectory = new File(storageURI)
+  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, sData: SData): Array[Byte] = {
+    val storageDirectory = new File(sData(SData.Key.storageURI))
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestors, false)
     val elementDirectoryName = "%s %X-%X-%s".format(boxPrefix, elementUniqueId.getMostSignificantBits(),
       elementUniqueId.getLeastSignificantBits(), Timestamp.dump(modified))
     val elementDirectory = new File(nodeDirectory, elementDirectoryName)
     val elementDescriptor = new File(elementDirectory, "%s %s".format(boxPrefix, descriptorResourceSimple)).toURI
     log.debug(s"Acquire descriptor from ${elementDescriptor}.")
-    read(elementDescriptor)
+    read(elementDescriptor, sData)
   }
   /** Load graph from the specific URI. */
-  def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte] = {
+  def acquireGraph(origin: Symbol, sData: SData): Array[Byte] = {
+    val storageURI = sData(SData.Key.storageURI)
     if (!storageURI.isAbsolute())
       throw new IllegalArgumentException(s"Storage URI(${storageURI}) must be absolute.")
     val storageDirectory = new File(storageURI)
-    val graphDirectory = getGraphDirectory(storageDirectory, origin, false)
-    val graphDescriptor = new File(graphDirectory, descriptorResourceSimple).toURI
+    val graphDescriptor = new File(storageDirectory, descriptorResourceSimple).toURI
     log.debug(s"Acquire descriptor from ${graphDescriptor}.")
-    read(graphDescriptor)
+    read(graphDescriptor, sData)
   }
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte] = {
-    val storageDirectory = new File(storageURI)
-    val graphDirectory = new File(storageDirectory, origin.name)
-    val modelDirectory = new File(graphDirectory, modelDirectoryName)
-    val nodeDirectory = new File(modelDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
+  def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte] = {
+    val storageDirectory = new File(sData(SData.Key.storageURI))
+    val graphDirectory = new File(storageDirectory, dataDirectoryName)
+    val nodeDirectory = new File(graphDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
     val nodeDescriptor = new File(nodeDirectory, "%s %s".format(nodePrefix,
       descriptorResourceNameTemplate.format(Timestamp.dump(modified)))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
-    read(nodeDescriptor)
+    read(nodeDescriptor, sData)
   }
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte] = {
-    val storageDirectory = new File(storageURI)
+  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte] = {
+    val storageDirectory = new File(sData(SData.Key.storageURI))
     val parentNodeDirectory = getNodeDirectory(storageDirectory, ancestors, true)
     val nodeDirectory = new File(parentNodeDirectory, nodeNameTemplate.format(id.name, id.name.hashCode()))
     val nodeDescriptor = new File(nodeDirectory, "%s %s".format(nodePrefix,
       descriptorResourceNameTemplate.format(Timestamp.dump(modified)))).toURI
     log.debug(s"Acquire descriptor from ${nodeDescriptor}.")
-    read(nodeDescriptor)
+    read(nodeDescriptor, sData)
   }
   /** Delete resource. */
-  def delete(uri: URI) = if (new File(uri).delete())
+  def delete(uri: URI, sData: SData) = if (new File(uri).delete())
     throw new IOException(s"Unable to delete ${uri}.")
+  /** Check resource. */
+  def exists(uri: URI, sData: SData) = new File(uri).canRead()
   /** Save element to the specific URI. */
-  def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte]) {
-    val storageDirectory = new File(storageURI)
+  def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], elementBoxDescriptorContent: Array[Byte], sData: SData) {
+    val storageDirectory = new File(sData(SData.Key.storageURI))
     val elementDirectory = getElementDirectory(storageDirectory, ancestorsNSelf, elementBox, true)
     val elementDescriptorFile = new File(elementDirectory, "%s %s".format(boxPrefix, descriptorResourceSimple)).toURI
     log.debug(s"Freeze descriptor to ${elementDescriptorFile}.")
-    write(elementBoxDescriptorContent, elementDescriptorFile)
+    write(elementDescriptorFile, elementBoxDescriptorContent, sData)
   }
   /** Save graph to the specific URI. */
-  def freezeGraph(model: Node[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte]) {
-    val storageDirectory = new File(storageURI)
-    val graphDirectory = getGraphDirectory(storageDirectory, model.graph.origin, true)
-    val graphDescriptorFile = new File(graphDirectory, descriptorResourceSimple).toURI
+  def freezeGraph(model: Node[_ <: Model.Like], graphDescriptorContent: Array[Byte], sData: SData) {
+    val storageDirectory = new File(sData(SData.Key.storageURI))
+    val graphDescriptorFile = new File(storageDirectory, descriptorResourceSimple).toURI
     log.debug(s"Freeze descriptor to ${graphDescriptorFile}.")
-    write(graphDescriptorContent, graphDescriptorFile)
+    write(graphDescriptorFile, graphDescriptorContent, sData)
   }
   /** Save node to the specific URI. */
-  def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte]) {
-    val storageDirectory = new File(storageURI)
+  def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], nodeDescriptorContent: Array[Byte], sData: SData) {
+    val storageDirectory = new File(sData(SData.Key.storageURI))
     val nodeDirectory = getNodeDirectory(storageDirectory, ancestorsNSelf, true)
     val nodeDescriptorFile = new File(nodeDirectory, "%s %s".format(nodePrefix,
       descriptorResourceNameTemplate.format(Timestamp.dump(ancestorsNSelf.last.modified)))).toURI
     log.debug(s"Freeze descriptor to ${nodeDescriptorFile}.")
-    write(nodeDescriptorContent, nodeDescriptorFile)
+    write(nodeDescriptorFile, nodeDescriptorContent, sData)
   }
   /** Open stream */
-  def open(uri: URI): InputStream = new FileInputStream(new File(uri))
+  def open(uri: URI, sData: SData): InputStream = new FileInputStream(new File(uri))
   /** Read resource. */
-  def read(uri: URI): Array[Byte] = {
+  def read(uri: URI, sData: SData): Array[Byte] = {
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
     try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
     finally { try { bis.close() } catch { case e: IOException ⇒ } }
   }
-  /** Squeeze model. */
-  def squeeze() {}
   /** Write resource. */
-  def write(content: InputStream, uri: URI) {
+  def write(uri: URI, content: InputStream, sData: SData) {
     val contentFile = new File(uri)
     val contentDirectory = contentFile.getParentFile()
     if (!contentDirectory.isDirectory())
@@ -160,7 +148,7 @@ class Local extends Transport with Loggable {
     }
   }
   /** Write resource. */
-  def write(content: Array[Byte], uri: URI) {
+  def write(uri: URI, content: Array[Byte], sData: SData) {
     val contentFile = new File(uri)
     val contentDirectory = contentFile.getParentFile()
     if (!contentDirectory.isDirectory())
@@ -179,38 +167,20 @@ class Local extends Transport with Loggable {
     val relativePart = (nodes.map { node ⇒
       nodeNameTemplate.format(node.id.name, node.id.name.hashCode())
     } :+ elementBoxDirectoryName).mkString(File.separator)
-    val graphDirectory = new File(base, elementBox.node.graph.origin.name)
-    val modelDirectory = new File(graphDirectory, modelDirectoryName)
-    val elementDirectory = new File(modelDirectory, relativePart)
+    val graphDirectory = new File(base, dataDirectoryName)
+    val elementDirectory = new File(graphDirectory, relativePart)
     if (!elementDirectory.exists() && create)
       if (!elementDirectory.mkdirs())
         throw new IOException(s"Unable to create ${elementDirectory}.")
     elementDirectory
-  }
-  /** Get or create graph directory. */
-  protected def getGraphDirectory(base: File, origin: Symbol, create: Boolean): File = {
-    val graphDirectory = new File(base, origin.name)
-    if (!graphDirectory.exists())
-      if (create) {
-        if (!graphDirectory.mkdirs())
-          throw new IOException(s"Unable to create ${graphDirectory}.")
-      } else {
-        throw new IOException(s"Directory ${graphDirectory} not exists.")
-      }
-    val modelDirectory = new File(graphDirectory, modelDirectoryName)
-    if (!modelDirectory.exists() && create)
-      if (!modelDirectory.mkdirs())
-        throw new IOException(s"Unable to create ${modelDirectory}.")
-    graphDirectory
   }
   /** Get or create node directory. */
   protected def getNodeDirectory(base: File, nodes: Seq[Node[_ <: Element]], create: Boolean): File = {
     val relativePart = nodes.map { node ⇒
       nodeNameTemplate.format(node.id.name, node.id.name.hashCode())
     }.mkString(File.separator)
-    val graphDirectory = new File(base, nodes.head.graph.origin.name)
-    val modelDirectory = new File(graphDirectory, modelDirectoryName)
-    val nodeDirectory = new File(modelDirectory, relativePart)
+    val graphDirectory = new File(base, dataDirectoryName)
+    val nodeDirectory = new File(graphDirectory, relativePart)
     if (!nodeDirectory.exists() && create)
       if (!nodeDirectory.mkdirs())
         throw new IOException(s"Unable to create ${nodeDirectory}.")

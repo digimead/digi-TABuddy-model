@@ -18,12 +18,7 @@
 
 package org.digimead.tabuddy
 
-import java.util.UUID
-
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.tabuddy.model.Model
-
-import com.escalatesoft.subcut.inject.NewBindingModule
 
 package object model {
   lazy val default = org.digimead.tabuddy.model.dsl.default ~

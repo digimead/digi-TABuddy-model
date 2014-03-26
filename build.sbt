@@ -81,12 +81,12 @@ libraryDependencies ++= Seq(
 
 parallelExecution in Test := false
 
-testGrouping in Test <<= (definedTests in Test) map { tests =>
+testGrouping in Test <<= (definedTests in Test, javaOptions in run) map { (tests, javaOptions) ⇒
   tests map { test =>
     new Tests.Group(
       name = test.name,
       tests = Seq(test),
-      runPolicy = Tests.SubProcess(javaOptions = Seq.empty[String]))
+      runPolicy = Tests.SubProcess(javaOptions = javaOptions))
   }
 }
 

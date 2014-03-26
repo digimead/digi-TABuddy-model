@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,18 +18,11 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
-import java.io.ObjectStreamClass
+import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass }
 import java.net.URI
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 
 class BuiltinSerialization extends Mechanism with Loggable {
@@ -40,19 +33,19 @@ class BuiltinSerialization extends Mechanism with Loggable {
    * Load element.
    *
    * @param elementBox box of the loaded element
-   * @param storageURI storage URI
    * @param transport serialization transport
+   * @param sData serialization data with parameters
    *
    * @return element
    */
-  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = {
+  def load[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData)(implicit m: Manifest[A]): A = {
     log.debug(s"Load ${elementBox}.")
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
-    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, storageURI)
+    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
-    val elementContent = transport.read(elementURI)
+    val elementContent = transport.read(elementURI, sData)
     Serialization.stash.set(elementBox)
     val bais = new ByteArrayInputStream(elementContent)
     val in = new BuiltinSerialization.CustomObjectInputStream(bais)
@@ -63,20 +56,20 @@ class BuiltinSerialization extends Mechanism with Loggable {
   /**
    * Save element.
    *
+   * @param ancestorsNSelf sequence of ancestors
    * @param element element to save
    * @param transport serialization transport
-   * @param storageURI storage URI
-   * @param ancestorsNSelf sequence of ancestors
+   * @param sData serialization data with parameters
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) {
-    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, storageURI)
+  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, transport: Transport, sData: SData) {
+    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
     log.debug(s"Save ${element.eBox} to ${elementURI}.")
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)
     out.writeObject(element)
     baos.close()
-    transport.write(baos.toByteArray(), elementURI)
+    transport.write(elementURI, baos.toByteArray(), sData)
   }
 }
 

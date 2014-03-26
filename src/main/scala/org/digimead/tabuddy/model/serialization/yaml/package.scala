@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,10 @@
 
 package org.digimead.tabuddy.model.serialization
 
+import com.escalatesoft.subcut.inject.NewBindingModule
 import org.digimead.digi.lib.DependencyInjection
 import org.yaml.snakeyaml.constructor.Construct
 import org.yaml.snakeyaml.representer.Represent
-
-import com.escalatesoft.subcut.inject.NewBindingModule
 
 package object yaml {
   lazy val default = new NewBindingModule(module ⇒ {
@@ -38,9 +37,6 @@ package object yaml {
     module.bind[Represent] identifiedBy ("YAML.Represent.Reference") toSingle { new Reference.Represent }
     module.bind[Construct] identifiedBy ("YAML.Construct.Scope") toSingle { new Scope.Construct }
     module.bind[Represent] identifiedBy ("YAML.Represent.Scope") toSingle { new Scope.Represent }
-    module.bind[Construct] identifiedBy ("YAML.Construct.Serialization.Descriptor.Element") toSingle { new Serialization.Descriptor.Element.Construct }
-    module.bind[Construct] identifiedBy ("YAML.Construct.Serialization.Descriptor.Graph") toSingle { new Serialization.Descriptor.Graph.Construct }
-    module.bind[Construct] identifiedBy ("YAML.Construct.Serialization.Descriptor.Node") toSingle { new Serialization.Descriptor.Node.Construct }
     module.bind[Construct] identifiedBy ("YAML.Construct.Stash") toSingle { new Stash.Construct }
     module.bind[Represent] identifiedBy ("YAML.Represent.Stash") toSingle { new Stash.Represent }
     module.bind[Construct] identifiedBy ("YAML.Construct.Symbol") toSingle { new Symbol.Construct }

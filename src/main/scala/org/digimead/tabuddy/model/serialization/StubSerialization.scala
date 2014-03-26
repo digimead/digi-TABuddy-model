@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,9 @@
 package org.digimead.tabuddy.model.serialization
 
 import java.net.URI
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 
 class StubSerialization extends Mechanism with Loggable {
@@ -34,21 +32,21 @@ class StubSerialization extends Mechanism with Loggable {
    * Load element.
    *
    * @param elementBox box of the loaded element
-   * @param storageURI storage URI
    * @param transport serialization transport
+   * @param sData serialization data with parameters
    *
    * @return element
    */
-  def load[A <: Element](elementBox: ElementBox[A], storageURI: URI, transport: Transport)(implicit m: Manifest[A]): A = ???
+  def load[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData)(implicit m: Manifest[A]): A = ???
   /**
    * Save element.
    *
+   * @param ancestorsNSelf sequence of ancestors
    * @param element element to save
    * @param transport serialization transport
-   * @param storageURI storage URI
-   * @param ancestorsNSelf sequence of ancestors
+   * @param sData serialization data with parameters
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, storageURI: URI, transport: Transport) = ???
+  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, transport: Transport, sData: SData) = ???
 }
 
 object StubSerialization {

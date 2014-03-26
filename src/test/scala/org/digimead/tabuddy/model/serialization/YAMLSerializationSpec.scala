@@ -28,6 +28,7 @@ import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.{ Axis, Coordinate, Element, Reference, Value }
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.digimead.tabuddy.model.{ Model, Record }
 import org.scalatest.{ FunSpec, Matchers }
@@ -168,46 +169,45 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
 
         // serialize
         new File(folder, "john1") should not be ('exists)
-        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
-        graph.stored should be('empty)
+        graph.retrospective.history should be('empty)
         val before = model.eBox.modified
-        val timestamp1 = Serialization.freeze(graph)
+        val timestamp1 = Serialization.freeze(graph, folder.getAbsoluteFile().toURI())
         val graphX = graph.copy() { g ⇒ }
         graphX.storages should be(graph.storages)
-        graphX.stored should be(graph.stored)
-        timestamp1 should be(graph.stored.last)
+        graphX.retrospective should be(graph.retrospective)
+        Some(timestamp1) should be(graph.retrospective.last)
         timestamp1 should be(graph.node.modified)
         timestamp1 should be(graph.modified)
         val after = model.eBox.modified
         after should be(before)
-        graph.stored should have size (1)
-        graph.stored.head should be(graph.modified)
+        graph.retrospective.history should have size (1)
+        graph.retrospective.head should be(Some(graph.modified))
 
-        new File(folder, "john1") should be('directory)
-        new File(folder, "john1").length() should be > (0L)
-        new File(folder, "john1/descriptor.yaml") should be('file)
-        new File(folder, "john1/descriptor.yaml").length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/node descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modified))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/node descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modified))).length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/node descriptor-%s.yaml".
+        new File(folder, "data") should be('directory)
+        new File(folder, "data").length() should be > (0L)
+        new File(folder, "descriptor.yaml") should be('file)
+        new File(folder, "descriptor.yaml").length() should be > (0L)
+        new File(folder, "data/e john1 {0609C486}/node descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modified))) should be('file)
+        new File(folder, "data/e john1 {0609C486}/node descriptor-%s.yaml".format(Timestamp.dump(model.eNode.modified))).length() should be > (0L)
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modified))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel)).eNode.modified))).length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modified))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a)).eNode.modified))).length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modified))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b)).eNode.modified))).length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modified))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}/e level2a {0428D0F3}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1a) | RecordLocation('level2a)).eNode.modified))).length() should be > (0L)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modified))) should be('file)
-        new File(folder, "john1/model/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/node descriptor-%s.yaml".
+        new File(folder, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1b {0428D0D5}/e level2b {0428D0F4}/node descriptor-%s.yaml".
           format(Timestamp.dump((model | RecordLocation('baseLevel) | RecordLocation('level1b) | RecordLocation('level2b)).eNode.modified))).length() should be > (0L)
         //val testTxtSource = scala.io.Source.fromFile(new File(folder, "john1/model/john1/description"))
         //val str = testTxtSource.getLines.mkString("\n")
@@ -216,7 +216,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         // deserialize
         val graph2 = Serialization.acquire(graph.origin, folder.toURI)
         graph2.storages should be(graph.storages)
-        graph2.stored should be(graph.stored)
+        graph2.retrospective should be(graph.retrospective)
 
         /* compare graph */
         graph2 should not be (null)
@@ -290,14 +290,14 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
 
         Serialization.freeze(graph)
         val timestamp2 = Serialization.freeze(graph)
-        timestamp2 should be(graph.stored.last)
+        Some(timestamp2) should be(graph.retrospective.last)
         timestamp2 should be(graph.node.modified)
         timestamp2 should be(graph.modified)
-        graph.stored should have size (2)
-        graph.stored.last should be(graph.modified)
-        graph.stored.head should be(graphModification)
+        graph.retrospective.history should have size (2)
+        graph.retrospective.last should be(Some(graph.modified))
+        graph.retrospective.head should be(Some(graphModification))
 
-        val graph1x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.head))
+        val graph1x = Serialization.acquire(graph.origin, folder.toURI, graph.retrospective.head)
         var elementCounter = 0
         def loadMonitor(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) = {
           elementCounter += 1
@@ -311,7 +311,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
           }
           nodeDescriptor
         }
-        val graph2x = Serialization.acquire(graph.origin, folder.toURI, Some(graph.stored.last), loadMonitor _)
+        val graph2x = Serialization.acquire(graph.origin, folder.toURI, graph.retrospective.last, SData(SData.Key.acquireT -> loadMonitor _))
         elementCounter should be(6)
         val size = graph.node.safeRead(_.iteratorRecursive.size)
         val size2 = graph2.node.safeRead(_.iteratorRecursive.size)
@@ -369,8 +369,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         val task = model.task('task)
         model.eNode.safeRead(_.iteratorRecursive.toSeq) should have size (5)
 
-        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
-        Serialization.freeze(graph)
+        Serialization.freeze(graph, folder.getAbsoluteFile().toURI())
         val graph2 = Serialization.acquire(graph.origin, folder.toURI)
 
         graph.node.safeRead { node ⇒
@@ -450,14 +449,14 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         val note = model.note('note)
         val task = model.task('task)
         model.eNode.safeRead(_.iteratorRecursive.toSeq) should have size (5)
-        graph.storages = graph.storages :+ folder.getAbsoluteFile().toURI()
 
         // save
 
+        info("test filter 'remove all children' on save.")
         val fFilterSave1 = (node: Node.ThreadUnsafe[Element]) ⇒
           Node(node.id, node.unique, node.state.copy(children = Seq()), node.modified)(node.elementType)
-        Serialization.freeze(graph, fFilterSave1)
-        graph.stored should have size (1)
+        Serialization.freeze(graph, SData(SData.Key.freezeT -> fFilterSave1), folder.getAbsoluteFile().toURI())
+        graph.retrospective.history should have size (1)
 
         val graph2 = Serialization.acquire('john1, folder.toURI)
         graph2.node.safeRead(_.children) should be('empty)
@@ -465,13 +464,14 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
 
         graph2.modified should be(graph.modified)
 
+        info("test filter 'reset timestamp to (0, 0)' on save.")
         @volatile var x = 0
         val fFilterSave2 = (node: Node.ThreadUnsafe[Element]) ⇒ {
           x += 1
           Node(node.id, node.unique, node.state, Element.timestamp(0, 0))(node.elementType)
         }
-        Serialization.freeze(graph, fFilterSave2)
-        graph.stored should have size (2)
+        Serialization.freeze(graph, SData(SData.Key.freezeT -> fFilterSave2))
+        graph.retrospective.history should have size (2)
 
         val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))
         graph3.node.safeRead(_.iteratorRecursive.size) should be(5)
@@ -480,6 +480,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         graph3.node.safeRead(_.iteratorRecursive.forall(_.modified == Element.timestamp(0, 0))) should be(true)
         x should be(11) // model + all elements + children
 
+        info("test filter 'add x before nodes id' on save.")
         // We MUST copy element boxes since
         // 1. some of original element boxes are unmodified and will not be saved
         // 2. element box container is changed (node id)
@@ -487,8 +488,8 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         val fFilterSave3 = (node: Node.ThreadUnsafe[Element]) ⇒
           Node(Symbol("x" + node.id.name), node.unique, node.state.copy(projectionBoxes =
             immutable.HashMap(node.state.projectionBoxes.map { case (k, v) ⇒ k -> v.copy() }.toSeq: _*)), node.modified)(node.elementType)
-        Serialization.freeze(graph, fFilterSave3)
-        graph.stored should have size (2)
+        Serialization.freeze(graph, SData(SData.Key.freezeT -> fFilterSave3))
+        graph.retrospective.history should have size (2)
 
         val graph4 = Serialization.acquire('john1, folder.toURI)
         graph.node.safeRead { node ⇒
@@ -501,9 +502,10 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
 
         // load
 
+        info("test filter 'remove all children' on load.")
         val fFilterLoad1 = (ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
           nodeDescriptor.copy(children = Seq())
-        val graph5 = Serialization.acquire('john1, folder.toURI, fFilterLoad1)
+        val graph5 = Serialization.acquire('john1, folder.toURI, SData(SData.Key.acquireT -> fFilterLoad1))
         graph5.node.safeRead(_.children) should be('empty)
         graph5.node.safeRead(_.iteratorRecursive.size) should be(0)
       }

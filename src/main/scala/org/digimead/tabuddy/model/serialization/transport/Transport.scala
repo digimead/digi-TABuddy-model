@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,16 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
-import java.io.InputStream
-import java.net.URI
+import java.io.{ FilterInputStream, InputStream }
+import java.net.{ URI, URLEncoder }
 import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Node
-import java.net.URLEncoder
+import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
+import org.digimead.tabuddy.model.serialization.SData
+import scala.collection.immutable
+import scala.reflect.runtime.universe.TypeTag
 
 /**
  * Serialization transport that provides implementation for the specific URI scheme.
@@ -36,12 +36,12 @@ trait Transport {
   this: Loggable ⇒
   /** Box prefix. */
   val boxPrefix = "box"
+  /** Graph directory name. */
+  val dataDirectoryName = "data"
   /** Descriptor resource name. */
   val descriptorResourceName = "descriptor"
   /** Element resource name. */
   val elementResourceName = "element"
-  /** Model directory name. */
-  val modelDirectoryName = "model"
   /** Node prefix. */
   val nodePrefix = "node"
   /** Name of optional part of element. */
@@ -50,36 +50,36 @@ trait Transport {
   val scheme: String
 
   /** Get element location with the specific UUID for the specific container. */
-  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, part: String*): URI
+  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], sData: SData, part: String*): URI
   /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, storageURI: URI): Array[Byte]
+  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, sData: SData): Array[Byte]
   /** Load graph descriptor with the specific origin from the specific URI. */
-  def acquireGraph(origin: Symbol, storageURI: URI): Array[Byte]
+  def acquireGraph(origin: Symbol, sData: SData): Array[Byte]
   /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
+  def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte]
   /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, storageURI: URI): Array[Byte]
+  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte]
   /** Append path to URI. */
   def append(uri: URI, part: String*): URI = if (uri.toString().endsWith("/"))
     new URI(uri + part.map(URLEncoder.encode(_, "UTF-8").replace("+", "%20")).mkString("/"))
   else
     new URI(uri + "/" + part.map(URLEncoder.encode(_, "UTF-8").replace("+", "%20")).mkString("/"))
   /** Delete resource. */
-  def delete(uri: URI)
+  def delete(uri: URI, sData: SData)
+  /** Check resource. */
+  def exists(uri: URI, sData: SData): Boolean
   /** Save element box to the specific URI. */
-  def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], storageURI: URI, elementBoxDescriptorContent: Array[Byte])
+  def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], elementBoxDescriptorContent: Array[Byte], sData: SData)
   /** Save graph to the specific URI. */
-  def freezeGraph(node: Node[_ <: Model.Like], storageURI: URI, graphDescriptorContent: Array[Byte])
+  def freezeGraph(node: Node[_ <: Model.Like], graphDescriptorContent: Array[Byte], sData: SData)
   /** Save node to the specific URI. */
-  def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], storageURI: URI, nodeDescriptorContent: Array[Byte])
+  def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], nodeDescriptorContent: Array[Byte], sData: SData)
   /** Open stream. */
-  def open(uri: URI): InputStream
+  def open(uri: URI, sData: SData): InputStream
   /** Read resource. */
-  def read(uri: URI): Array[Byte]
-  /** Squeeze model. */
-  def squeeze()
+  def read(uri: URI, sData: SData): Array[Byte]
   /** Write resource. */
-  def write(content: InputStream, uri: URI)
+  def write(uri: URI, content: InputStream, sData: SData)
   /** Write resource. */
-  def write(content: Array[Byte], uri: URI)
+  def write(uri: URI, content: Array[Byte], sData: SData)
 }

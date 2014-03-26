@@ -75,4 +75,6 @@ class NodeSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
       modifiedAfterCopyWithAttach should be < (graph1.modified)
     }
   }
+
+  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

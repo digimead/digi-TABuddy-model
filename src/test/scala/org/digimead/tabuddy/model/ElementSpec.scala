@@ -128,8 +128,7 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with Loggable
       rootX.eStash.created should be(newCreated)
       graph.copy()(_ ⇒ {}).node.safeRead { node ⇒
         graph.node.safeRead { node2 ⇒
-          node.graph.storages should be(node2.graph.storages)
-          node.graph.stored should be(node2.graph.stored)
+          node.graph.retrospective should be(node2.graph.retrospective)
           node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
         }
       } should be(true)

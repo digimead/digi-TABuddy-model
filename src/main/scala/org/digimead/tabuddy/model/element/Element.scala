@@ -19,30 +19,18 @@
 package org.digimead.tabuddy.model.element
 
 import java.util.UUID
-import java.util.concurrent.ScheduledThreadPoolExecutor
-import java.util.concurrent.ThreadFactory
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ ScheduledThreadPoolExecutor, ThreadFactory, TimeUnit }
 import java.util.concurrent.atomic.AtomicInteger
-
-import scala.collection.TraversableOnce.flattenTraversableOnce
-import scala.collection.immutable
-import scala.util.DynamicVariable
-
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
-import org.digimead.tabuddy.model.element.compare.Compare
-import org.digimead.tabuddy.model.element.compare.CompareByTimespamp
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
-import org.digimead.tabuddy.model.graph.Event
-import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.graph.Modifiable
-import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.element.compare.{ Compare, CompareByTimespamp }
+import org.digimead.tabuddy.model.graph.{ ElementBox, Event, Graph, Modifiable, Node }
 import org.digimead.tabuddy.model.serialization.Serialization
-
+import scala.collection.TraversableOnce.flattenTraversableOnce
+import scala.collection.immutable
 import scala.language.implicitConversions
+import scala.util.DynamicVariable
 
 /**
  * Base element
