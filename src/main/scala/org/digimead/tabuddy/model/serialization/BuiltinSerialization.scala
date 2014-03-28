@@ -32,7 +32,7 @@ class BuiltinSerialization extends Mechanism with Loggable {
   /**
    * Load element.
    *
-   * @param elementBox box of the loaded element
+   * @param elementBox element to load
    * @param transport serialization transport
    * @param sData serialization data with parameters
    *
@@ -42,8 +42,8 @@ class BuiltinSerialization extends Mechanism with Loggable {
     log.debug(s"Load ${elementBox}.")
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined.")
-    val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
-    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, sData)
+    val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
+    val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
     val elementContent = transport.read(elementURI, sData)
     Serialization.stash.set(elementBox)
@@ -56,18 +56,18 @@ class BuiltinSerialization extends Mechanism with Loggable {
   /**
    * Save element.
    *
-   * @param ancestorsNSelf sequence of ancestors
-   * @param element element to save
+   * @param elementBox element to save
    * @param transport serialization transport
    * @param sData serialization data with parameters
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, transport: Transport, sData: SData) {
-    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, sData)
+  def save[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData) {
+    val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
+    val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
-    log.debug(s"Save ${element.eBox} to ${elementURI}.")
+    log.debug(s"Save ${elementBox} to ${elementURI}.")
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)
-    out.writeObject(element)
+    out.writeObject(elementBox.e)
     baos.close()
     transport.write(elementURI, baos.toByteArray(), sData)
   }

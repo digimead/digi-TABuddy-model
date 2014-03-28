@@ -32,7 +32,7 @@ class YAMLSerialization extends Mechanism with Loggable {
   /**
    * Load element.
    *
-   * @param elementBox box of the loaded element
+   * @param elementBox element to load
    * @param transport serialization transport
    * @param sData serialization data with parameters
    *
@@ -41,8 +41,8 @@ class YAMLSerialization extends Mechanism with Loggable {
   def load[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData)(implicit m: Manifest[A]): A = {
     if (m.runtimeClass == classOf[Nothing])
       throw new IllegalArgumentException("Element type is undefined.")
-    val ancestorsNSelf = elementBox.node.safeRead(node ⇒ node.ancestors.reverse :+ node)
-    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, elementBox, sData)
+    val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
+    val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     log.debug(s"Load ${elementBox} from ${elementURI}.")
@@ -59,19 +59,19 @@ class YAMLSerialization extends Mechanism with Loggable {
   /**
    * Save element.
    *
-   * @param ancestorsNSelf sequence of ancestors
-   * @param element element to save
+   * @param elementBox element to save
    * @param transport serialization transport
    * @param sData serialization data with parameters
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, transport: Transport, sData: SData) = {
-    val elementContainerURI = transport.acquireElementLocation(ancestorsNSelf, element.eBox, sData)
+  def save[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData) = {
+    val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
+    val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
-    val optional = yaml.Optional.getOptional(element.eStash)
-    log.debug(s"Save ${element.eBox} to ${elementURI}.")
-    transport.write(elementURI, YAMLSerialization.wrapper(yaml.YAML.block.dump(element.eStash).getBytes(io.Codec.UTF8.charSet), element.eStash), sData)
-    log.debug(s"Save optional ${element.eBox} to ${optionalURI}.")
+    val optional = yaml.Optional.getOptional(elementBox.e.eStash)
+    log.debug(s"Save ${elementBox} to ${elementURI}.")
+    transport.write(elementURI, YAMLSerialization.wrapper(yaml.YAML.block.dump(elementBox.e.eStash).getBytes(io.Codec.UTF8.charSet), elementBox.e.eStash), sData)
+    log.debug(s"Save optional ${elementBox} to ${optionalURI}.")
     transport.write(optionalURI, YAMLSerialization.wrapper(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optional), sData)
   }
 }

@@ -96,10 +96,9 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   /**
    * Save element.
    *
-   * @param ancestorsNSelf sequence of modified(if needed) ancestors
    * @param storageURI explicit storage URI
    */
-  def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData)
+  def save(sData: SData)
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[ElementBox[_]]
   override def equals(that: Any): Boolean = that match {
@@ -269,17 +268,16 @@ object ElementBox extends Loggable {
     // get modified timestamp or get unmodified timestamp or get unmodified if not loaded
     override def modified: Element.Timestamp = modifiedCache.map(_.modified) orElse
       unmodifiedCache.map(_.modified) getOrElse unmodified
-    def save(ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) =
+    def save(sData: SData) =
       synchronized {
         getModified match {
           case Some(element) ⇒
             Serialization.perIdentifier.get(serialization) match {
               case Some(mechanism) ⇒
                 val storageURI = sData(SData.Key.storageURI)
-                val ancestors = if (ancestorsNSelf.nonEmpty) ancestorsNSelf else node.safeRead(node ⇒ node.ancestors.reverse :+ node)
                 Serialization.perScheme.get(storageURI.getScheme()) match {
                   case Some(transport) ⇒
-                    mechanism.save(ancestors, element, transport, sData)
+                    mechanism.save(this, transport, sData)
                   case None ⇒
                     throw new IllegalArgumentException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
                 }

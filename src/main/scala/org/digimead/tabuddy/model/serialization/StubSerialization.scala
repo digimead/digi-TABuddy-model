@@ -31,7 +31,7 @@ class StubSerialization extends Mechanism with Loggable {
   /**
    * Load element.
    *
-   * @param elementBox box of the loaded element
+   * @param elementBox element to load
    * @param transport serialization transport
    * @param sData serialization data with parameters
    *
@@ -41,12 +41,11 @@ class StubSerialization extends Mechanism with Loggable {
   /**
    * Save element.
    *
-   * @param ancestorsNSelf sequence of ancestors
-   * @param element element to save
+   * @param elementBox element to save
    * @param transport serialization transport
    * @param sData serialization data with parameters
    */
-  def save(ancestorsNSelf: Seq[Node[_ <: Element]], element: Element, transport: Transport, sData: SData) = ???
+  def save[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData) = ???
 }
 
 object StubSerialization {

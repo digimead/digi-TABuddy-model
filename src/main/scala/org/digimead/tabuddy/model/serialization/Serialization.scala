@@ -62,10 +62,11 @@ class Serialization extends Serialization.Interface with Loggable {
       // 2. setup projections.
       val elementBoxes = source.modelDescriptor.elements.map {
         case (elementUniqueId, elementModificationTimestamp) ⇒
-          val descriptor = elementDescriptorFromYaml(source.transport.acquireElementBox(Seq(targetNode),
-            elementUniqueId, elementModificationTimestamp, sData))
-          ElementBox[Model.Like](descriptor.coordinate, descriptor.elementUniqueId, targetNode,
-            descriptor.serializationIdentifier, sData, descriptor.modified)(Manifest.classType(descriptor.clazz))
+          val elementBoxURI = source.transport.getElementBoxURI(Seq(), elementUniqueId, elementModificationTimestamp, sData)
+          val elementBoxDescriptor = elementBoxDescriptorFromYaml(source.transport.read(elementBoxURI, sData))
+          ElementBox[Model.Like](elementBoxDescriptor.coordinate, elementBoxDescriptor.elementUniqueId,
+            targetNode, elementBoxDescriptor.serializationIdentifier, sData,
+            elementBoxDescriptor.modified)(Manifest.classType(elementBoxDescriptor.clazz))
       }
       if (!elementBoxes.exists(_.coordinate == Coordinate.root))
         throw new IllegalStateException("Root element not found.")
@@ -92,12 +93,13 @@ class Serialization extends Serialization.Interface with Loggable {
     val bootstrapStorageURI = sData(SData.Key.storageURI)
     val sources = Serialization.perScheme.get(bootstrapStorageURI.getScheme()) match {
       case Some(transport) ⇒
-        val descriptor = graphDescriptorFromYaml(transport.acquireGraph(origin, sData.updated(SData.Key.storageURI, bootstrapStorageURI)))
-        if (descriptor.origin == null)
+        val graphURI = transport.getGraphURI(origin, sData)
+        val graphDescriptor = graphDescriptorFromYaml(transport.read(graphURI, sData))
+        if (graphDescriptor.origin == null)
           throw new IllegalStateException("Origin value not found in graph descriptor file.")
-        if (descriptor.origin.name != origin.name)
-          throw new IllegalStateException(s"Incorrect saved origin value ${descriptor.origin.name} vs required ${origin.name}.")
-        val sources = getSources(bootstrapStorageURI, transport, descriptor, modified, sData)
+        if (graphDescriptor.origin.name != origin.name)
+          throw new IllegalStateException(s"Incorrect saved origin value ${graphDescriptor.origin.name} vs required ${origin.name}.")
+        val sources = getSources(bootstrapStorageURI, transport, graphDescriptor, modified, sData)
         modified match {
           case Some(modified) ⇒
             // Pass only sources that contain required modification.
@@ -143,9 +145,11 @@ class Serialization extends Serialization.Interface with Loggable {
         // freeze graph
         realStorages.map {
           case storageURI if storageURI.isAbsolute() ⇒
+            val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
             Serialization.perScheme.get(storageURI.getScheme()) match {
               case Some(transport) ⇒
-                val modelˈ = sData(SData.Key.freezeT)(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
+                // Always freeze even if modification is the same
+                val modelˈ = sDataForStorage(SData.Key.freezeT)(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
                 // 1. Add new record to history.
                 if (!graphRetrospective.history.isDefinedAt(modelˈ.modified)) {
                   val origins = (graphRetrospective.origins :+ graph.origin).distinct
@@ -158,22 +162,23 @@ class Serialization extends Serialization.Interface with Loggable {
                   graph.retrospective = Graph.Retrospective(graphRetrospective.history + (modelˈ.modified -> record), origins, storages)
                 }
                 // 2. Freeze graph descriptor.
-                transport.freezeGraph(modelˈ, graphDescriptorToYAML(modelˈ,
-                  formalStorages.map(Serialization.normalizeURI).distinct),
-                  sData.updated(SData.Key.storageURI, storageURI))
+                val graphURI = transport.getGraphURI(modelˈ.id, sDataForStorage)
+                transport.write(graphURI, graphDescriptorToYAML(modelˈ,
+                  formalStorages.map(Serialization.normalizeURI).distinct), sDataForStorage)
                 // 3. Freeze all graph nodes.
-                freezeNode(modelˈ, transport, Seq(modelˈ), sData.updated(SData.Key.storageURI, storageURI))
+                freezeNode(modelˈ, transport, Seq(), sDataForStorage)
                 // 4. Freeze all graph records if required.
                 graph.retrospective.history.foreach {
                   case (modified, Graph.Retrospective.Indexes(originIndex, storageIndexes)) ⇒
                     val recordName = Serialization.recordName(modified)
                     val recordURI = transport.append(storageURI, Serialization.retrospective, recordName)
-                    if (!transport.exists(recordURI, sData))
-                      transport.write(recordURI, recordToYAML(originIndex, storageIndexes), sData)
+                    if (!transport.exists(recordURI, sDataForStorage))
+                      transport.write(recordURI, recordToYAML(originIndex, storageIndexes), sDataForStorage)
                 }
                 val recordResourcesName = Serialization.recordResourcesName(modelˈ.modified)
                 val recordResourcesURI = transport.append(storageURI, Serialization.retrospective, recordResourcesName)
-                transport.write(recordResourcesURI, recordResourcesToYAML(graph.retrospective.origins, graph.retrospective.storages), sData)
+                transport.write(recordResourcesURI,
+                  recordResourcesToYAML(graph.retrospective.origins, graph.retrospective.storages), sDataForStorage)
                 // 5. Freeze graph checksum if required.
                 //freezeCheckSumm()
                 Some(modelˈ.modified)
@@ -195,6 +200,7 @@ class Serialization extends Serialization.Interface with Loggable {
         throw e
     }
   }
+
   /** Internal method that loads node with the specific id for the specific parent. */
   protected def acquireNode(id: Symbol, modified: Element.Timestamp, ancestors: Seq[Node.ThreadUnsafe[_ <: Element]],
     sData: SData): Option[Node[_ <: Element]] = try {
@@ -205,19 +211,20 @@ class Serialization extends Serialization.Interface with Loggable {
     val nodeDescriptors: Seq[Option[(Serialization.Descriptor.Node[_ <: Element], URI, Transport)]] =
       storages.map {
         case storageURI if storageURI.isAbsolute() ⇒
+          val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
           Serialization.perScheme.get(storageURI.getScheme()) match {
             case Some(transport) ⇒
-              val descriptor = nodeDescriptorFromYaml(transport.acquireNode(ancestors, id, modified,
-                sData.updated(SData.Key.storageURI, storageURI)))
-              if (descriptor.elements.isEmpty)
+              val nodeURI = transport.getNodeURI(ancestors, id, modified, sDataForStorage)
+              val nodeDescriptor = nodeDescriptorFromYaml(transport.read(nodeURI, sDataForStorage))
+              if (nodeDescriptor.elements.isEmpty)
                 throw new IllegalStateException("There are no elements in the node.")
-              if (descriptor.id == null)
+              if (nodeDescriptor.id == null)
                 throw new IllegalStateException("Id value not found in node descriptor file.")
-              if (descriptor.unique == null)
+              if (nodeDescriptor.unique == null)
                 throw new IllegalStateException("Unique value not found in model node descriptor file.")
-              if (descriptor.id.name != id.name)
-                throw new IllegalStateException(s"Incorrect saved node id value ${descriptor.id.name} vs required ${id.name}.")
-              Some(descriptor, storageURI, transport)
+              if (nodeDescriptor.id.name != id.name)
+                throw new IllegalStateException(s"Incorrect saved node id value ${nodeDescriptor.id.name} vs required ${id.name}.")
+              Some(nodeDescriptor, storageURI, transport)
             case None ⇒
               log.error(s"Unable to acquire node ${id} from URI with unknown scheme ${storageURI.getScheme}.")
               None
@@ -258,9 +265,11 @@ class Serialization extends Serialization.Interface with Loggable {
       val elementBoxes = nodeDescriptor.elements.map {
         case (elementUniqueId, elementModificationTimestamp) ⇒
           log.debug(s"Acquire element box ${elementUniqueId}.")
-          val descriptor = elementDescriptorFromYaml(transport.acquireElementBox((ancestors :+ targetNode), elementUniqueId, elementModificationTimestamp, sData))
-          ElementBox[Element](descriptor.coordinate, descriptor.elementUniqueId, targetNode,
-            descriptor.serializationIdentifier, sData, descriptor.modified)(Manifest.classType(descriptor.clazz))
+          val elementBoxURI = transport.getElementBoxURI(ancestors, elementUniqueId, elementModificationTimestamp, sData)
+          val elementBoxDescriptor = elementBoxDescriptorFromYaml(transport.read(elementBoxURI, sData))
+          ElementBox[Element](elementBoxDescriptor.coordinate, elementBoxDescriptor.elementUniqueId, targetNode,
+            elementBoxDescriptor.serializationIdentifier, sData,
+            elementBoxDescriptor.modified)(Manifest.classType(elementBoxDescriptor.clazz))
       }
       if (!elementBoxes.exists(_.coordinate == Coordinate.root))
         throw new IllegalStateException("Root element not found.")
@@ -280,11 +289,11 @@ class Serialization extends Serialization.Interface with Loggable {
       targetNode
     }
   }
-  /** Create element descriptor from YAML. */
-  protected def elementDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Element[_ <: Element] = YAMLSerialization.wrapper(
+  /** Create element box descriptor from YAML. */
+  protected def elementBoxDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Element[_ <: Element] = YAMLSerialization.wrapper(
     yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]]), descriptor)
-  /** Create YAML element descriptor. */
-  protected def elementDescriptorToYAML(elementBox: ElementBox[_ <: Element]): Array[Byte] = {
+  /** Create YAML element box descriptor. */
+  protected def elementBoxDescriptorToYAML(elementBox: ElementBox[_ <: Element]): Array[Byte] = {
     val descriptorMap = new java.util.TreeMap[String, AnyRef]()
     descriptorMap.put("coordinate", elementBox.coordinate)
     descriptorMap.put("class", elementBox.node.elementType.runtimeClass.getName)
@@ -295,42 +304,45 @@ class Serialization extends Serialization.Interface with Loggable {
   }
   /** Internal method that saves the element content. */
   protected def freezeElementBox(elementBox: ElementBox[_ <: Element], transport: Transport,
-    ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) {
+    ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) {
     log.debug(s"Freeze ${elementBox}.")
     elementBox.getModified match {
       case Some(modified) ⇒
         if (modified ne elementBox.e)
           throw new IllegalStateException("Element and modified element are different.")
-        elementBox.save(ancestorsNSelf, sData)
+        elementBox.save(sData)
         elementBox.e.eStash.property.foreach {
           case (valueId, perTypeMap) ⇒ perTypeMap.foreach {
             case (typeSymbolId, value) ⇒
-              value.commit(modified, transport, transport.acquireElementLocation(ancestorsNSelf, modified.eBox, sData))
+              val elementRootURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
+              value.commit(modified, transport, elementRootURI)
           }
         }
       case None ⇒
         log.debug("Skip unmodified element.")
     }
     // freeze element box
-    transport.freezeElementBox(ancestorsNSelf, elementBox, elementDescriptorToYAML(elementBox), sData)
+    val elementBoxURI = transport.getElementBoxURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
+    transport.write(elementBoxURI, elementBoxDescriptorToYAML(elementBox), sData)
   }
   /** Internal method that saves the node descriptor. */
   protected def freezeNode(node: Node.ThreadUnsafe[_ <: Element], transport: Transport,
-    ancestorsNSelf: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) {
+    ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) {
     log.debug(s"Freeze ${node}.")
-    transport.freezeNode(ancestorsNSelf, nodeDescriptorToYAML(node.elementType, node.id, node.modified, node.state, node.unique, sData), sData)
+    val nodeURI = transport.getNodeURI(ancestors, node.id, node.modified, sData)
+    transport.write(nodeURI, nodeDescriptorToYAML(node.elementType, node.id, node.modified, node.state, node.unique, sData), sData)
     if (node.state.rootBox.getModified.nonEmpty)
       // save only modified element box
-      freezeElementBox(node.state.rootBox, transport, ancestorsNSelf, sData)
+      freezeElementBox(node.state.rootBox, transport, ancestors, sData)
     node.state.projectionBoxes.foreach {
       case (coordinate, box) ⇒
         if (box.getModified.nonEmpty)
           // save only modified element box
-          freezeElementBox(box, transport, ancestorsNSelf, sData)
+          freezeElementBox(box, transport, ancestors, sData)
     }
     node.state.children.foreach(_.safeRead { child ⇒
       val childˈ = sData(SData.Key.freezeT)(child.asInstanceOf[Node.ThreadUnsafe[Element]])
-      freezeNode(childˈ, transport, ancestorsNSelf :+ childˈ, sData)
+      freezeNode(childˈ, transport, ancestors :+ node, sData)
     })
   }
   /** Get all latest available sources which is based on bootstrap parameters. */
@@ -356,10 +368,12 @@ class Serialization extends Serialization.Interface with Loggable {
           val sources: Seq[Option[Serialization.Source[_ <: Model.Like, _ <: Element]]] =
             storages.filterNot(_ == bootstrapStorageURI).map {
               case storageURI if storageURI.isAbsolute() ⇒ try {
+                val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
                 Serialization.perScheme.get(storageURI.getScheme()) match {
                   case Some(transport) ⇒
-                    val descriptor = graphDescriptorFromYaml(transport.acquireGraph(origin, sData.updated(SData.Key.storageURI, storageURI)))
-                    if (descriptor.origin == null)
+                    val graphURI = transport.getGraphURI(origin, sData)
+                    val graphDescriptor = graphDescriptorFromYaml(transport.read(graphURI, sDataForStorage))
+                    if (graphDescriptor.origin == null)
                       throw new IllegalStateException("Origin value not found in graph descriptor file.")
                     if (descriptor.origin.name != origin.name)
                       throw new IllegalStateException(s"Incorrect saved origin value ${descriptor.origin.name} vs required ${origin.name}.")
@@ -412,7 +426,8 @@ class Serialization extends Serialization.Interface with Loggable {
   /** Load model descriptor for the graph one. */
   protected def getModelDescriptor(transport: Transport,
     graphDescriptor: Serialization.Descriptor.Graph[_ <: Model.Like], modified: Element.Timestamp, sData: SData) = {
-    val nodeDescriptor = nodeDescriptorFromYaml(transport.acquireModel(graphDescriptor.modelId, graphDescriptor.origin, modified, sData))
+    val nodeURI = transport.getNodeURI(Seq(), graphDescriptor.modelId, modified, sData)
+    val nodeDescriptor = nodeDescriptorFromYaml(transport.read(nodeURI, sData))
     val nodeDescriptorˈ = sData(SData.Key.acquireT)(Seq(), nodeDescriptor.asInstanceOf[Serialization.Descriptor.Node[Element]])
     if (nodeDescriptor.elements.isEmpty)
       throw new IllegalStateException("There are no elements in the model node.")

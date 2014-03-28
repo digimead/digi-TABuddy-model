@@ -49,16 +49,6 @@ trait Transport {
   /** Transport scheme. */
   val scheme: String
 
-  /** Get element location with the specific UUID for the specific container. */
-  def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], sData: SData, part: String*): URI
-  /** Load element box descriptor with the specific UUID for the specific container. */
-  def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, sData: SData): Array[Byte]
-  /** Load graph descriptor with the specific origin from the specific URI. */
-  def acquireGraph(origin: Symbol, sData: SData): Array[Byte]
-  /** Load model node descriptor with the specific id. */
-  def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte]
-  /** Load node descriptor with the specific id for the specific parent. */
-  def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte]
   /** Append path to URI. */
   def append(uri: URI, part: String*): URI = if (uri.toString().endsWith("/"))
     new URI(uri + part.map(URLEncoder.encode(_, "UTF-8").replace("+", "%20")).mkString("/"))
@@ -68,12 +58,14 @@ trait Transport {
   def delete(uri: URI, sData: SData)
   /** Check resource. */
   def exists(uri: URI, sData: SData): Boolean
-  /** Save element box to the specific URI. */
-  def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], elementBoxDescriptorContent: Array[Byte], sData: SData)
-  /** Save graph to the specific URI. */
-  def freezeGraph(node: Node[_ <: Model.Like], graphDescriptorContent: Array[Byte], sData: SData)
-  /** Save node to the specific URI. */
-  def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], nodeDescriptorContent: Array[Byte], sData: SData)
+  /** Get element box URI. */
+  def getElementBoxURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData): URI
+  /** Get graph URI. */
+  def getGraphURI(origin: Symbol, sData: SData): URI
+  /** Get node URI. */
+  def getNodeURI(ancestors: Seq[Node[_ <: Element]], nodeId: Symbol, nodeModified: Element.Timestamp, sData: SData): URI
+  /** Get sub element URI. */
+  def getSubElementURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData, part: String*): URI
   /** Open stream. */
   def open(uri: URI, sData: SData): InputStream
   /** Read resource. */

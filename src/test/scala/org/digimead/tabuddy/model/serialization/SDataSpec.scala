@@ -100,7 +100,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val sData = SData(SData.key[String]("test") -> "test")
       val timestamp = Serialization.freeze(graph, sData, graphURI)
       Mockito.verify(testTransport, Mockito.never).write(MM.anyObject(), MM.anyObject[InputStream](), MM.anyObject())
-      Mockito.verify(testTransport, Mockito.times(19)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(21)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
           case sData: SData ⇒ sData.size == 4 // key test, key storages, key transform, key storage
           case _ ⇒ false
@@ -137,36 +137,24 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
   class Test extends Local {
     override val scheme: String = "test"
 
-    /** Load element with the specific UUID for the specific container. */
-    override def acquireElementLocation(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], sData: SData, part: String*): URI =
-      super.acquireElementLocation(ancestorsNSelf, elementBox, x(sData), part: _*)
-    /** Load element box descriptor with the specific UUID for the specific container. */
-    override def acquireElementBox(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, modified: Element.Timestamp, sData: SData): Array[Byte] =
-      super.acquireElementBox(ancestors, elementUniqueId, modified, x(sData))
-    /** Load graph from the specific URI. */
-    override def acquireGraph(origin: Symbol, sData: SData): Array[Byte] =
-      super.acquireGraph(origin, x(sData))
-    /** Load model node descriptor with the specific id. */
-    override def acquireModel(id: Symbol, origin: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte] =
-      super.acquireModel(id, origin, modified, x(sData))
-    /** Load node descriptor with the specific id for the specific parent. */
-    override def acquireNode(ancestors: Seq[Node[_ <: Element]], id: Symbol, modified: Element.Timestamp, sData: SData): Array[Byte] =
-      super.acquireNode(ancestors, id, modified, x(sData))
     /** Delete resource. */
     override def delete(uri: URI, sData: SData) =
       super.delete(x(uri), x(sData))
     /** Delete resource. */
     override def exists(uri: URI, sData: SData) =
       super.exists(x(uri), x(sData))
-    /** Save element to the specific URI. */
-    override def freezeElementBox(ancestorsNSelf: Seq[Node[_ <: Element]], elementBox: ElementBox[_ <: Element], elementBoxDescriptorContent: Array[Byte], sData: SData) =
-      super.freezeElementBox(ancestorsNSelf, elementBox, elementBoxDescriptorContent, x(sData))
-    /** Save graph to the specific URI. */
-    override def freezeGraph(model: Node[_ <: Model.Like], graphDescriptorContent: Array[Byte], sData: SData) =
-      super.freezeGraph(model, graphDescriptorContent, x(sData))
-    /** Save node to the specific URI. */
-    override def freezeNode(ancestorsNSelf: Seq[Node[_ <: Element]], nodeDescriptorContent: Array[Byte], sData: SData) =
-      super.freezeNode(ancestorsNSelf, nodeDescriptorContent, x(sData))
+    /** Get element box URI. */
+    override def getElementBoxURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData): URI =
+      super.getElementBoxURI(ancestors, elementUniqueId, elementModified, x(sData))
+    /** Get graph URI. */
+    override def getGraphURI(origin: Symbol, sData: SData): URI =
+      super.getGraphURI(origin, x(sData))
+    /** Get node URI. */
+    override def getNodeURI(ancestors: Seq[Node[_ <: Element]], nodeId: Symbol, nodeModified: Element.Timestamp, sData: SData): URI =
+      super.getNodeURI(ancestors, nodeId, nodeModified, x(sData))
+    /** Get sub element URI. */
+    override def getSubElementURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData, part: String*): URI =
+      super.getSubElementURI(ancestors, elementUniqueId, elementModified, x(sData))
     /** Open stream */
     override def open(uri: URI, sData: SData): InputStream =
       super.open(x(uri), sData: SData)
