@@ -21,6 +21,7 @@ package org.digimead.tabuddy.model.serialization
 import java.io.IOException
 import java.net.URI
 import java.util.UUID
+import java.util.concurrent.CancellationException
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
@@ -29,8 +30,8 @@ import org.digimead.tabuddy.model.graph.{ ElementBox, Graph, Node, NodeState }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.YAML
 import org.yaml.snakeyaml.nodes.{ Node ⇒ YAMLNode, SequenceNode, Tag }
-import scala.collection.{ immutable, mutable }
 import scala.collection.JavaConverters.{ asScalaBufferConverter, seqAsJavaListConverter }
+import scala.collection.{ immutable, mutable }
 import scala.language.implicitConversions
 import scala.ref.WeakReference
 import scala.util.control.ControlThrowable
@@ -84,6 +85,7 @@ class Serialization extends Serialization.Interface with Loggable {
       }
       if (graph.modelType != graph.node.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
+      sData.get(SData.Key.onAcquire).map(_(graph, source.transport, sData))
     }
     graph
   }
@@ -148,42 +150,54 @@ class Serialization extends Serialization.Interface with Loggable {
             val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
             Serialization.perScheme.get(storageURI.getScheme()) match {
               case Some(transport) ⇒
-                // Always freeze even if modification is the same
-                val modelˈ = sDataForStorage(SData.Key.freezeT)(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
-                // 1. Add new record to history.
-                if (!graphRetrospective.history.isDefinedAt(modelˈ.modified)) {
-                  val origins = (graphRetrospective.origins :+ graph.origin).distinct
-                  val storages = (graphRetrospective.storages ++ formalStorages).distinct
-                  val record = Graph.Retrospective.Indexes(origins.indexOf(graph.origin), formalStorages.map(s ⇒ storages.indexOf(s)).toSeq)
-                  if (record.originIndex < 0)
-                    throw new IllegalStateException(s"Unable to find index for origin ${graph.origin} in ${origins.mkString(",")}.")
-                  if (record.storageIndexes.exists(_ < 0))
-                    throw new IllegalStateException(s"Unable to find index for storages ${formalStorages.mkString(",")} in ${storages.mkString(",")}.")
-                  graph.retrospective = Graph.Retrospective(graphRetrospective.history + (modelˈ.modified -> record), origins, storages)
+                try {
+                  // Always freeze even if modification is the same
+                  val modelˈ = sDataForStorage(SData.Key.freezeT)(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
+                  // 1. Add new record to history.
+                  if (!graphRetrospective.history.isDefinedAt(modelˈ.modified) || {
+                    // There are new storages.
+                    val storages = graphRetrospective.getStorages(modelˈ.modified)
+                    formalStorages.exists(s ⇒ !storages.contains(s))
+                  }) {
+                    val origins = (graphRetrospective.origins :+ graph.origin).distinct
+                    val storages = (graphRetrospective.storages ++ formalStorages).distinct
+                    val record = Graph.Retrospective.Indexes(origins.indexOf(graph.origin), formalStorages.map(s ⇒ storages.indexOf(s)).toSeq)
+                    if (record.originIndex < 0)
+                      throw new IllegalStateException(s"Unable to find index for origin ${graph.origin} in ${origins.mkString(",")}.")
+                    if (record.storageIndexes.exists(_ < 0))
+                      throw new IllegalStateException(s"Unable to find index for storages ${formalStorages.mkString(",")} in ${storages.mkString(",")}.")
+                    graph.retrospective = Graph.Retrospective(graphRetrospective.history + (modelˈ.modified -> record), origins, storages)
+                  }
+                  // 2. Freeze graph descriptor.
+                  val graphURI = transport.getGraphURI(modelˈ.id, sDataForStorage)
+                  // Overwrite always
+                  transport.write(graphURI, graphDescriptorToYAML(modelˈ,
+                    formalStorages.map(Serialization.normalizeURI).distinct), sDataForStorage)
+                  // 3. Freeze all graph nodes.
+                  freezeNode(modelˈ, transport, Seq(), sDataForStorage)
+                  // 4. Freeze all graph records if required.
+                  graph.retrospective.history.foreach {
+                    case (modified, Graph.Retrospective.Indexes(originIndex, storageIndexes)) ⇒
+                      val recordName = Serialization.recordName(modified)
+                      val recordURI = transport.append(storageURI, Serialization.retrospective, recordName)
+                      if (!transport.exists(recordURI, sDataForStorage) || sDataForStorage.get(SData.Key.force) == Some(true))
+                        transport.write(recordURI, recordToYAML(originIndex, storageIndexes), sDataForStorage)
+                  }
+                  val recordResourcesName = Serialization.recordResourcesName(modelˈ.modified)
+                  val recordResourcesURI = transport.append(storageURI, Serialization.retrospective, recordResourcesName)
+                  if (!transport.exists(recordResourcesURI, sDataForStorage) || sDataForStorage.get(SData.Key.force) == Some(true))
+                    transport.write(recordResourcesURI,
+                      recordResourcesToYAML(graph.retrospective.origins, graph.retrospective.storages), sDataForStorage)
+                  // 5. Invoke user onComplete callback if required.
+                  sDataForStorage.get(SData.Key.onFreeze).map(_(modelˈ.graph, transport, sDataForStorage))
+                  Some(modelˈ.modified)
+                } catch {
+                  case e: CancellationException ⇒
+                    log.info(s"Unable to save graph to ${storageURI}: ${e.getMessage()}.")
+                    None
                 }
-                // 2. Freeze graph descriptor.
-                val graphURI = transport.getGraphURI(modelˈ.id, sDataForStorage)
-                transport.write(graphURI, graphDescriptorToYAML(modelˈ,
-                  formalStorages.map(Serialization.normalizeURI).distinct), sDataForStorage)
-                // 3. Freeze all graph nodes.
-                freezeNode(modelˈ, transport, Seq(), sDataForStorage)
-                // 4. Freeze all graph records if required.
-                graph.retrospective.history.foreach {
-                  case (modified, Graph.Retrospective.Indexes(originIndex, storageIndexes)) ⇒
-                    val recordName = Serialization.recordName(modified)
-                    val recordURI = transport.append(storageURI, Serialization.retrospective, recordName)
-                    if (!transport.exists(recordURI, sDataForStorage))
-                      transport.write(recordURI, recordToYAML(originIndex, storageIndexes), sDataForStorage)
-                }
-                val recordResourcesName = Serialization.recordResourcesName(modelˈ.modified)
-                val recordResourcesURI = transport.append(storageURI, Serialization.retrospective, recordResourcesName)
-                transport.write(recordResourcesURI,
-                  recordResourcesToYAML(graph.retrospective.origins, graph.retrospective.storages), sDataForStorage)
-                // 5. Freeze graph checksum if required.
-                //freezeCheckSumm()
-                Some(modelˈ.modified)
               case None ⇒
-                log.error(s"Unable to save graph to URI with unknown scheme '${storageURI.getScheme}''.")
+                log.error(s"Unable to save graph to URI with unknown scheme '${storageURI.getScheme}'.")
                 None
             }
           case storageURI ⇒
@@ -239,7 +253,7 @@ class Serialization extends Serialization.Interface with Loggable {
   } catch {
     case e: Throwable ⇒
       log.error(s"Unable to load node ${id} : " + e.getMessage(), e)
-      if (sData.get(SData.Key.forceLoad) == Some(true))
+      if (sData.get(SData.Key.force) == Some(true))
         None
       else
         throw e // rethrow
@@ -306,40 +320,31 @@ class Serialization extends Serialization.Interface with Loggable {
   protected def freezeElementBox(elementBox: ElementBox[_ <: Element], transport: Transport,
     ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) {
     log.debug(s"Freeze ${elementBox}.")
-    elementBox.getModified match {
-      case Some(modified) ⇒
-        if (modified ne elementBox.e)
-          throw new IllegalStateException("Element and modified element are different.")
-        elementBox.save(sData)
-        elementBox.e.eStash.property.foreach {
-          case (valueId, perTypeMap) ⇒ perTypeMap.foreach {
-            case (typeSymbolId, value) ⇒
-              val elementRootURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
-              value.commit(modified, transport, elementRootURI)
-          }
-        }
-      case None ⇒
-        log.debug("Skip unmodified element.")
-    }
     // freeze element box
     val elementBoxURI = transport.getElementBoxURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
+    if (transport.exists(elementBoxURI, sData) && sData.get(SData.Key.force) != Some(true))
+      return
     transport.write(elementBoxURI, elementBoxDescriptorToYAML(elementBox), sData)
+    if (elementBox.getModified.map(_ ne elementBox.e) == Some(true))
+      throw new IllegalStateException("Element and modified element are different.")
+    elementBox.save(sData)
+    elementBox.e.eStash.property.foreach {
+      case (valueId, perTypeMap) ⇒ perTypeMap.foreach {
+        case (typeSymbolId, value) ⇒
+          val elementRootURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
+          value.commit(elementBox.e, transport, elementRootURI)
+      }
+    }
   }
   /** Internal method that saves the node descriptor. */
   protected def freezeNode(node: Node.ThreadUnsafe[_ <: Element], transport: Transport,
     ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData) {
     log.debug(s"Freeze ${node}.")
     val nodeURI = transport.getNodeURI(ancestors, node.id, node.modified, sData)
+    if (transport.exists(nodeURI, sData) && sData.get(SData.Key.force) != Some(true))
+      return
     transport.write(nodeURI, nodeDescriptorToYAML(node.elementType, node.id, node.modified, node.state, node.unique, sData), sData)
-    if (node.state.rootBox.getModified.nonEmpty)
-      // save only modified element box
-      freezeElementBox(node.state.rootBox, transport, ancestors, sData)
-    node.state.projectionBoxes.foreach {
-      case (coordinate, box) ⇒
-        if (box.getModified.nonEmpty)
-          // save only modified element box
-          freezeElementBox(box, transport, ancestors, sData)
-    }
+    node.state.projectionBoxes.foreach { case (coordinate, box) ⇒ freezeElementBox(box, transport, ancestors, sData) }
     node.state.children.foreach(_.safeRead { child ⇒
       val childˈ = sData(SData.Key.freezeT)(child.asInstanceOf[Node.ThreadUnsafe[Element]])
       freezeNode(childˈ, transport, ancestors :+ node, sData)
@@ -364,52 +369,50 @@ class Serialization extends Serialization.Interface with Loggable {
         val origin = recordResources.origins(record.originIndex)
         val storages = record.storageIndexes.map(recordResources.storages)
         // 4. load descriptors from all storages
-        if (storages.nonEmpty) {
-          val sources: Seq[Option[Serialization.Source[_ <: Model.Like, _ <: Element]]] =
-            storages.filterNot(_ == bootstrapStorageURI).map {
-              case storageURI if storageURI.isAbsolute() ⇒ try {
-                val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
-                Serialization.perScheme.get(storageURI.getScheme()) match {
-                  case Some(transport) ⇒
-                    val graphURI = transport.getGraphURI(origin, sData)
-                    val graphDescriptor = graphDescriptorFromYaml(transport.read(graphURI, sDataForStorage))
-                    if (graphDescriptor.origin == null)
-                      throw new IllegalStateException("Origin value not found in graph descriptor file.")
-                    if (descriptor.origin.name != origin.name)
-                      throw new IllegalStateException(s"Incorrect saved origin value ${descriptor.origin.name} vs required ${origin.name}.")
-                    val modelDescriptor = modified match {
-                      case Some(modified) ⇒ // Load a model descriptor with the specific timestamp
-                        getModelDescriptor(transport, descriptor, modified, sData.updated(SData.Key.storageURI, storageURI))
-                      case None ⇒ // Load a model descriptor with the latest timestamp
-                        getModelDescriptor(transport, descriptor, descriptor.modified, sData.updated(SData.Key.storageURI, storageURI))
-                    }
-                    Some(Serialization.Source(storageURI, transport, descriptor, modelDescriptor))
-                  case None ⇒
-                    log.error(s"Unable to acquire graph ${origin} from URI with unknown scheme ${storageURI.getScheme}.")
-                    None
-                }
-              } catch {
-                case e: IOException ⇒
-                  log.warn(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage())
-                  None
-                case e: Throwable ⇒
-                  log.error(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage(), e)
+        val sources: Seq[Option[Serialization.Source[_ <: Model.Like, _ <: Element]]] =
+          storages.filterNot(_ == bootstrapStorageURI).map {
+            case storageURI if storageURI.isAbsolute() ⇒ try {
+              val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
+              Serialization.perScheme.get(storageURI.getScheme()) match {
+                case Some(transport) ⇒
+                  val graphURI = transport.getGraphURI(origin, sData)
+                  val graphDescriptor = graphDescriptorFromYaml(transport.read(graphURI, sDataForStorage))
+                  if (graphDescriptor.origin == null)
+                    throw new IllegalStateException("Origin value not found in graph descriptor file.")
+                  if (descriptor.origin.name != origin.name)
+                    throw new IllegalStateException(s"Incorrect saved origin value ${descriptor.origin.name} vs required ${origin.name}.")
+                  val modelDescriptor = modified match {
+                    case Some(modified) ⇒ // Load a model descriptor with the specific timestamp
+                      getModelDescriptor(transport, descriptor, modified, sData.updated(SData.Key.storageURI, storageURI))
+                    case None ⇒ // Load a model descriptor with the latest timestamp
+                      getModelDescriptor(transport, descriptor, descriptor.modified, sData.updated(SData.Key.storageURI, storageURI))
+                  }
+                  Some(Serialization.Source(storageURI, transport, descriptor, modelDescriptor))
+                case None ⇒
+                  log.error(s"Unable to acquire graph ${origin} from URI with unknown scheme ${storageURI.getScheme}.")
                   None
               }
-              case storageURI ⇒
-                log.fatal(s"Unable to process relative storage URI as base: ${storageURI}.")
+            } catch {
+              case e: IOException ⇒
+                log.warn(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage())
+                None
+              case e: Throwable ⇒
+                log.error(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage(), e)
                 None
             }
-          val preferredModelDescriptor = modified match {
-            case Some(modified) ⇒ // Load a model descriptor with the specific timestamp
-              getModelDescriptor(transport, descriptor, modified, sData)
-            case None ⇒ // Load a model descriptor with the latest timestamp
-              getModelDescriptor(transport, descriptor, descriptor.modified, sData)
+            case storageURI ⇒
+              log.fatal(s"Unable to process relative storage URI as base: ${storageURI}.")
+              None
           }
-          val preferredSource = Serialization.Source(bootstrapStorageURI, transport, descriptor, preferredModelDescriptor, true)
-          // Hurray!
-          return preferredSource +: sources.flatten
+        val preferredModelDescriptor = modified match {
+          case Some(modified) ⇒ // Load a model descriptor with the specific timestamp
+            getModelDescriptor(transport, descriptor, modified, sData)
+          case None ⇒ // Load a model descriptor with the latest timestamp
+            getModelDescriptor(transport, descriptor, descriptor.modified, sData)
         }
+        val preferredSource = Serialization.Source(bootstrapStorageURI, transport, descriptor, preferredModelDescriptor, true)
+        // Hurray!
+        return preferredSource +: sources.flatten
       } catch {
         case ce: ControlThrowable ⇒ throw ce
         case e: Throwable ⇒
@@ -693,7 +696,7 @@ object Serialization extends Loggable {
   case class ExplicitStorages(val storages: Seq[URI], mode: ExplicitStorages.Mode)
   object ExplicitStorages {
     sealed trait Mode
-    /** Save graph to explicit and original storages. Save original values with serialized data. */
+    /** Save graph to explicit and original storages. Save merged values with serialized data. */
     case object ModeAppend extends Mode
     /** Save graph to explicit storages. Save original values with serialized data. */
     case object ModeIgnore extends Mode

@@ -41,11 +41,11 @@ import scala.collection.immutable
 import sun.misc.{ BASE64Decoder, BASE64Encoder }
 
 class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
-  lazy val testTransport = Mockito.spy(new Test)
+  lazy val testTransport = Mockito.spy(new Local)
 
   before {
     DependencyInjection(new NewBindingModule(module ⇒ {
-      module.bind[Transport] identifiedBy ("Serialization.Transport.Test") toSingle { testTransport }
+      module.bind[Transport] identifiedBy ("Serialization.Transport.Local") toSingle { testTransport }
     }) ~ org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
   }
 
@@ -92,14 +92,13 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
 
       // serialize
       new File(folder, "john1") should not be ('exists)
-      val graphURI = new URI(folder.getAbsoluteFile().toURI().toString().replaceAll("^file:", "test:"))
+      val graphURI = folder.getAbsoluteFile().toURI()
       graph.retrospective.history should be('empty)
 
       Mockito.reset(testTransport)
       Mockito.verifyZeroInteractions(testTransport)
       val sData = SData(SData.key[String]("test") -> "test")
       val timestamp = Serialization.freeze(graph, sData, graphURI)
-      Mockito.verify(testTransport, Mockito.never).write(MM.anyObject(), MM.anyObject[InputStream](), MM.anyObject())
       Mockito.verify(testTransport, Mockito.times(21)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
           case sData: SData ⇒ sData.size == 4 // key test, key storages, key transform, key storage
@@ -121,7 +120,6 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
           node2.iteratorRecursive.toVector should be(node.iteratorRecursive.toVector)
         }
       }
-      Mockito.verify(testTransport, Mockito.never).write(MM.anyObject(), MM.anyObject[InputStream](), MM.anyObject())
       Mockito.verify(testTransport, Mockito.never).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
       Mockito.verify(testTransport, Mockito.times(17)).read(MM.anyObject(), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
@@ -132,55 +130,53 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       }))
     }
   }
+  "Serialization data should support force option" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      // serialize
+      new File(folderA, "descriptor.yaml") should not be ('exists)
+      new File(folderB, "descriptor.yaml") should not be ('exists)
+      // Unable to freeze graph without any defined storages.
+      an[IllegalStateException] should be thrownBy Serialization.freeze(graph)
+
+      // Use ExplicitStorages.Append via URI variable length argument
+      Mockito.reset(testTransport)
+      Mockito.verifyZeroInteractions(testTransport)
+      // Write:
+      // graph descriptor
+      // node descriptor
+      // element + element descriptor
+      // retrospective record
+      // retrospective resources
+      Serialization.freeze(graph, folderA.getAbsoluteFile().toURI())
+      Mockito.verify(testTransport, Mockito.times(6)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
+
+      Mockito.reset(testTransport)
+      Mockito.verifyZeroInteractions(testTransport)
+      // Write:
+      // graph descriptor
+      Serialization.freeze(graph)
+      Mockito.verify(testTransport, Mockito.times(1)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
+      graph.retrospective.storages should have size (1)
+
+      Mockito.reset(testTransport)
+      Mockito.verifyZeroInteractions(testTransport)
+      // Write:
+      // graph descriptor
+      Serialization.freeze(graph, SData(SData.Key.force -> true))
+      Mockito.verify(testTransport, Mockito.times(6)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
+      graph.retrospective.storages should have size (1)
+    }
+  }
+
   override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 
-  class Test extends Local {
-    override val scheme: String = "test"
-
-    /** Delete resource. */
-    override def delete(uri: URI, sData: SData) =
-      super.delete(x(uri), x(sData))
-    /** Delete resource. */
-    override def exists(uri: URI, sData: SData) =
-      super.exists(x(uri), x(sData))
-    /** Get element box URI. */
-    override def getElementBoxURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData): URI =
-      super.getElementBoxURI(ancestors, elementUniqueId, elementModified, x(sData))
-    /** Get graph URI. */
-    override def getGraphURI(origin: Symbol, sData: SData): URI =
-      super.getGraphURI(origin, x(sData))
-    /** Get node URI. */
-    override def getNodeURI(ancestors: Seq[Node[_ <: Element]], nodeId: Symbol, nodeModified: Element.Timestamp, sData: SData): URI =
-      super.getNodeURI(ancestors, nodeId, nodeModified, x(sData))
-    /** Get sub element URI. */
-    override def getSubElementURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData, part: String*): URI =
-      super.getSubElementURI(ancestors, elementUniqueId, elementModified, x(sData))
-    /** Open stream */
-    override def open(uri: URI, sData: SData): InputStream =
-      super.open(x(uri), sData: SData)
-    /** Read resource. */
-    override def read(uri: URI, sData: SData): Array[Byte] =
-      super.read(x(uri), sData: SData)
-    /** Write resource. */
-    override def write(uri: URI, content: InputStream, sData: SData) =
-      super.write(x(uri), content, sData: SData)
-    /** Write resource. */
-    override def write(uri: URI, content: Array[Byte], sData: SData) =
-      super.write(x(uri), content, sData: SData)
-
-    protected def x(sData: SData): SData = sData.get(SData.Key.storageURI) match {
-      case Some(uri) ⇒ if (uri.getScheme() == scheme)
-        sData.updated(SData.Key.storageURI, new URI("file", uri.getUserInfo(), uri.getAuthority(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment()))
-      else
-        sData
-      case None ⇒ sData
-    }
-    protected def x(uri: URI): URI =
-      if (uri.getScheme() == scheme)
-        new URI("file", uri.getUserInfo(), uri.getAuthority(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment())
-      else
-        uri
-  }
   object StringXORer {
     def encode(s: String, key: String) = base64Encode(xorWithKey(s.getBytes(), key.getBytes()))
     def decode(s: String, key: String) = new String(xorWithKey(base64Decode(s), key.getBytes()))

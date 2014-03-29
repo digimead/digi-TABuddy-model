@@ -24,11 +24,8 @@ import java.util.concurrent.atomic.AtomicReference
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Reference
-import org.digimead.tabuddy.model.serialization.SData
-import org.digimead.tabuddy.model.serialization.Serialization
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, Reference }
+import org.digimead.tabuddy.model.serialization.{ Mechanism, SData, Serialization }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import scala.language.implicitConversions
 
@@ -270,26 +267,26 @@ object ElementBox extends Loggable {
       unmodifiedCache.map(_.modified) getOrElse unmodified
     def save(sData: SData) =
       synchronized {
-        getModified match {
-          case Some(element) ⇒
-            Serialization.perIdentifier.get(serialization) match {
-              case Some(mechanism) ⇒
-                val storageURI = sData(SData.Key.storageURI)
-                Serialization.perScheme.get(storageURI.getScheme()) match {
-                  case Some(transport) ⇒
-                    mechanism.save(this, transport, sData)
-                  case None ⇒
-                    throw new IllegalArgumentException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
-                }
-                unmodifiedCache = Some(element)
-                modifiedCache = None
-              case None ⇒
-                throw new IllegalStateException(s"Serialization mechanism for ${serialization} not found.")
-            }
+        Serialization.perIdentifier.get(serialization) match {
+          case Some(mechanism) ⇒
+            save(e, mechanism, sData)
           case None ⇒
-            log.debug(s"Skip saveing ${this}: not modified.")
+            throw new IllegalStateException(s"Serialization mechanism for ${serialization} not found.")
         }
       }
+
+    /** Save element to storage. */
+    protected def save(element: A, mechanism: Mechanism, sData: SData) {
+      val storageURI = sData(SData.Key.storageURI)
+      Serialization.perScheme.get(storageURI.getScheme()) match {
+        case Some(transport) ⇒
+          mechanism.save(this, transport, sData)
+        case None ⇒
+          throw new IllegalArgumentException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
+      }
+      unmodifiedCache = Some(element)
+      modifiedCache = None
+    }
 
     override def toString() = s"graph.Box$$Hard[${coordinate}/${elementType};${node.id}]"
   }

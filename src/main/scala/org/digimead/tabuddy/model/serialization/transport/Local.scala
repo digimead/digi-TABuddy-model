@@ -85,25 +85,10 @@ class Local extends Transport with Loggable {
   def read(uri: URI, sData: SData): Array[Byte] = {
     log.debug("Read " + uri)
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
-    try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
+    val array = try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
     finally { try { bis.close() } catch { case e: IOException ⇒ } }
-  }
-  /** Write resource. */
-  def write(uri: URI, content: InputStream, sData: SData) {
-    log.debug("Write " + uri)
-    val contentFile = new File(uri)
-    val contentDirectory = contentFile.getParentFile()
-    if (!contentDirectory.isDirectory())
-      if (!contentDirectory.mkdirs())
-        throw new IOException(s"Unable to create ${contentDirectory}.")
-    val bis = new BufferedInputStream(content)
-    val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
-    val buffer = new Array[Byte](4096)
-    try { Stream.continually(bis.read(buffer)).takeWhile(_ != -1).foreach(i ⇒ bos.write(buffer, 0, i)) }
-    finally {
-      try { bis.close() } catch { case e: IOException ⇒ }
-      try { bos.close() } catch { case e: IOException ⇒ }
-    }
+    sData.get(SData.Key.onRead).map(_(uri, array, sData))
+    array
   }
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData) {
@@ -116,6 +101,7 @@ class Local extends Transport with Loggable {
     val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
     try { bos.write(content) }
     finally { try { bos.close() } catch { case e: IOException ⇒ } }
+    sData.get(SData.Key.onWrite).map(_(uri, content, sData))
   }
 
   /** Get or create element directory. */

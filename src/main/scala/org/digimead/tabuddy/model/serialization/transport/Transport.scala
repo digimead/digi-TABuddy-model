@@ -71,7 +71,5 @@ trait Transport {
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte]
   /** Write resource. */
-  def write(uri: URI, content: InputStream, sData: SData)
-  /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData)
 }

@@ -21,6 +21,9 @@ package org.digimead.tabuddy.model.serialization
 import java.io.FilterInputStream
 import java.net.URI
 import org.digimead.digi.lib.NotNothing
+import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.serialization.transport.Transport
 import scala.collection.{ GenTraversableOnce, IterableLike, immutable, mutable }
 import scala.language.implicitConversions
 import scala.reflect.runtime.universe.TypeTag
@@ -97,19 +100,27 @@ object SData {
     /** Acquire transformation f(x). */
     val acquireT = SData.key[Serialization.AcquireTransformation]("transform")
     /** Decode file content. */
-    val decodeunderlying = SData.key[FilterInputStream]("decode")
+    val decodeFilters = SData.key[Seq[FilterInputStream]]("decode")
     /** Decode file name. */
     val decodeName = SData.key[String ⇒ String]("decode")
     /** Encode file content. */
-    val encodeunderlying = SData.key[FilterInputStream]("encode")
+    val encodeFilters = SData.key[Seq[FilterInputStream]]("encode")
     /** Encode file name. */
     val encodeName = SData.key[String ⇒ String]("encode")
     /** Explicit storages. */
     val explicitStorages = SData.key[Serialization.ExplicitStorages]("storages")
-    /** Skip broken nodes on load. */
-    val forceLoad = SData.key[Boolean]("forceLoad")
-    /** Freeze transformation f(x). */
+    /** Skip broken nodes on load/overwrite everything. */
+    val force = SData.key[Boolean]("force")
+    /** Freeze transformation f(x) ⇒ xˈ. */
     val freezeT = SData.key[Serialization.FreezeTransformation]("transform")
+    /** Just invoked before acquire completion. */
+    val onAcquire = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("onAcquire")
+    /** Just invoked before freeze completion. */
+    val onFreeze = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("onFreeze")
+    /** Just invoked before read completion. */
+    val onRead = SData.key[(URI, Array[Byte], SData) ⇒ _]("onRead")
+    /** Just invoked before write completion. */
+    val onWrite = SData.key[(URI, Array[Byte], SData) ⇒ _]("onWrite")
     /** Storage base URI. */
     val storageURI = SData.key[URI]("storage")
   }
