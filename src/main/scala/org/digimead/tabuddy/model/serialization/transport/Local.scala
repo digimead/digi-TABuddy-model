@@ -48,7 +48,7 @@ class Local extends Transport with Loggable {
     new File(elementDirectory, "%s %s".format(boxPrefix, descriptorResourceSimple)).toURI
   }
   /** Get graph URI. */
-  def getGraphURI(origin: Symbol, sData: SData): URI = {
+  def getGraphURI(sData: SData): URI = {
     val storageDirectory = new File(sData(SData.Key.storageURI))
     new File(storageDirectory, descriptorResourceSimple).toURI
   }

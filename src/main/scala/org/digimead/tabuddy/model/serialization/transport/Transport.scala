@@ -61,7 +61,7 @@ trait Transport {
   /** Get element box URI. */
   def getElementBoxURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData): URI
   /** Get graph URI. */
-  def getGraphURI(origin: Symbol, sData: SData): URI
+  def getGraphURI(sData: SData): URI
   /** Get node URI. */
   def getNodeURI(ancestors: Seq[Node[_ <: Element]], nodeId: Symbol, nodeModified: Element.Timestamp, sData: SData): URI
   /** Get sub element URI. */

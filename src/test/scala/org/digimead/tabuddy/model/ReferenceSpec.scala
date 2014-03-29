@@ -71,7 +71,7 @@ class ReferenceSpec extends FunSpec with StorageHelper with Matchers with Loggin
         timestamp3 should not be (timestamp1)
         Reference.resolve(record_0.eReference, timestamp1) should be('empty)
         Reference.resolve(record_0.eReference, timestamp3) should not be ('empty)
-        Reference.register(Serialization.acquire(graph.origin, graph.storages.head, Some(timestamp1)))
+        Reference.register(Serialization.acquire(graph.storages.head, Some(timestamp1)))
         Reference.resolve(record_0.eReference, timestamp1) should not be ('empty)
         Reference.resolve(record_0.eReference, timestamp3) should not be ('empty)
         val modified1 = graph.modified

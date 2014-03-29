@@ -39,6 +39,8 @@ import org.mockito.{ Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
 import scala.collection.immutable
 import sun.misc.{ BASE64Decoder, BASE64Encoder }
+import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.mutable
 
 class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val testTransport = Mockito.spy(new Local)
@@ -110,7 +112,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       Mockito.reset(testTransport)
       Mockito.verifyZeroInteractions(testTransport)
       // deserialize
-      val loader = Serialization.acquireLoader(graph.origin, graphURI, sData)
+      val loader = Serialization.acquireLoader(graphURI, sData)
       loader.sData(SData.key[String]("test")) should be("test")
       loader.sData.isDefinedAt(SData.Key.acquireT) should be(true)
       loader.sData.size should be(2)
@@ -130,7 +132,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       }))
     }
   }
-  "Serialization data should support force option" in {
+  "Serialization data should support 'force' option" in {
     withTempFolder { folder ⇒
       import TestDSL._
 
@@ -170,8 +172,110 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       // Write:
       // graph descriptor
       Serialization.freeze(graph, SData(SData.Key.force -> true))
+      // 6 times!
       Mockito.verify(testTransport, Mockito.times(6)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
       graph.retrospective.storages should have size (1)
+    }
+  }
+  "Serialization data should support 'onAcquire' and 'onFreeze' options" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+
+      @volatile var onFreezeFlag = false
+      val onFreeze = (xGraph: Graph[_ <: Model.Like], transport: Transport, sData: SData) ⇒ {
+        onFreezeFlag = true
+        xGraph should be(graph)
+        transport shouldBe a[Local]
+        sData.isDefinedAt(SData.Key.onFreeze) should be(true)
+      }
+      onFreezeFlag should be(false)
+      Serialization.freeze(graph, SData(SData.Key.onFreeze -> onFreeze), folder.getAbsoluteFile().toURI())
+      onFreezeFlag should be(true)
+
+      @volatile var onAcquireFlag = false
+      @volatile var onAcquireGraph: Graph[_ <: Model.Like] = null
+      val onAcquire = (xGraph: Graph[_ <: Model.Like], transport: Transport, sData: SData) ⇒ {
+        onAcquireFlag = true
+        onAcquireGraph = xGraph
+        transport shouldBe a[Local]
+        sData.isDefinedAt(SData.Key.onAcquire) should be(true)
+      }
+      onAcquireFlag should be(false)
+      Serialization.acquire(folder.getAbsoluteFile().toURI(), SData(SData.Key.onAcquire -> onAcquire))
+      onAcquireFlag should be(true)
+      onAcquireGraph should be(graph)
+    }
+  }
+  "Serialization data should support 'onRead' and 'onWrite' options" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+
+      val onReadCounter = new AtomicInteger
+      val onWriteCounter = new AtomicInteger
+      Serialization.freeze(graph, SData(SData.Key.onWrite ->
+        { (_: URI, _: Array[Byte], _: SData) ⇒ onWriteCounter.incrementAndGet() }), folder.getAbsoluteFile().toURI())
+      // Write:
+      // graph descriptor
+      // node descriptor
+      // element + element descriptor
+      // retrospective record
+      // retrospective resources
+      onWriteCounter.get should be(6)
+
+      Serialization.acquire(folder.getAbsoluteFile().toURI(), SData(SData.Key.onRead ->
+        { (_: URI, _: Array[Byte], _: SData) ⇒ onReadCounter.incrementAndGet() }))
+      // Read:
+      // graph descriptor
+      // retrospective record
+      // retrospective resources
+      // node descriptor
+      // retrospective record
+      // retrospective resources
+      // element descriptor
+      onReadCounter.get should be(7)
+    }
+  }
+  "Complex 'onRead', 'onWrite', 'onAcquire' and 'onFreeze' options test" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val onReadCounter = new AtomicInteger
+      val onWriteCounter = new AtomicInteger
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val sData = SData(SData.key[AtomicInteger]("totalRead") -> new AtomicInteger,
+        SData.key[AtomicInteger]("totalWrite") -> new AtomicInteger,
+        SData.key[mutable.ArrayBuffer[URI]]("read") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
+        SData.key[mutable.ArrayBuffer[URI]]("write") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
+        SData.Key.onRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
+        SData.Key.onWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri),
+        SData.Key.onFreeze -> ((xGraph: Graph[_ <: Model.Like], transport: Transport, sData: SData) ⇒
+          sData(SData.key[AtomicInteger]("totalWrite")).set(sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size)),
+        SData.Key.onAcquire -> ((xGraph: Graph[_ <: Model.Like], transport: Transport, sData: SData) ⇒
+          sData(SData.key[AtomicInteger]("totalRead")).set(sData(SData.key[mutable.ArrayBuffer[URI]]("read")).size)))
+
+      sData(SData.key[mutable.ArrayBuffer[URI]]("read")).size should be(0)
+      sData(SData.key[AtomicInteger]("totalRead")).get should be(0)
+      sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size should be(0)
+      sData(SData.key[AtomicInteger]("totalWrite")).get() should be(0)
+
+      Serialization.freeze(graph, sData, folder.getAbsoluteFile().toURI())
+      sData(SData.key[mutable.ArrayBuffer[URI]]("read")).size should be(0)
+      sData(SData.key[AtomicInteger]("totalRead")).get should be(0)
+      sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size should be(6)
+      sData(SData.key[AtomicInteger]("totalWrite")).get() should be(6)
+
+      Serialization.acquire(folder.getAbsoluteFile().toURI(), sData)
+      sData(SData.key[mutable.ArrayBuffer[URI]]("read")).size should be(7)
+      sData(SData.key[AtomicInteger]("totalRead")).get should be(7)
+      sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size should be(6)
+      sData(SData.key[AtomicInteger]("totalWrite")).get() should be(6)
     }
   }
 

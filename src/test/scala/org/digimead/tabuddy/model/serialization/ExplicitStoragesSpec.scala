@@ -88,7 +88,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderA, "descriptor.yaml") should be('exists)
         new File(folderB, "descriptor.yaml") should be('exists)
 
-        val graph2 = Serialization.acquire(graph.origin, folderB.toURI)
+        val graph2 = Serialization.acquire(folderB.toURI)
         graph2.storages.toSet should be(graph.storages.toSet)
         graph2.retrospective should be(graph.retrospective)
         graph2.storages should contain only (Serialization.normalizeURI(folderA.getAbsoluteFile().toURI()), Serialization.normalizeURI(folderB.getAbsoluteFile().toURI()))
@@ -118,7 +118,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderC, "descriptor.yaml") should not be ('exists)
 
         // Graph without storages but with one retrospective record.
-        val graph2 = Serialization.acquire(graph.origin, folderB.toURI)
+        val graph2 = Serialization.acquire(folderB.toURI)
         graph2.storages.toSet should be(graph.storages.toSet)
         graph2.storages should be(empty)
         graph2.retrospective should be(graph.retrospective)
@@ -132,7 +132,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderB, "descriptor.yaml") should be('exists)
         new File(folderC, "descriptor.yaml") should not be ('exists)
 
-        val graph3 = Serialization.acquire(graph.origin, folderA.toURI)
+        val graph3 = Serialization.acquire(folderA.toURI)
         graph3.retrospective should be(graph2.retrospective)
 
         Serialization.freeze(graph2, SData(SData.Key.explicitStorages ->
@@ -142,7 +142,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderB, "descriptor.yaml") should be('exists)
         new File(folderC, "descriptor.yaml") should be('exists)
 
-        val graph4 = Serialization.acquire(graph.origin, folderC.toURI)
+        val graph4 = Serialization.acquire(folderC.toURI)
         graph4.retrospective should be(graph2.retrospective)
       }
     }

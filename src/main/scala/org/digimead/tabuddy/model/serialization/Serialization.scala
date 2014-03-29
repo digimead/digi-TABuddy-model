@@ -90,17 +90,15 @@ class Serialization extends Serialization.Interface with Loggable {
     graph
   }
   /** Get graph loader for the specific origin. */
-  def acquireGraphLoader(origin: Symbol, modified: Option[Element.Timestamp], sData: SData): Serialization.Loader = {
-    log.debug(s"Acquire graph ${origin}.")
+  def acquireGraphLoader(modified: Option[Element.Timestamp], sData: SData): Serialization.Loader = {
     val bootstrapStorageURI = sData(SData.Key.storageURI)
+    log.debug(s"Acquire graph from ${bootstrapStorageURI}.")
     val sources = Serialization.perScheme.get(bootstrapStorageURI.getScheme()) match {
       case Some(transport) ⇒
-        val graphURI = transport.getGraphURI(origin, sData)
+        val graphURI = transport.getGraphURI(sData)
         val graphDescriptor = graphDescriptorFromYaml(transport.read(graphURI, sData))
         if (graphDescriptor.origin == null)
           throw new IllegalStateException("Origin value not found in graph descriptor file.")
-        if (graphDescriptor.origin.name != origin.name)
-          throw new IllegalStateException(s"Incorrect saved origin value ${graphDescriptor.origin.name} vs required ${origin.name}.")
         val sources = getSources(bootstrapStorageURI, transport, graphDescriptor, modified, sData)
         modified match {
           case Some(modified) ⇒
@@ -169,7 +167,7 @@ class Serialization extends Serialization.Interface with Loggable {
                     graph.retrospective = Graph.Retrospective(graphRetrospective.history + (modelˈ.modified -> record), origins, storages)
                   }
                   // 2. Freeze graph descriptor.
-                  val graphURI = transport.getGraphURI(modelˈ.id, sDataForStorage)
+                  val graphURI = transport.getGraphURI(sDataForStorage)
                   // Overwrite always
                   transport.write(graphURI, graphDescriptorToYAML(modelˈ,
                     formalStorages.map(Serialization.normalizeURI).distinct), sDataForStorage)
@@ -375,7 +373,7 @@ class Serialization extends Serialization.Interface with Loggable {
               val sDataForStorage = sData.updated(SData.Key.storageURI, storageURI)
               Serialization.perScheme.get(storageURI.getScheme()) match {
                 case Some(transport) ⇒
-                  val graphURI = transport.getGraphURI(origin, sData)
+                  val graphURI = transport.getGraphURI(sData)
                   val graphDescriptor = graphDescriptorFromYaml(transport.read(graphURI, sDataForStorage))
                   if (graphDescriptor.origin == null)
                     throw new IllegalStateException("Origin value not found in graph descriptor file.")
@@ -510,21 +508,21 @@ object Serialization extends Loggable {
   val stash = new ThreadLocal[AnyRef]()
 
   /** Load graph with the specific origin. */
-  def acquire(origin: Symbol, bootstrapStorageURI: URI, sData: SData): Graph[_ <: Model.Like] =
-    acquireLoader(origin, bootstrapStorageURI, sData).load()
+  def acquire(bootstrapStorageURI: URI, sData: SData): Graph[_ <: Model.Like] =
+    acquireLoader(bootstrapStorageURI, sData).load()
   /** Load graph with the specific origin. */
-  def acquire(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Graph[_ <: Model.Like] =
-    acquireLoader(origin, bootstrapStorageURI, modified, sData).load()
+  def acquire(bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Graph[_ <: Model.Like] =
+    acquireLoader(bootstrapStorageURI, modified, sData).load()
   /** Get graph loader with the specific origin. */
-  def acquireLoader(origin: Symbol, bootstrapStorageURI: URI): Serialization.Loader = acquireLoader(origin, bootstrapStorageURI, None, SData.empty)
+  def acquireLoader(bootstrapStorageURI: URI): Serialization.Loader = acquireLoader(bootstrapStorageURI, None, SData.empty)
   /** Get graph loader with the specific origin. */
-  def acquireLoader(origin: Symbol, bootstrapStorageURI: URI, sData: SData): Serialization.Loader = acquireLoader(origin, bootstrapStorageURI, None, sData)
+  def acquireLoader(bootstrapStorageURI: URI, sData: SData): Serialization.Loader = acquireLoader(bootstrapStorageURI, None, sData)
   /** Get graph loader with the specific origin. */
-  def acquireLoader(origin: Symbol, bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Serialization.Loader =
+  def acquireLoader(bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Serialization.Loader =
     if (sData.isDefinedAt(SData.Key.acquireT))
-      inner.acquireGraphLoader(origin, modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI))
+      inner.acquireGraphLoader(modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI))
     else
-      inner.acquireGraphLoader(origin, modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI)
+      inner.acquireGraphLoader(modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI)
         .updated(SData.Key.acquireT, defaultAcquireTransformation _))
   /** Acquire transformation that keeps arguments unmodified. */
   def defaultAcquireTransformation(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Descriptor.Node[Element]) = nodeDescriptor
@@ -724,7 +722,7 @@ object Serialization extends Loggable {
   trait Interface {
     this: Loggable ⇒
     /** Get graph loader for the specific origin. */
-    def acquireGraphLoader(origin: Symbol, modified: Option[Element.Timestamp], sData: SData): Serialization.Loader
+    def acquireGraphLoader(modified: Option[Element.Timestamp], sData: SData): Serialization.Loader
     /** Load graph with the graph loader. */
     def acquireGraph(loader: Serialization.Loader, source: Serialization.Source[_ <: Model.Like, _ <: Element],
       graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit, sData: SData): Graph[_ <: Model.Like]

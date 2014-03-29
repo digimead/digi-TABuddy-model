@@ -214,7 +214,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         //testTxtSource.close()
 
         // deserialize
-        val graph2 = Serialization.acquire(graph.origin, folder.toURI)
+        val graph2 = Serialization.acquire(folder.toURI)
         graph2.storages should be(graph.storages)
         graph2.retrospective should be(graph.retrospective)
 
@@ -297,7 +297,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         graph.retrospective.last should be(Some(graph.modified))
         graph.retrospective.head should be(Some(graphModification))
 
-        val graph1x = Serialization.acquire(graph.origin, folder.toURI, graph.retrospective.head)
+        val graph1x = Serialization.acquire(folder.toURI, graph.retrospective.head)
         var elementCounter = 0
         def loadMonitor(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) = {
           elementCounter += 1
@@ -311,7 +311,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
           }
           nodeDescriptor
         }
-        val graph2x = Serialization.acquire(graph.origin, folder.toURI, graph.retrospective.last, SData(SData.Key.acquireT -> loadMonitor _))
+        val graph2x = Serialization.acquire(folder.toURI, graph.retrospective.last, SData(SData.Key.acquireT -> loadMonitor _))
         elementCounter should be(6)
         val size = graph.node.safeRead(_.iteratorRecursive.size)
         val size2 = graph2.node.safeRead(_.iteratorRecursive.size)
@@ -370,7 +370,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         model.eNode.safeRead(_.iteratorRecursive.toSeq) should have size (5)
 
         Serialization.freeze(graph, folder.getAbsoluteFile().toURI())
-        val graph2 = Serialization.acquire(graph.origin, folder.toURI)
+        val graph2 = Serialization.acquire(folder.toURI)
 
         graph.node.safeRead { node ⇒
           graph2.node.safeRead { node2 ⇒
@@ -415,7 +415,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         record_level2.eRelative.name = "111"
 
         Serialization.freeze(graph)
-        val graph3 = Serialization.acquire(graph.origin, graph.storages.head)
+        val graph3 = Serialization.acquire(graph.storages.head)
 
         graph2.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("123")
         graph.model.e(record_level2.eReference).flatMap(_.eAs[Record]).get.name should be("111")
@@ -458,7 +458,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         Serialization.freeze(graph, SData(SData.Key.freezeT -> fFilterSave1), folder.getAbsoluteFile().toURI())
         graph.retrospective.history should have size (1)
 
-        val graph2 = Serialization.acquire('john1, folder.toURI)
+        val graph2 = Serialization.acquire(folder.toURI)
         graph2.node.safeRead(_.children) should be('empty)
         graph2.node.safeRead(_.iteratorRecursive.size) should be(0)
 
@@ -473,7 +473,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         Serialization.freeze(graph, SData(SData.Key.freezeT -> fFilterSave2))
         graph.retrospective.history should have size (2)
 
-        val graph3 = Serialization.acquire('john1, folder.toURI, Some(Element.timestamp(0, 0)))
+        val graph3 = Serialization.acquire(folder.toURI, Some(Element.timestamp(0, 0)))
         graph3.node.safeRead(_.iteratorRecursive.size) should be(5)
         graph3.modified should be(Element.timestamp(0, 0))
         graph3.node.modified should be(Element.timestamp(0, 0))
@@ -491,7 +491,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         Serialization.freeze(graph, SData(SData.Key.freezeT -> fFilterSave3))
         graph.retrospective.history should have size (2)
 
-        val graph4 = Serialization.acquire('john1, folder.toURI)
+        val graph4 = Serialization.acquire(folder.toURI)
         graph.node.safeRead { node ⇒
           graph4.node.safeRead { node4 ⇒
             node.iteratorRecursive.corresponds(node4.iteratorRecursive) { (a, b) ⇒
@@ -505,7 +505,7 @@ class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper wit
         info("test filter 'remove all children' on load.")
         val fFilterLoad1 = (ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Serialization.Descriptor.Node[Element]) ⇒
           nodeDescriptor.copy(children = Seq())
-        val graph5 = Serialization.acquire('john1, folder.toURI, SData(SData.Key.acquireT -> fFilterLoad1))
+        val graph5 = Serialization.acquire(folder.toURI, SData(SData.Key.acquireT -> fFilterLoad1))
         graph5.node.safeRead(_.children) should be('empty)
         graph5.node.safeRead(_.iteratorRecursive.size) should be(0)
       }
