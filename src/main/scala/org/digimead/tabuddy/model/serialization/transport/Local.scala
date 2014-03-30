@@ -77,9 +77,17 @@ class Local extends Transport with Loggable {
     new File(uri).canRead()
   }
   /** Open stream */
-  def open(uri: URI, sData: SData): InputStream = {
+  def open(uri: URI, sData: SData, create: Boolean): InputStream = {
     log.debug("Open " + uri)
-    new FileInputStream(new File(uri))
+    val contentFile = new File(uri)
+    val contentDirectory = contentFile.getParentFile()
+    if (!contentDirectory.exists() && create)
+      if (!contentDirectory.mkdirs())
+        throw new IOException(s"Unable to create ${contentDirectory}.")
+    if (!contentFile.exists())
+      if (!contentFile.createNewFile())
+        throw new IOException(s"Unable to create ${contentFile}.")
+    new FileInputStream(contentFile)
   }
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte] = {

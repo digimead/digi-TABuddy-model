@@ -19,10 +19,10 @@
 package org.digimead.tabuddy.model.serialization
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.File
-import java.io.InputStream
+import java.io.{ File, FileNotFoundException, InputStream }
 import java.net.URI
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
@@ -32,15 +32,12 @@ import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.graph.{ ElementBox, Graph, Node }
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
-import org.hamcrest.BaseMatcher
-import org.hamcrest.Description
-import org.mockito.Mockito
+import org.hamcrest.{ BaseMatcher, Description }
 import org.mockito.{ Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
 import scala.collection.immutable
-import sun.misc.{ BASE64Decoder, BASE64Encoder }
-import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
+import sun.misc.{ BASE64Decoder, BASE64Encoder }
 
 class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val testTransport = Mockito.spy(new Local)
@@ -276,6 +273,61 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       sData(SData.key[AtomicInteger]("totalRead")).get should be(7)
       sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size should be(6)
       sData(SData.key[AtomicInteger]("totalWrite")).get() should be(6)
+    }
+  }
+  "Serialization data should support 'encodeURI' option" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val sData = SData(SData.Key.encodeURI -> ((name: String, sData: SData) ⇒ "Test_" + name),
+        SData.key[mutable.ArrayBuffer[URI]]("read") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
+        SData.key[mutable.ArrayBuffer[URI]]("write") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
+        SData.Key.onRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
+        SData.Key.onWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri))
+
+      val baseURI = new URI("aaa:/bbb/")
+      val testURI = new URI("aaa:/bbb/ccc/ddd.eee")
+      val encoded = Serialization.inner.encode(baseURI, testURI, (name: String, sData: SData) ⇒ "Test_" + name, sData)
+      encoded should be(new URI("aaa:/bbb/Test_ccc/Test_ddd.eee"))
+      val decoded = Serialization.inner.encode(baseURI, encoded, (name: String, sData: SData) ⇒ name.replaceAll("""^Test_""", ""), sData)
+      decoded should be(testURI)
+
+      Serialization.freeze(graph, sData, folder.getAbsoluteFile().toURI())
+      val pathsWrite = sData(SData.key[mutable.ArrayBuffer[URI]]("write")).map(folder.getAbsoluteFile().toURI().relativize(_).getPath())
+      pathsWrite.forall(_.startsWith("Test_")) should be(true)
+
+      a[FileNotFoundException] should be thrownBy Serialization.acquire(folder.getAbsoluteFile().toURI())
+      val graph2 = Serialization.acquire(folder.getAbsoluteFile().toURI(), sData)
+      val pathsRead = sData(SData.key[mutable.ArrayBuffer[URI]]("write")).map(folder.getAbsoluteFile().toURI().relativize(_).getPath())
+      pathsRead.forall(_.startsWith("Test_")) should be(true)
+
+      graph.retrospective should be(graph2.retrospective)
+      graph2.node.safeRead { node ⇒
+        graph.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("simple XOR encoding")
+      graph.retrospective = Graph.Retrospective.empty(graph.origin)
+      val sDataXOR = SData(SData.Key.encodeURI -> ((name: String, sData: SData) ⇒ StringXORer.encode(name, "secret")),
+        SData.key[mutable.ArrayBuffer[URI]]("read") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
+        SData.key[mutable.ArrayBuffer[URI]]("write") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
+        SData.Key.onRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
+        SData.Key.onWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri))
+      Serialization.freeze(graph, sDataXOR, folder.getAbsoluteFile().toURI())
+      val pathsWriteXOR = sDataXOR(SData.key[mutable.ArrayBuffer[URI]]("write")).map(folder.getAbsoluteFile().toURI().relativize(_).getPath())
+      pathsWriteXOR.map(_.split("/").head) should be(Seq("FwAQERcdAxEMAEsNEggP", "FwQXEw==", "FwQXEw==", "FwQXEw==", "AQAXAAoHAwAABgwCFg==", "AQAXAAoHAwAABgwCFg=="))
+
+      val graph3 = Serialization.acquire(folder.getAbsoluteFile().toURI(), sDataXOR)
+      graph.retrospective should be(graph3.retrospective)
+      graph3.node.safeRead { node ⇒
+        graph.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
     }
   }
 

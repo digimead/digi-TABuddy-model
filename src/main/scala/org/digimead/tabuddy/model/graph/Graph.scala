@@ -100,7 +100,7 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
     }
   }
   /** List of stored graphs. */
-  @volatile var retrospective = Graph.Retrospective(immutable.HashMap(), Seq(origin), Seq.empty)
+  @volatile var retrospective = Graph.Retrospective.empty(origin)
   /** Check if such node is already exists. */
   @volatile var strict = true
 
@@ -229,6 +229,9 @@ object Graph extends Loggable {
     }
   }
   object Retrospective {
+    /** Get empty retrospective. */
+    def empty(origin: Symbol) = Graph.Retrospective(immutable.HashMap(), Seq(origin), Seq.empty)
+
     /**
      * History value.
      */

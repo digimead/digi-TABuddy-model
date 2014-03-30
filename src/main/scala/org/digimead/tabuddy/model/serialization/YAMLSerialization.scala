@@ -46,9 +46,9 @@ class YAMLSerialization extends Mechanism with Loggable {
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     log.debug(s"Load ${elementBox} from ${elementURI}.")
-    val elementContent = transport.read(elementURI, sData)
+    val elementContent = transport.read(Serialization.inner.encode(elementURI, sData), sData)
     log.debug(s"Load optional ${elementBox} from ${optionalURI}.")
-    val optionalContent = transport.read(optionalURI, sData)
+    val optionalContent = transport.read(Serialization.inner.encode(optionalURI, sData), sData)
     val optionalYAML = new String(optionalContent, io.Codec.UTF8.charSet)
     val optional = YAMLSerialization.wrapper(yaml.YAML.block.loadAs(optionalYAML, classOf[yaml.Optional]).asInstanceOf[yaml.Optional], optionalYAML)
     Serialization.stash.set(optional)
@@ -70,9 +70,11 @@ class YAMLSerialization extends Mechanism with Loggable {
     val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
     val optional = yaml.Optional.getOptional(elementBox.e.eStash)
     log.debug(s"Save ${elementBox} to ${elementURI}.")
-    transport.write(elementURI, YAMLSerialization.wrapper(yaml.YAML.block.dump(elementBox.e.eStash).getBytes(io.Codec.UTF8.charSet), elementBox.e.eStash), sData)
+    transport.write(Serialization.inner.encode(elementURI, sData),
+      YAMLSerialization.wrapper(yaml.YAML.block.dump(elementBox.e.eStash).getBytes(io.Codec.UTF8.charSet), elementBox.e.eStash), sData)
     log.debug(s"Save optional ${elementBox} to ${optionalURI}.")
-    transport.write(optionalURI, YAMLSerialization.wrapper(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optional), sData)
+    transport.write(Serialization.inner.encode(optionalURI, sData),
+      YAMLSerialization.wrapper(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optional), sData)
   }
 }
 

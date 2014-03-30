@@ -67,9 +67,10 @@ trait Transport {
   /** Get sub element URI. */
   def getSubElementURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData, part: String*): URI
   /** Open stream. */
-  def open(uri: URI, sData: SData): InputStream
+  def open(uri: URI, sData: SData, create: Boolean): InputStream
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte]
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData)
+
 }

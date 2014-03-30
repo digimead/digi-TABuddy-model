@@ -45,7 +45,7 @@ class BuiltinSerialization extends Mechanism with Loggable {
     val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
     val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
     val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
-    val elementContent = transport.read(elementURI, sData)
+    val elementContent = transport.read(Serialization.inner.encode(elementURI, sData), sData)
     Serialization.stash.set(elementBox)
     val bais = new ByteArrayInputStream(elementContent)
     val in = new BuiltinSerialization.CustomObjectInputStream(bais)
@@ -69,7 +69,7 @@ class BuiltinSerialization extends Mechanism with Loggable {
     val out = new ObjectOutputStream(baos)
     out.writeObject(elementBox.e)
     baos.close()
-    transport.write(elementURI, baos.toByteArray(), sData)
+    transport.write(Serialization.inner.encode(elementURI, sData), baos.toByteArray(), sData)
   }
 }
 

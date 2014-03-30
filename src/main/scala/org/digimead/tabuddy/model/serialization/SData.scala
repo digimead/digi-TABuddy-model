@@ -100,13 +100,11 @@ object SData {
     /** Acquire transformation f(x). */
     val acquireT = SData.key[Serialization.AcquireTransformation]("transform")
     /** Decode file content. */
-    val decodeFilters = SData.key[Seq[FilterInputStream]]("decode")
-    /** Decode file name. */
-    val decodeName = SData.key[String ⇒ String]("decode")
+    val decodeFilter = SData.key[(URI, SData) ⇒ FilterInputStream]("decode")
     /** Encode file content. */
-    val encodeFilters = SData.key[Seq[FilterInputStream]]("encode")
-    /** Encode file name. */
-    val encodeName = SData.key[String ⇒ String]("encode")
+    val encodeFilter = SData.key[(URI, SData) ⇒ FilterInputStream]("encode")
+    /** Encode URI path parts. */
+    val encodeURI = SData.key[(String, SData) ⇒ String]("encodeURI")
     /** Explicit storages. */
     val explicitStorages = SData.key[Serialization.ExplicitStorages]("storages")
     /** Skip broken nodes on load/overwrite everything. */
