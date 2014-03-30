@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
-import java.io.{ FilterInputStream, InputStream }
+import java.io.{ FilterInputStream, InputStream, OutputStream }
 import java.net.{ URI, URLEncoder }
 import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
@@ -66,8 +66,10 @@ trait Transport {
   def getNodeURI(ancestors: Seq[Node[_ <: Element]], nodeId: Symbol, nodeModified: Element.Timestamp, sData: SData): URI
   /** Get sub element URI. */
   def getSubElementURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData, part: String*): URI
-  /** Open stream. */
-  def open(uri: URI, sData: SData, create: Boolean): InputStream
+  /** Open input stream. */
+  def openRead(uri: URI, sData: SData): InputStream
+  /** Open output stream. */
+  def openWrite(uri: URI, sData: SData, create: Boolean): OutputStream
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte]
   /** Write resource. */

@@ -30,8 +30,8 @@ import org.digimead.tabuddy.model.graph.{ ElementBox, Graph, Node, NodeState }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.YAML
 import org.yaml.snakeyaml.nodes.{ Node ⇒ YAMLNode, SequenceNode, Tag }
-import scala.collection.JavaConverters.{ asScalaBufferConverter, seqAsJavaListConverter }
 import scala.collection.{ immutable, mutable }
+import scala.collection.JavaConverters.{ asScalaBufferConverter, seqAsJavaListConverter }
 import scala.language.implicitConversions
 import scala.ref.WeakReference
 import scala.util.control.ControlThrowable
@@ -49,6 +49,8 @@ class Serialization extends Serialization.Interface with Loggable {
     graphEarlyAccess(graph)
     graph.node.safeWrite { targetNode ⇒
       graph.node.asInstanceOf[Node.ModelNodeInitializer].initializeModelNode(graph, loader.modified)
+      // 0. Invoke user onStart callback if required.
+      sData.get(SData.Key.beforeAcquire).map(_(graph, source.transport, sData))
       // 1. restore retrospective.
       val recordResourcesName = Serialization.recordResourcesName(loader.modified)
       val recordResourcesURI = source.transport.append(source.storageURI, Serialization.retrospective, recordResourcesName)
@@ -85,7 +87,8 @@ class Serialization extends Serialization.Interface with Loggable {
       }
       if (graph.modelType != graph.node.elementType)
         throw new IllegalArgumentException(s"Unexpected model type ${graph.modelType} vs ${graph.node.elementType}")
-      sData.get(SData.Key.onAcquire).map(_(graph, source.transport, sData))
+      // 4. Invoke user onComplete callback if required.
+      sData.get(SData.Key.afterAcquire).map(_(graph, source.transport, sData))
     }
     graph
   }
@@ -153,6 +156,8 @@ class Serialization extends Serialization.Interface with Loggable {
                 try {
                   // Always freeze even if modification is the same
                   val modelˈ = sDataForStorage(SData.Key.freezeT)(modelNode.asInstanceOf[Node.ThreadUnsafe[Element]]).asInstanceOf[Node.ThreadUnsafe[Model.Like]]
+                  // 0. Invoke user onStart callback if required.
+                  sDataForStorage.get(SData.Key.beforeFreeze).map(_(modelˈ.graph, transport, sDataForStorage))
                   // 1. Add new record to history.
                   if (!graphRetrospective.history.isDefinedAt(modelˈ.modified) || {
                     // There are new storages.
@@ -192,7 +197,7 @@ class Serialization extends Serialization.Interface with Loggable {
                     transport.write(encode(recordResourcesURI, sDataForStorage),
                       recordResourcesToYAML(graph.retrospective.origins, graph.retrospective.storages), sDataForStorage)
                   // 5. Invoke user onComplete callback if required.
-                  sDataForStorage.get(SData.Key.onFreeze).map(_(modelˈ.graph, transport, sDataForStorage))
+                  sDataForStorage.get(SData.Key.afterFreeze).map(_(modelˈ.graph, transport, sDataForStorage))
                   Some(modelˈ.modified)
                 } catch {
                   case e: CancellationException ⇒
@@ -525,11 +530,14 @@ object Serialization extends Loggable {
   def acquireLoader(bootstrapStorageURI: URI, sData: SData): Serialization.Loader = acquireLoader(bootstrapStorageURI, None, sData)
   /** Get graph loader with the specific origin. */
   def acquireLoader(bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Serialization.Loader =
-    if (sData.isDefinedAt(SData.Key.acquireT))
-      inner.acquireGraphLoader(modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI))
-    else
-      inner.acquireGraphLoader(modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI)
+    if (sData.isDefinedAt(SData.Key.acquireT)) {
+      val sDataWithDigest = GraphDigest.initAcquire(sData.updated(SData.Key.storageURI, bootstrapStorageURI))
+      inner.acquireGraphLoader(modified, sDataWithDigest)
+    } else {
+      val sDataWithDigest = GraphDigest.initAcquire(sData.updated(SData.Key.storageURI, bootstrapStorageURI)
         .updated(SData.Key.acquireT, defaultAcquireTransformation _))
+      inner.acquireGraphLoader(modified, sDataWithDigest)
+    }
   /** Acquire transformation that keeps arguments unmodified. */
   def defaultAcquireTransformation(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Descriptor.Node[Element]) = nodeDescriptor
   /** Freeze transformation that keeps arguments unmodified. */
@@ -541,12 +549,14 @@ object Serialization extends Loggable {
     val sDataWithT = if (sData.isDefinedAt(SData.Key.freezeT)) sData else sData.updated(SData.Key.freezeT, defaultFreezeTransformation _)
     additionalStorageURI match {
       case Nil ⇒
-        inner.freezeGraph(graph, sDataWithT)
+        val sDataWithDigest = GraphDigest.initFreeze(sDataWithT)
+        inner.freezeGraph(graph, sDataWithDigest)
       case seq ⇒
         if (sDataWithT.isDefinedAt(SData.Key.explicitStorages))
           throw new IllegalArgumentException(s"Unable to add ${additionalStorageURI.mkString(",")}. There is already " + sData(SData.Key.explicitStorages))
         val append = Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeAppend)
-        inner.freezeGraph(graph, sDataWithT.updated(SData.Key.explicitStorages, append))
+        val sDataWithDigest = GraphDigest.initFreeze(sDataWithT.updated(SData.Key.explicitStorages, append))
+        inner.freezeGraph(graph, sDataWithDigest)
     }
   }
   /** Serialization implementation. */

@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
-import java.io.{ BufferedInputStream, BufferedOutputStream, File, FileInputStream, FileOutputStream, IOException, InputStream }
+import java.io.{ BufferedInputStream, BufferedOutputStream, File, FileInputStream, FileOutputStream, IOException, InputStream, OutputStream }
 import java.net.URI
 import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
@@ -76,9 +76,14 @@ class Local extends Transport with Loggable {
     log.debug("Check " + uri)
     new File(uri).canRead()
   }
-  /** Open stream */
-  def open(uri: URI, sData: SData, create: Boolean): InputStream = {
-    log.debug("Open " + uri)
+  /** Open input stream. */
+  def openRead(uri: URI, sData: SData): InputStream = {
+    log.debug("Open for reading " + uri)
+    new FileInputStream(new File(uri))
+  }
+  /** Open output stream. */
+  def openWrite(uri: URI, sData: SData, create: Boolean): OutputStream = {
+    log.debug("Open for writing " + uri)
     val contentFile = new File(uri)
     val contentDirectory = contentFile.getParentFile()
     if (!contentDirectory.exists() && create)
@@ -87,11 +92,12 @@ class Local extends Transport with Loggable {
     if (!contentFile.exists())
       if (!contentFile.createNewFile())
         throw new IOException(s"Unable to create ${contentFile}.")
-    new FileInputStream(contentFile)
+    new FileOutputStream(contentFile)
   }
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte] = {
     log.debug("Read " + uri)
+    sData.get(SData.Key.beforeRead).map(_(uri, sData))
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
     val array = sData.get(SData.Key.decodeFilter) match {
       case Some(filter) ⇒
@@ -102,12 +108,13 @@ class Local extends Transport with Loggable {
         try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
         finally { try { bis.close() } catch { case e: IOException ⇒ } }
     }
-    sData.get(SData.Key.onRead).map(_(uri, array, sData))
+    sData.get(SData.Key.afterRead).map(_(uri, array, sData))
     array
   }
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData) {
     log.debug("Write " + uri)
+    sData.get(SData.Key.beforeWrite).map(_(uri, content, sData))
     val contentFile = new File(uri)
     val contentDirectory = contentFile.getParentFile()
     if (!contentDirectory.isDirectory())
@@ -123,7 +130,7 @@ class Local extends Transport with Loggable {
         try { bos.write(content) }
         finally { try { bos.close() } catch { case e: IOException ⇒ } }
     }
-    sData.get(SData.Key.onWrite).map(_(uri, content, sData))
+    sData.get(SData.Key.afterWrite).map(_(uri, content, sData))
   }
 
   /** Get or create element directory. */

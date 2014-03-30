@@ -99,8 +99,31 @@ object SData {
   object Key {
     /** Acquire transformation f(x). */
     val acquireT = SData.key[Serialization.AcquireTransformation]("transform")
+    /** Just invoked before acquire completion. */
+    val afterAcquire = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("afterAcquire")
+    /** Just invoked before freeze completion. */
+    val afterFreeze = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("afterFreeze")
+    /** Just invoked before read completion. */
+    val afterRead = SData.key[(URI, Array[Byte], SData) ⇒ _]("afterRead")
+    /** Just invoked before write completion. */
+    val afterWrite = SData.key[(URI, Array[Byte], SData) ⇒ _]("afterWrite")
+    /** Just invoked after acquire beginning. */
+    val beforeAcquire = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("beforeAcquire")
+    /** Just invoked after freeze beginning. */
+    val beforeFreeze = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("beforeFreeze")
+    /** Just invoked after read beginning. */
+    val beforeRead = SData.key[(URI, SData) ⇒ _]("beforeRead")
+    /** Just invoked after write beginning. */
+    val beforeWrite = SData.key[(URI, Array[Byte], SData) ⇒ _]("beforeWrite")
     /** Decode file content. */
     val decodeFilter = SData.key[(InputStream, URI, SData) ⇒ InputStream]("decode")
+    /**
+     * Digest algorithm name for java.security.MessageDigest per storageURI. None - default algorithm.
+     *  Empty string replaced with default algorithm.
+     */
+    val digestAlgorithm = SData.key[mutable.HashMap[Option[URI], String] with mutable.SynchronizedMap[Option[URI], String]]("digest")
+    /** Digest map with graph hash sums per storageURI. storageURI -> Map[Relative URI, digest] */
+    val digestMap = SData.key[immutable.Map[URI, mutable.Map[URI, String] with mutable.SynchronizedMap[URI, String]]]("digest")
     /** Encode file content. */
     val encodeFilter = SData.key[(OutputStream, URI, SData) ⇒ OutputStream]("encode")
     /** Encode URI path parts. */
@@ -111,14 +134,6 @@ object SData {
     val force = SData.key[Boolean]("force")
     /** Freeze transformation f(x) ⇒ xˈ. */
     val freezeT = SData.key[Serialization.FreezeTransformation]("transform")
-    /** Just invoked before acquire completion. */
-    val onAcquire = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("onAcquire")
-    /** Just invoked before freeze completion. */
-    val onFreeze = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("onFreeze")
-    /** Just invoked before read completion. */
-    val onRead = SData.key[(URI, Array[Byte], SData) ⇒ _]("onRead")
-    /** Just invoked before write completion. */
-    val onWrite = SData.key[(URI, Array[Byte], SData) ⇒ _]("onWrite")
     /** Storage base URI. */
     val storageURI = SData.key[URI]("storage")
   }
