@@ -93,8 +93,15 @@ class Local extends Transport with Loggable {
   def read(uri: URI, sData: SData): Array[Byte] = {
     log.debug("Read " + uri)
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
-    val array = try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
-    finally { try { bis.close() } catch { case e: IOException ⇒ } }
+    val array = sData.get(SData.Key.decodeFilter) match {
+      case Some(filter) ⇒
+        val fis = filter(bis, uri, sData)
+        try { Stream.continually(fis.read).takeWhile(_ != -1).map(_.toByte).toArray }
+        finally { try { fis.close() } catch { case e: IOException ⇒ } }
+      case None ⇒
+        try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
+        finally { try { bis.close() } catch { case e: IOException ⇒ } }
+    }
     sData.get(SData.Key.onRead).map(_(uri, array, sData))
     array
   }
@@ -107,8 +114,15 @@ class Local extends Transport with Loggable {
       if (!contentDirectory.mkdirs())
         throw new IOException(s"Unable to create ${contentDirectory}.")
     val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
-    try { bos.write(content) }
-    finally { try { bos.close() } catch { case e: IOException ⇒ } }
+    sData.get(SData.Key.encodeFilter) match {
+      case Some(filter) ⇒
+        val fos = filter(bos, uri, sData)
+        try { fos.write(content) }
+        finally { try { fos.close() } catch { case e: IOException ⇒ } }
+      case None ⇒
+        try { bos.write(content) }
+        finally { try { bos.close() } catch { case e: IOException ⇒ } }
+    }
     sData.get(SData.Key.onWrite).map(_(uri, content, sData))
   }
 

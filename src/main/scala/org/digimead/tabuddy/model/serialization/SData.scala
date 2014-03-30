@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import java.io.FilterInputStream
+import java.io.{ InputStream, OutputStream }
 import java.net.URI
 import org.digimead.digi.lib.NotNothing
 import org.digimead.tabuddy.model.Model
@@ -100,9 +100,9 @@ object SData {
     /** Acquire transformation f(x). */
     val acquireT = SData.key[Serialization.AcquireTransformation]("transform")
     /** Decode file content. */
-    val decodeFilter = SData.key[(URI, SData) ⇒ FilterInputStream]("decode")
+    val decodeFilter = SData.key[(InputStream, URI, SData) ⇒ InputStream]("decode")
     /** Encode file content. */
-    val encodeFilter = SData.key[(URI, SData) ⇒ FilterInputStream]("encode")
+    val encodeFilter = SData.key[(OutputStream, URI, SData) ⇒ OutputStream]("encode")
     /** Encode URI path parts. */
     val encodeURI = SData.key[(String, SData) ⇒ String]("encodeURI")
     /** Explicit storages. */

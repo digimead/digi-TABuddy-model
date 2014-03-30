@@ -19,10 +19,22 @@
 package org.digimead.tabuddy.model.serialization
 
 import com.escalatesoft.subcut.inject.NewBindingModule
+import java.io.FileInputStream
+import java.io.OutputStream
 import java.io.{ File, FileNotFoundException, InputStream }
 import java.net.URI
+import java.security.DigestInputStream
+import java.security.DigestOutputStream
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Formatter
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+import javax.crypto.Cipher
+import javax.crypto.CipherInputStream
+import javax.crypto.CipherOutputStream
+import javax.crypto.KeyGenerator
+import javax.crypto.spec.IvParameterSpec
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
@@ -35,6 +47,7 @@ import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.hamcrest.{ BaseMatcher, Description }
 import org.mockito.{ Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
+import org.yaml.snakeyaml.reader.ReaderException
 import scala.collection.immutable
 import scala.collection.mutable
 import sun.misc.{ BASE64Decoder, BASE64Encoder }
@@ -229,11 +242,11 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
         { (_: URI, _: Array[Byte], _: SData) ⇒ onReadCounter.incrementAndGet() }))
       // Read:
       // graph descriptor
-      // retrospective record
-      // retrospective resources
+      // retrospective record // acquireGraph
+      // retrospective resources // acquireGraph
       // node descriptor
-      // retrospective record
-      // retrospective resources
+      // retrospective record // getSources
+      // retrospective resources // getSources
       // element descriptor
       onReadCounter.get should be(7)
     }
@@ -324,6 +337,84 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val graph3 = Serialization.acquire(folder.getAbsoluteFile().toURI(), sDataXOR)
       graph.retrospective should be(graph3.retrospective)
       graph3.node.safeRead { node ⇒
+        graph.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+    }
+  }
+  "Serialization data should support 'encodeFilter' and 'decodeFilter' options" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      info("simple MD5 + DES")
+      // MD5 digest + DES
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      val kg = KeyGenerator.getInstance("DES")
+      kg.init(new SecureRandom())
+      val key = kg.generateKey()
+
+      val sDataWrite = SData(SData.Key.encodeFilter -> ((os: OutputStream, uri: URI, sData: SData) ⇒ {
+        val c = Cipher.getInstance("DES/CFB8/NoPadding")
+        c.init(Cipher.ENCRYPT_MODE, key)
+        val md5 = MessageDigest.getInstance("MD5")
+        val stream = new CipherOutputStream(new DigestOutputStream(os, md5), c)
+        sData(SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest")).set(c.getIV(), md5)
+        stream
+      }),
+        SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest") -> new ThreadLocal[(Array[Byte], MessageDigest)](), // thread local MessageDigest algorithm
+        SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash") -> new mutable.HashMap[URI, (Array[Byte], String)] with mutable.SynchronizedMap[URI, (Array[Byte], String)],
+        SData.Key.onWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ {
+          val threadLocal = sData(SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest"))
+          Option(threadLocal.get).foreach {
+            case (iv, digest) ⇒
+              val formatter = new Formatter()
+              digest.digest().foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))
+              sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash")) += uri -> (iv, formatter.toString())
+              digest.reset()
+          }
+          threadLocal.set(null)
+        }))
+      Serialization.freeze(graph, sDataWrite, folder.getAbsoluteFile().toURI())
+      val hashes = sDataWrite(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash"))
+      hashes.size should be(6)
+      hashes.foreach {
+        case (uri, (iv, hash)) ⇒
+          val md5 = MessageDigest.getInstance("MD5")
+          val fis = new FileInputStream(new File(uri))
+          val dis = new DigestInputStream(fis, md5)
+          while (dis.read() != -1) {}
+          val formatter = new Formatter()
+          md5.digest().foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))
+          formatter.toString() should be(hash)
+      }
+
+      a[ReaderException] should be thrownBy Serialization.acquire(folder.getAbsoluteFile().toURI())
+
+      val sDataRead = SData(SData.Key.decodeFilter -> ((is: InputStream, uri: URI, sData: SData) ⇒ {
+        val (iv, hash) = sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash"))(uri)
+        val c = Cipher.getInstance("DES/CFB8/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv))
+        val md5 = MessageDigest.getInstance("MD5")
+        val stream = new CipherInputStream(new DigestInputStream(is, md5), c)
+        sData(SData.key[ThreadLocal[MessageDigest]]("digest")).set(md5)
+        stream
+      }),
+        SData.key[ThreadLocal[MessageDigest]]("digest") -> new ThreadLocal[MessageDigest](), // thread local MessageDigest algorithm
+        SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash") -> sDataWrite(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash")),
+        SData.Key.onRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ {
+          Option(sData(SData.key[ThreadLocal[MessageDigest]]("digest"))).foreach { digest ⇒
+            val formatter = new Formatter()
+            digest.get().digest().foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))
+            assert(sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash"))(uri)._2 == formatter.toString())
+            digest.get().reset()
+            digest.set(null)
+          }
+        }))
+      val graph2 = Serialization.acquire(folder.getAbsoluteFile().toURI(), sDataRead)
+      graph.retrospective should be(graph2.retrospective)
+      graph2.node.safeRead { node ⇒
         graph.node.safeRead { node2 ⇒
           node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
         }
