@@ -72,9 +72,11 @@ class YAMLSerialization extends Mechanism with Loggable {
     log.debug(s"Save ${elementBox} to ${elementURI}.")
     transport.write(Serialization.inner.encode(elementURI, sData),
       YAMLSerialization.wrapper(yaml.YAML.block.dump(elementBox.e.eStash).getBytes(io.Codec.UTF8.charSet), elementBox.e.eStash), sData)
+    transport.writeTimestamp(elementURI, sData)
     log.debug(s"Save optional ${elementBox} to ${optionalURI}.")
     transport.write(Serialization.inner.encode(optionalURI, sData),
       YAMLSerialization.wrapper(yaml.YAML.block.dump(optional).getBytes(io.Codec.UTF8.charSet), optional), sData)
+    transport.writeTimestamp(optionalURI, sData)
   }
 }
 
@@ -164,6 +166,8 @@ object YAMLSerialization extends Loggable {
     }
   }
 
-  /** YAMLSerialization identifier. */
+  /**
+   * YAMLSerialization identifier.
+   */
   object Identifier extends Serialization.Identifier { val extension = "yaml" }
 }

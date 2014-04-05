@@ -22,7 +22,9 @@ import java.io.{ InputStream, OutputStream }
 import java.net.URI
 import org.digimead.digi.lib.NotNothing
 import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.serialization.digest.Digest
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import scala.collection.{ GenTraversableOnce, IterableLike, immutable, mutable }
 import scala.language.implicitConversions
@@ -94,7 +96,7 @@ object SData {
     def →(y: A): KeyValue[A] = ->(y)
   }
   /**
-   * Predefined keys of a generic transport.
+   * Predefined keys of a generic process.
    */
   object Key {
     /** Acquire transformation f(x). */
@@ -104,36 +106,37 @@ object SData {
     /** Just invoked before freeze completion. */
     val afterFreeze = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("afterFreeze")
     /** Just invoked before read completion. */
-    val afterRead = SData.key[(URI, Array[Byte], SData) ⇒ _]("afterRead")
+    val afterRead = SData.key[(URI, Array[Byte], Transport, SData) ⇒ _]("afterRead")
     /** Just invoked before write completion. */
-    val afterWrite = SData.key[(URI, Array[Byte], SData) ⇒ _]("afterWrite")
+    val afterWrite = SData.key[(URI, Array[Byte], Transport, SData) ⇒ _]("afterWrite")
     /** Just invoked after acquire beginning. */
     val beforeAcquire = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("beforeAcquire")
     /** Just invoked after freeze beginning. */
     val beforeFreeze = SData.key[(Graph[_ <: Model.Like], Transport, SData) ⇒ _]("beforeFreeze")
     /** Just invoked after read beginning. */
-    val beforeRead = SData.key[(URI, SData) ⇒ _]("beforeRead")
+    val beforeRead = SData.key[(URI, Transport, SData) ⇒ _]("beforeRead")
     /** Just invoked after write beginning. */
-    val beforeWrite = SData.key[(URI, Array[Byte], SData) ⇒ _]("beforeWrite")
+    val beforeWrite = SData.key[(URI, Array[Byte], Transport, SData) ⇒ _]("beforeWrite")
+    /** Encode/decode URI path parts. */
+    val convertURI = SData.key[((String, SData) ⇒ String, (String, SData) ⇒ String)]("convertURI")
     /** Decode file content. */
-    val decodeFilter = SData.key[(InputStream, URI, SData) ⇒ InputStream]("decode")
-    /**
-     * Digest algorithm name for java.security.MessageDigest per storageURI. None - default algorithm.
-     *  Empty string replaced with default algorithm.
-     */
-    val digestAlgorithm = SData.key[mutable.HashMap[Option[URI], String] with mutable.SynchronizedMap[Option[URI], String]]("digest")
-    /** Digest map with graph hash sums per storageURI. storageURI -> Map[Relative URI, digest] */
-    val digestMap = SData.key[immutable.Map[URI, mutable.Map[URI, String] with mutable.SynchronizedMap[URI, String]]]("digest")
+    val decodeFilter = SData.key[(InputStream, URI, Transport, SData) ⇒ InputStream]("decode")
     /** Encode file content. */
-    val encodeFilter = SData.key[(OutputStream, URI, SData) ⇒ OutputStream]("encode")
-    /** Encode URI path parts. */
-    val encodeURI = SData.key[(String, SData) ⇒ String]("encodeURI")
+    val encodeFilter = SData.key[(OutputStream, URI, Transport, SData) ⇒ OutputStream]("encode")
     /** Explicit storages. */
     val explicitStorages = SData.key[Serialization.ExplicitStorages]("storages")
     /** Skip broken nodes on load/overwrite everything. */
     val force = SData.key[Boolean]("force")
     /** Freeze transformation f(x) ⇒ xˈ. */
     val freezeT = SData.key[Serialization.FreezeTransformation]("transform")
+    /** Initialize loader before completion in Serialization.acquireGraphLoader. */
+    val initializeLoader = SData.key[(Serialization.Loader) ⇒ Serialization.Loader]("initialize")
+    /** Initialize SData before source creation in Serialization.acquireGraphLoader. */
+    val initializeSourceSData = SData.key[(Element.Timestamp, Transport, SData) ⇒ SData]("initialize")
+    /** Current process modified timestamp. */
+    val modified = SData.key[Element.Timestamp]("modified")
+    /** Sequence with graph sources from best to worst. */
+    val sources = SData.key[Seq[Source[_ <: Model.Like, _ <: Element]]]("sources")
     /** Storage base URI. */
     val storageURI = SData.key[URI]("storage")
   }

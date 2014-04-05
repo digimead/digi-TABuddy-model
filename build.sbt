@@ -44,9 +44,9 @@ inConfig(OSGiConf)({
   )
 })
 
-crossScalaVersions := Seq("2.10.3")
+crossScalaVersions := Seq("2.10.4")
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.10.4"
 
 scalacOptions ++= Seq("-encoding", "UTF-8", "-deprecation", "-unchecked", "-Xcheckinit", "-feature") ++
   (if (true || (System getProperty "java.runtime.version" startsWith "1.7")) Seq() else Seq("-optimize")) // -optimize fails with jdk7

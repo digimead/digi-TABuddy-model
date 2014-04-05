@@ -20,19 +20,12 @@ package org.digimead.tabuddy.model.graph
 
 import java.net.URI
 import java.util.UUID
-
-import scala.collection.immutable
-import scala.collection.mutable
-
 import org.digimead.digi.lib.api.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
-import org.digimead.tabuddy.model.graph.Node.node2interface
+import org.digimead.tabuddy.model.element.{ Coordinate, Element }
 import org.digimead.tabuddy.model.serialization.Serialization
-
+import scala.collection.{ immutable, mutable }
 import scala.language.implicitConversions
 
 /**

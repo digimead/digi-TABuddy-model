@@ -70,6 +70,7 @@ class BuiltinSerialization extends Mechanism with Loggable {
     out.writeObject(elementBox.e)
     baos.close()
     transport.write(Serialization.inner.encode(elementURI, sData), baos.toByteArray(), sData)
+    transport.writeTimestamp(elementURI, sData)
   }
 }
 
@@ -86,6 +87,8 @@ object BuiltinSerialization {
         super.resolveClass(desc)
     }
   }
-  /** BuiltinSerialization identifier. */
+  /**
+   * BuiltinSerialization identifier.
+   */
   object Identifier extends Serialization.Identifier { val extension = "bcode" }
 }

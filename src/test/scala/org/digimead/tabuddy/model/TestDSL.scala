@@ -22,8 +22,8 @@ import org.digimead.tabuddy.model.dsl.DSL
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.predef.Note
 import org.digimead.tabuddy.model.predef.Task
-
-import language.implicitConversions
+import org.scalatest.Tag
+import scala.language.implicitConversions
 
 object TestDSL extends DSL
   with Model.DSL
@@ -47,4 +47,6 @@ object TestDSL extends DSL
   implicit val taskStashClass: Class[_ <: Task.Stash] = classOf[Task.Stash]
 
   implicit def relative2absolute[A <: Element](relative: Element.Relative[A]): A = relative.absolute
+
+  object Mark extends Tag("Mark")
 }

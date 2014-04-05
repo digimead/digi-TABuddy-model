@@ -18,16 +18,13 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
-import java.io.{ FilterInputStream, InputStream, OutputStream }
+import java.io.{ DataInputStream, DataOutputStream, InputStream, OutputStream }
 import java.net.{ URI, URLEncoder }
 import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
-import org.digimead.tabuddy.model.serialization.SData
-import scala.collection.immutable
-import scala.reflect.runtime.universe.TypeTag
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
 
 /**
  * Serialization transport that provides implementation for the specific URI scheme.
@@ -48,6 +45,8 @@ trait Transport {
   val optionalResourceName = "optional"
   /** Transport scheme. */
   val scheme: String
+  /** Timestamp extension. */
+  val timestampExtension = "timestamp"
 
   /** Append path to URI. */
   def append(uri: URI, part: String*): URI = if (uri.toString().endsWith("/"))
@@ -72,7 +71,34 @@ trait Transport {
   def openWrite(uri: URI, sData: SData, create: Boolean): OutputStream
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte]
+  /** Read resource timestamp. */
+  def readTimestamp(encodedResourceURI: URI, sData: SData): Element.Timestamp = {
+    val decodedResourceURI = Serialization.inner.decode(encodedResourceURI, sData)
+    val timestampURI = new URI(decodedResourceURI.getScheme(), decodedResourceURI.getUserInfo(),
+      decodedResourceURI.getHost(), decodedResourceURI.getPort(),
+      decodedResourceURI.getPath() + "." + timestampExtension, decodedResourceURI.getQuery(),
+      decodedResourceURI.getFragment())
+    val timestampStream = openRead(Serialization.inner.encode(Serialization.inner.decode(timestampURI, sData), sData), sData)
+    val is = new DataInputStream(timestampStream)
+    try Element.timestamp(is.readLong(), is.readLong())
+    finally try is.close() catch { case e: Throwable ⇒ }
+  }
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData)
+  /** Write resource timestamp. */
+  def writeTimestamp(decodedResourceURI: URI, sData: SData) {
+    val timestampURI = new URI(decodedResourceURI.getScheme(), decodedResourceURI.getUserInfo(),
+      decodedResourceURI.getHost(), decodedResourceURI.getPort(),
+      decodedResourceURI.getPath() + "." + timestampExtension, decodedResourceURI.getQuery(),
+      decodedResourceURI.getFragment())
+    val timestampStream = openWrite(Serialization.inner.encode(timestampURI, sData), sData, true)
+    val os = new DataOutputStream(timestampStream)
+    try {
+      val modified = sData(SData.Key.modified)
+      os.writeLong(modified.milliseconds)
+      os.writeLong(modified.nanoShift)
+      os.flush()
+    } finally try os.close() catch { case e: Throwable ⇒ }
+  }
 
 }

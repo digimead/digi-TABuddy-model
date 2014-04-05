@@ -241,25 +241,31 @@ object ElementBox extends Loggable {
           unmodifiedCache = Some(element)
           element
         case Left(sData) ⇒
+          unmodifiedCache = None
           // Base URI that is passed instead of element.
           val element = Serialization.perIdentifier.get(serialization) match {
             case Some(mechanism) ⇒
-              sData.get(SData.Key.storageURI) match {
-                case Some(storageURI) ⇒
-                  Serialization.perScheme.get(storageURI.getScheme()) match {
-                    case Some(transport) ⇒
-                      mechanism.load(this, transport, sData)
-                    case None ⇒
-                      throw new IllegalStateException(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
+              val sources = sData(SData.Key.sources)
+              for (source ← sources if unmodifiedCache.isEmpty)
+                if (source.storageURI.isAbsolute()) {
+                  try {
+                    Serialization.perScheme.get(source.storageURI.getScheme()) match {
+                      case Some(transport) ⇒
+                        unmodifiedCache = Some(mechanism.load(this, source.transport, sData))
+                      case None ⇒
+                        log.warn(s"Transport for the specified scheme '${source.storageURI.getScheme()}' not found.")
+                    }
+                  } catch {
+                    case e: SecurityException ⇒ log.debug(e.getMessage)
+                    case e: Throwable ⇒ log.error(s"Unable to load element ${node.id} ${modified}: " + e.getMessage(), e)
                   }
-                case None ⇒
-                  throw new IllegalStateException(s"Storage URI for the specified ${serialization} not found.")
-              }
+                } else {
+                  log.fatal(s"Unable to process relative storage URI as base: ${source.storageURI}.")
+                }
             case None ⇒
               throw new IllegalStateException(s"Serialization for the specified ${serialization} not found.")
           }
-          unmodifiedCache = Some(element)
-          element
+          unmodifiedCache getOrElse { throw new IllegalStateException(s"Unable to load ${this}.") }
       }
     }
     // get modified timestamp or get unmodified timestamp or get unmodified if not loaded

@@ -49,6 +49,8 @@ class StubSerialization extends Mechanism with Loggable {
 }
 
 object StubSerialization {
-  /** StubSerialization identifier. */
+  /**
+   * StubSerialization identifier.
+   */
   object Identifier extends Serialization.Identifier { val extension = "stub" }
 }

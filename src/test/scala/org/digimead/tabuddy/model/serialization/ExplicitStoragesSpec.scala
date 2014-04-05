@@ -175,7 +175,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         graph.retrospective.history should have size (1)
         graph.storages.size should be(2)
         val want = Seq(folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI()).map(_.toString().replaceAll("""/$""", "")).toSet
-        graph.storages.map(_.toString().replaceAll("""/$""", "")).toSet should be (want)
+        graph.storages.map(_.toString().replaceAll("""/$""", "")).toSet should be(want)
       }
     }
   }

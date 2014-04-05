@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
  * limitations under the License.
  */
 
-package org.digimead.tabuddy
+package org.digimead.tabuddy.model.serialization
 
+import com.escalatesoft.subcut.inject.NewBindingModule
 import org.digimead.digi.lib.DependencyInjection
 
-package object model {
-  lazy val default = org.digimead.tabuddy.model.dsl.default ~
-    org.digimead.tabuddy.model.serialization.default ~
-    org.digimead.tabuddy.model.serialization.yaml.default ~
-    org.digimead.tabuddy.model.serialization.digest.default
-  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.element.Reference$DI$")
+package object digest {
+  lazy val default = new NewBindingModule(module ⇒ {
+    module.bind[Mechanism] identifiedBy ("Digest.Mechanism.Simple") toSingle { new Simple }
+  })
+  DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.serialization.digest.Digest$DI$")
 }

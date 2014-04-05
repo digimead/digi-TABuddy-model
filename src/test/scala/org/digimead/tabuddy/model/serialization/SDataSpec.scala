@@ -113,7 +113,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val timestamp = Serialization.freeze(graph, sData, graphURI)
       Mockito.verify(testTransport, Mockito.times(21)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
-          case sData: SData ⇒ sData.size == 4 // key test, key storages, key transform, key storage
+          case sData: SData ⇒ sData.size == 5 // key modified, key test, key storages, key transform, key storages
           case _ ⇒ false
         }
         def describeTo(description: Description) {}
@@ -125,7 +125,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val loader = Serialization.acquireLoader(graphURI, sData)
       loader.sData(SData.key[String]("test")) should be("test")
       loader.sData.isDefinedAt(SData.Key.acquireT) should be(true)
-      loader.sData.size should be(2)
+      loader.sData.size should be(3) // key test, key storage, key transform
       val graph2 = loader.load()
       graph.node.safeRead { node ⇒
         graph2.node.safeRead { node2 ⇒
@@ -133,9 +133,9 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
         }
       }
       Mockito.verify(testTransport, Mockito.never).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
-      Mockito.verify(testTransport, Mockito.times(17)).read(MM.anyObject(), MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(18)).read(MM.anyObject(), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
-          case sData: SData ⇒ sData.size == 3 // key test, key transform, key storage
+          case sData: SData ⇒ sData.isDefinedAt(SData.key[String]("test"))
           case _ ⇒ false
         }
         def describeTo(description: Description) {}
@@ -229,7 +229,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val onReadCounter = new AtomicInteger
       val onWriteCounter = new AtomicInteger
       Serialization.freeze(graph, SData(SData.Key.afterWrite ->
-        { (_: URI, _: Array[Byte], _: SData) ⇒ onWriteCounter.incrementAndGet() }), folder.getAbsoluteFile().toURI())
+        { (_: URI, _: Array[Byte], _: Transport, _: SData) ⇒ onWriteCounter.incrementAndGet() }), folder.getAbsoluteFile().toURI())
       // Write:
       // graph descriptor
       // node descriptor
@@ -239,7 +239,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       onWriteCounter.get should be(6)
 
       Serialization.acquire(folder.getAbsoluteFile().toURI(), SData(SData.Key.afterRead ->
-        { (_: URI, _: Array[Byte], _: SData) ⇒ onReadCounter.incrementAndGet() }))
+        { (_: URI, _: Array[Byte], _: Transport, _: SData) ⇒ onReadCounter.incrementAndGet() }))
       // Read:
       // graph descriptor
       // retrospective record // acquireGraph
@@ -248,7 +248,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       // retrospective record // getSources
       // retrospective resources // getSources
       // element descriptor
-      onReadCounter.get should be(7)
+      onReadCounter.get should be(8)
     }
   }
   "Complex 'onRead', 'onWrite', 'onAcquire' and 'onFreeze' options test" in {
@@ -263,8 +263,8 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
         SData.key[AtomicInteger]("totalWrite") -> new AtomicInteger,
         SData.key[mutable.ArrayBuffer[URI]]("read") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
         SData.key[mutable.ArrayBuffer[URI]]("write") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
-        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
-        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri),
+        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
+        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri),
         SData.Key.afterFreeze -> ((xGraph: Graph[_ <: Model.Like], transport: Transport, sData: SData) ⇒
           sData(SData.key[AtomicInteger]("totalWrite")).set(sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size)),
         SData.Key.afterAcquire -> ((xGraph: Graph[_ <: Model.Like], transport: Transport, sData: SData) ⇒
@@ -282,8 +282,8 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       sData(SData.key[AtomicInteger]("totalWrite")).get() should be(6)
 
       Serialization.acquire(folder.getAbsoluteFile().toURI(), sData)
-      sData(SData.key[mutable.ArrayBuffer[URI]]("read")).size should be(7)
-      sData(SData.key[AtomicInteger]("totalRead")).get should be(7)
+      sData(SData.key[mutable.ArrayBuffer[URI]]("read")).size should be(8)
+      sData(SData.key[AtomicInteger]("totalRead")).get should be(8)
       sData(SData.key[mutable.ArrayBuffer[URI]]("write")).size should be(6)
       sData(SData.key[AtomicInteger]("totalWrite")).get() should be(6)
     }
@@ -294,17 +294,18 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
 
       val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val sData = SData(SData.Key.encodeURI -> ((name: String, sData: SData) ⇒ "Test_" + name),
+      val sData = SData(SData.Key.convertURI -> (((name: String, sData: SData) ⇒ "Test_" + name,
+        (name: String, sData: SData) ⇒ name.replaceAll("""^Test_""", ""))),
         SData.key[mutable.ArrayBuffer[URI]]("read") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
         SData.key[mutable.ArrayBuffer[URI]]("write") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
-        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
-        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri))
+        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
+        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri))
 
       val baseURI = new URI("aaa:/bbb/")
       val testURI = new URI("aaa:/bbb/ccc/ddd.eee")
-      val encoded = Serialization.inner.encode(baseURI, testURI, (name: String, sData: SData) ⇒ "Test_" + name, sData)
+      val encoded = Serialization.inner.convert(baseURI, testURI, (name: String, sData: SData) ⇒ "Test_" + name, sData)
       encoded should be(new URI("aaa:/bbb/Test_ccc/Test_ddd.eee"))
-      val decoded = Serialization.inner.encode(baseURI, encoded, (name: String, sData: SData) ⇒ name.replaceAll("""^Test_""", ""), sData)
+      val decoded = Serialization.inner.convert(baseURI, encoded, (name: String, sData: SData) ⇒ name.replaceAll("""^Test_""", ""), sData)
       decoded should be(testURI)
 
       Serialization.freeze(graph, sData, folder.getAbsoluteFile().toURI())
@@ -325,11 +326,12 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
 
       info("simple XOR encoding")
       graph.retrospective = Graph.Retrospective.empty(graph.origin)
-      val sDataXOR = SData(SData.Key.encodeURI -> ((name: String, sData: SData) ⇒ StringXORer.encode(name, "secret")),
+      val sDataXOR = SData(SData.Key.convertURI -> ((name: String, sData: SData) ⇒ StringXORer.encode(name, "secret"),
+        (name: String, sData: SData) ⇒ StringXORer.decode(name, "secret")),
         SData.key[mutable.ArrayBuffer[URI]]("read") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
         SData.key[mutable.ArrayBuffer[URI]]("write") -> new mutable.ArrayBuffer[URI] with mutable.SynchronizedBuffer[URI],
-        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
-        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri))
+        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("read")) += uri),
+        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ sData(SData.key[mutable.ArrayBuffer[URI]]("write")) += uri))
       Serialization.freeze(graph, sDataXOR, folder.getAbsoluteFile().toURI())
       val pathsWriteXOR = sDataXOR(SData.key[mutable.ArrayBuffer[URI]]("write")).map(folder.getAbsoluteFile().toURI().relativize(_).getPath())
       pathsWriteXOR.map(_.split("/").head) should be(Seq("FwAQERcdAxEMAEsNEggP", "FwQXEw==", "FwQXEw==", "FwQXEw==", "AQAXAAoHAwAABgwCFg==", "AQAXAAoHAwAABgwCFg=="))
@@ -355,7 +357,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       kg.init(new SecureRandom())
       val key = kg.generateKey()
 
-      val sDataWrite = SData(SData.Key.encodeFilter -> ((os: OutputStream, uri: URI, sData: SData) ⇒ {
+      val sDataWrite = SData(SData.Key.encodeFilter -> ((os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
         val c = Cipher.getInstance("DES/CFB8/NoPadding")
         c.init(Cipher.ENCRYPT_MODE, key)
         val md5 = MessageDigest.getInstance("MD5")
@@ -365,7 +367,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       }),
         SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest") -> new ThreadLocal[(Array[Byte], MessageDigest)](), // thread local MessageDigest algorithm
         SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash") -> new mutable.HashMap[URI, (Array[Byte], String)] with mutable.SynchronizedMap[URI, (Array[Byte], String)],
-        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ {
+        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ {
           val threadLocal = sData(SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest"))
           Option(threadLocal.get).foreach {
             case (iv, digest) ⇒
@@ -392,7 +394,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
 
       a[ReaderException] should be thrownBy Serialization.acquire(folder.getAbsoluteFile().toURI())
 
-      val sDataRead = SData(SData.Key.decodeFilter -> ((is: InputStream, uri: URI, sData: SData) ⇒ {
+      val sDataRead = SData(SData.Key.decodeFilter -> ((is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
         val (iv, hash) = sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash"))(uri)
         val c = Cipher.getInstance("DES/CFB8/NoPadding")
         c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv))
@@ -403,7 +405,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       }),
         SData.key[ThreadLocal[MessageDigest]]("digest") -> new ThreadLocal[MessageDigest](), // thread local MessageDigest algorithm
         SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash") -> sDataWrite(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash")),
-        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], sData: SData) ⇒ {
+        SData.Key.afterRead -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ {
           Option(sData(SData.key[ThreadLocal[MessageDigest]]("digest"))).foreach { digest ⇒
             val formatter = new Formatter()
             digest.get().digest().foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))

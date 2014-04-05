@@ -73,7 +73,7 @@ class Local extends Transport with Loggable {
   }
   /** Check resource. */
   def exists(uri: URI, sData: SData) = {
-    log.debug("Check " + uri)
+    log.debug("Check is exists " + uri)
     new File(uri).canRead()
   }
   /** Open input stream. */
@@ -97,24 +97,24 @@ class Local extends Transport with Loggable {
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte] = {
     log.debug("Read " + uri)
-    sData.get(SData.Key.beforeRead).map(_(uri, sData))
+    sData.get(SData.Key.beforeRead).map(_(uri, this, sData))
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
     val array = sData.get(SData.Key.decodeFilter) match {
       case Some(filter) ⇒
-        val fis = filter(bis, uri, sData)
+        val fis = filter(bis, uri, this, sData)
         try { Stream.continually(fis.read).takeWhile(_ != -1).map(_.toByte).toArray }
         finally { try { fis.close() } catch { case e: IOException ⇒ } }
       case None ⇒
         try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
         finally { try { bis.close() } catch { case e: IOException ⇒ } }
     }
-    sData.get(SData.Key.afterRead).map(_(uri, array, sData))
+    sData.get(SData.Key.afterRead).map(_(uri, array, this, sData))
     array
   }
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData) {
     log.debug("Write " + uri)
-    sData.get(SData.Key.beforeWrite).map(_(uri, content, sData))
+    sData.get(SData.Key.beforeWrite).map(_(uri, content, this, sData))
     val contentFile = new File(uri)
     val contentDirectory = contentFile.getParentFile()
     if (!contentDirectory.isDirectory())
@@ -123,14 +123,14 @@ class Local extends Transport with Loggable {
     val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
     sData.get(SData.Key.encodeFilter) match {
       case Some(filter) ⇒
-        val fos = filter(bos, uri, sData)
+        val fos = filter(bos, uri, this, sData)
         try { fos.write(content) }
         finally { try { fos.close() } catch { case e: IOException ⇒ } }
       case None ⇒
         try { bos.write(content) }
         finally { try { bos.close() } catch { case e: IOException ⇒ } }
     }
-    sData.get(SData.Key.afterWrite).map(_(uri, content, sData))
+    sData.get(SData.Key.afterWrite).map(_(uri, content, this, sData))
   }
 
   /** Get or create element directory. */
