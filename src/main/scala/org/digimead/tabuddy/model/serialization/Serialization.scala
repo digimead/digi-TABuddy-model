@@ -91,7 +91,8 @@ class Serialization extends Serialization.Interface with Loggable {
             // 3. add children.
             val children = source.modelDescriptor.children.flatMap {
               case (childId, childModificationTimestamp) ⇒
-                acquireNode(childId, childModificationTimestamp, Seq(targetNode), sDataForStorage)
+                try acquireNode(childId, childModificationTimestamp, Seq(targetNode), sDataForStorage)
+                catch { case e: Throwable ⇒ throw new IllegalStateException("NodeAcquireException", e) } // acquireNode has their own per source loop
             }
             if (children.nonEmpty) {
               targetNode.updateState(children = children, modified = null) // modification is already assigned
@@ -104,6 +105,7 @@ class Serialization extends Serialization.Interface with Loggable {
             graph = Some(basis)
           } catch {
             case e: SecurityException ⇒ log.debug(e.getMessage)
+            case e: IllegalStateException if e.getMessage() == "NodeAcquireException" ⇒ throw e.getCause()
             case e: Throwable ⇒ log.error(s"Unable to load graph ${source.modelDescriptor.id} ${loader.modified}: " + e.getMessage(), e)
           }
         }
@@ -636,7 +638,8 @@ object Serialization extends Loggable {
     }
     val sDataNExplicitStorages = ExplicitStorages.init(sDataNAdditionalStorageURIs)
     val sDataNDigest = Digest.initFreeze(sDataNExplicitStorages)
-    inner.freezeGraph(graph, sDataNDigest)
+    inner.freezeGraph(graph,
+      sDataNDigest.get(SData.Key.initializeFreezeSData).map(_(graph, sDataNDigest)) getOrElse sDataNDigest)
   }
   /** Serialization implementation. */
   def inner = DI.implementation

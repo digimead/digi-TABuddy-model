@@ -130,9 +130,11 @@ object SData {
     /** Freeze transformation f(x) ⇒ xˈ. */
     val freezeT = SData.key[Serialization.FreezeTransformation]("transform")
     /** Initialize loader before completion in Serialization.acquireGraphLoader. */
-    val initializeLoader = SData.key[(Serialization.Loader) ⇒ Serialization.Loader]("initialize")
+    val initializeLoader = SData.key[(Serialization.Loader) ⇒ Serialization.Loader]("initializeLoader")
+    /** Initialize SData before freeze process. */
+    val initializeFreezeSData = SData.key[(Graph[_ <: Model.Like], SData) ⇒ SData]("initializeFreezeSData")
     /** Initialize SData before source creation in Serialization.acquireGraphLoader. */
-    val initializeSourceSData = SData.key[(Element.Timestamp, Transport, SData) ⇒ SData]("initialize")
+    val initializeSourceSData = SData.key[(Element.Timestamp, Transport, SData) ⇒ SData]("initializeSourceSData")
     /** Current process modified timestamp. */
     val modified = SData.key[Element.Timestamp]("modified")
     /** Sequence with graph sources from best to worst. */

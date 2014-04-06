@@ -89,21 +89,8 @@ class Digest extends Loggable {
       sData
   }
   /** Initialize SData for freeze process. */
-  def initFreeze(sData: SData): SData = sData.get(Digest.Key.freeze) match {
-    case Some(parameters) ⇒
-      // Add trailing slash to digestAlgorithm keys
-      val updatedDigestAlgorithm = immutable.Map(parameters.map {
-        case (uri, algorithm) ⇒ Serialization.inner.addTrailingSlash(uri) -> algorithm
-      }.toSeq: _*)
-      val updated = sData.
-        updated(Digest.Key.freeze, updatedDigestAlgorithm).
-        updated(SData.Key.encodeFilter, new freeze.EncodeFilter(sData.get(SData.Key.encodeFilter))).
-        updated(SData.Key.afterWrite, new freeze.AfterWrite(sData.get(SData.Key.afterWrite))).
-        updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze)))
-      Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initFreeze(sData))
-    case None ⇒
-      sData
-  }
+  def initFreeze(sData: SData): SData =
+    sData.updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData)))
 
   /** Get digest parameter for the specific modification of the storage. */
   protected def getDigestParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = {
@@ -307,6 +294,68 @@ class Digest extends Loggable {
             userFilter.map(_(os, uri, transport, sData)) getOrElse os
         }
     }
+    /**
+     * Hook that add Digest.Key.freeze with previous configuration.
+     */
+    class InitializeFreezeSData(val userInitialize: Option[Function2[Graph[_ <: Model.Like], SData, SData]])
+      extends Function2[Graph[_ <: Model.Like], SData, SData] {
+      /** Check Digest.Key.freeze and adjust Digest.Key.freeze if needed. */
+      def apply(graph: Graph[_ <: Model.Like], sData: SData): SData = {
+        val updatedSData = sData.get(Digest.Key.freeze) match {
+          case None ⇒
+            (graph.storages, graph.retrospective.last) match {
+              case (seq, last) if seq.isEmpty || last.isEmpty ⇒
+                sData
+              case (storages, Some(modified)) ⇒
+                val previousParameters = storages.map { storageURI ⇒
+                  try {
+                    Serialization.perScheme.get(storageURI.getScheme()) match {
+                      case Some(transport) ⇒
+                        storageURI -> getDigestParameters(modified, transport, sData.updated(SData.Key.storageURI, storageURI))
+                      case None ⇒
+                        log.warn(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
+                        storageURI -> Digest.NoDigest
+                    }
+                  } catch {
+                    case e: Throwable ⇒
+                      log.warn(s"Unable to get digest parameters for ${}: ${e.getMessage}")
+                      storageURI -> Digest.NoDigest
+                  }
+                }
+                val newParameters = sData.get(SData.Key.explicitStorages) match {
+                  case Some(explicitStorages: Serialization.ExplicitStorages) ⇒
+                    explicitStorages.storages.filterNot(previousParameters.contains).map(storageURI ⇒ storageURI -> Digest.default)
+                  case None ⇒
+                    Nil
+                }
+                val digestParametersMap = immutable.Map((previousParameters ++ newParameters).toSeq: _*)
+                if (digestParametersMap.nonEmpty) {
+                  log.debug("Freeze with default digest parameters: " + digestParametersMap)
+                  sData.updated(Digest.Key.freeze, digestParametersMap)
+                } else
+                  sData
+            }
+          case Some(freezeValue) ⇒
+            sData // Skip. Already present.
+        }
+        updatedSData.get(Digest.Key.freeze) match {
+          case Some(parameters) ⇒
+            // Add trailing slash to digestAlgorithm keys
+            val updatedDigestAlgorithm = immutable.Map(parameters.map {
+              case (uri, algorithm) ⇒ Serialization.inner.addTrailingSlash(uri) -> algorithm
+            }.toSeq: _*)
+            val updated = sData.
+              updated(Digest.Key.freeze, updatedDigestAlgorithm).
+              updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData))).
+              updated(SData.Key.encodeFilter, new freeze.EncodeFilter(sData.get(SData.Key.encodeFilter))).
+              updated(SData.Key.afterWrite, new freeze.AfterWrite(sData.get(SData.Key.afterWrite))).
+              updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze)))
+            Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initFreeze(sData))
+          case None ⇒
+            sData
+        }
+      }
+    }
   }
 }
 
@@ -331,7 +380,7 @@ object Digest extends Loggable {
   val modifiedCache = SData.key[ThreadLocal[Element.Timestamp]]("digestModifiedCache")
 
   /** Get default digest algorithm. */
-  def defaultAlgorithm = DI.defaultAlgorithm
+  def default = DI.default
   /** Get digest container name. */
   def containerName = DI.containerName
   /** Get digest file extension. */
@@ -368,13 +417,11 @@ object Digest extends Loggable {
    */
   private object DI extends DependencyInjection.PersistentInjectable {
     /** Default digest algorithm. */
-    lazy val defaultAlgorithm = injectOptional[String]("Digest.DefaultAlgorithm") getOrElse "SHA-512"
+    lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse Simple("SHA-512")
     /** Digest container name. */
     lazy val containerName = injectOptional[String]("Digest.ContainerName") getOrElse "digest"
     /** Digest file extension. */
     lazy val extension = injectOptional[String]("Digest.Extension") getOrElse "digest"
-    /** Digest file name with digest type. */
-    lazy val typeName = injectOptional[String]("Digest.TypeName") getOrElse "type"
     /** Digest implementation. */
     lazy val implementation = injectOptional[Digest] getOrElse new Digest
     /**
@@ -400,5 +447,7 @@ object Digest extends Loggable {
       assert(mechanisms.distinct.size == mechanisms.size, "digest mechanisms contain duplicated entities in " + mechanisms)
       immutable.HashMap(mechanisms.map(m ⇒ m.identifier -> m): _*)
     }
+    /** Digest file name with digest type. */
+    lazy val typeName = injectOptional[String]("Digest.TypeName") getOrElse "type"
   }
 }

@@ -662,7 +662,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       } should be(true)
     }
   }
-  "Acquire process should fail to load graph if one or more chunks without digest and Digest.Key.acquire -> true" taggedAs (TestDSL.Mark) in {
+  "Acquire process should fail to load graph if one or more chunks without digest and Digest.Key.acquire -> true" in {
     withTempFolder { folder ⇒
       import TestDSL._
 
@@ -719,11 +719,11 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = true
+      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -731,16 +731,51 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val sDataFreeze = SData(Digest.Key.freeze ->
         immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val sDataAcquire = SData(Digest.Key.acquire -> true)
-      val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), sDataAcquire.updated(Digest.Key.acquire, false))
-      //graph2.
+      Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+      Serialization.freeze(graph, sDataFreeze.updated(SData.Key.force, true), folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+
+      // modify
+      graph2.model.takeRecord('baseLevel) { r ⇒
+        r.takeRecord('level1a) { r ⇒
+          r.takeRecord('level2a) { r ⇒ r.name = "222" }
+          r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+        }
+      }
+      val sDataFreeze2 = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
+      Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+
+      graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
+      val sDataFreeze3 = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Simple("MD2"), folderB.toURI -> Simple("MD5"), folderC.toURI -> Digest.NoDigest))
+      Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+
+      val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true, SData.Key.force -> true))
+      val records = graph4Loader.sources.head.graphDescriptor.records.sorted
+      val history = graph4Loader.sData(Digest.historyPerURI)
+      val historyForFolderA = history(folderA.toURI())
+      val historyForFolderB = history(folderB.toURI())
+      val historyForFolderC = history(folderC.toURI())
+
+      records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest", "SimpleDigestParameters(MD2)"))
+      records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "NoDigest", "SimpleDigestParameters(MD5)"))
+      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "NoDigest", "NoDigest"))
+
+      val graph4 = graph4Loader.load()
+      val nodes = graph4.node.safeRead(_.iteratorRecursive.toList)
+      // level2aX has't digest
+      nodes.map(_.id.name) should be(List("baseLevel", "level1a", "level2a"))
     }
   }
   "Freeze process should use the latest digest configuration by default" in {
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = true
+      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -752,9 +787,70 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val sDataFreeze = SData(Digest.Key.freeze ->
         immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val sDataAcquire = SData(Digest.Key.acquire -> true)
-      val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), sDataAcquire.updated(Digest.Key.acquire, false))
-      //graph2.
+
+      // modify
+      graph.model.takeRecord('baseLevel) { _.takeRecord('level1a) { _.takeRecord('level2aX) { _.name = "222" } } }
+      Serialization.freeze(graph)
+
+      // modify
+      graph.model.takeRecord('baseLevel) { _.takeRecord('level1a) { _.takeRecord('level2aX) { _.name = "333" } } }
+      Serialization.freeze(graph)
+
+      val graph2Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
+      val records = graph2Loader.sources.head.graphDescriptor.records.sorted
+      val history = graph2Loader.sData(Digest.historyPerURI)
+      val historyForFolderA = history(folderA.toURI())
+      val historyForFolderB = history(folderB.toURI())
+      val historyForFolderC = history(folderC.toURI())
+
+      records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest", "NoDigest"))
+      records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "SimpleDigestParameters(MD5)", "SimpleDigestParameters(MD5)"))
+      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "SimpleDigestParameters(SHA-512)", "SimpleDigestParameters(SHA-512)"))
+      val graph2 = graph2Loader.load()
+      graph.node.safeRead { node ⇒
+        graph2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+    }
+  }
+  "Freeze process should use a default digest parameters for new storage" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      test = false
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5")))
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
+
+      // modify
+      graph.model.takeRecord('baseLevel) { _.takeRecord('level1a) { _.takeRecord('level2aX) { _.name = "222" } } }
+      val folderC = new File(folder, "C")
+      Serialization.freeze(graph, folderC.getAbsoluteFile().toURI())
+
+      val graph2Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
+      val records = graph2Loader.sources.head.graphDescriptor.records.sorted
+      val history = graph2Loader.sData(Digest.historyPerURI)
+      val historyForFolderA = history(folderA.toURI())
+      val historyForFolderB = history(folderB.toURI())
+      val historyForFolderC = history(folderC.toURI())
+
+      records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest"))
+      records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "SimpleDigestParameters(MD5)"))
+      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+      val graph2 = graph2Loader.load()
+      graph.node.safeRead { node ⇒
+        graph2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
     }
   }
 
