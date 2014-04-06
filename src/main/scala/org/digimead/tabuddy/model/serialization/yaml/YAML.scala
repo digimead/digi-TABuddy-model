@@ -164,10 +164,11 @@ object YAML extends Loggable {
           key.name match {
             case Some(name) if name.startsWith("YAML.Construct.") ⇒
               log.debug(s"'${name}' loaded.")
+              bindingModule.injectOptional(key).asInstanceOf[Option[Construct]]
             case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' YAML construct skipped.")
+              None
           }
-          bindingModule.injectOptional(key).asInstanceOf[Option[Construct]]
       }.flatten.toSeq
       assert(constructs.distinct.size == constructs.size, "YAML constructs contains duplicated entities in " + constructs)
       constructs
@@ -187,10 +188,11 @@ object YAML extends Loggable {
           key.name match {
             case Some(name) if name.startsWith("YAML.Represent.") ⇒
               log.debug(s"'${name}' loaded.")
+              bindingModule.injectOptional(key).asInstanceOf[Option[Represent]]
             case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' YAML represent skipped.")
+              None
           }
-          bindingModule.injectOptional(key).asInstanceOf[Option[Represent]]
       }.flatten.toSeq
       assert(represents.distinct.size == represents.size, "YAML represents contains duplicated entities in " + represents)
       represents

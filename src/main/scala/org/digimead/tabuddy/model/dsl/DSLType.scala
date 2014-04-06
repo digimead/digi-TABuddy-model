@@ -175,10 +175,11 @@ object DSLType extends Loggable {
           key.name match {
             case Some(name) if name.startsWith("DSLType.") ⇒
               log.debug(s"'${name}' loaded.")
+              bindingModule.injectOptional(key).asInstanceOf[Option[DSLType]]
             case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' DSL type skipped.")
+              None
           }
-          bindingModule.injectOptional(key).asInstanceOf[Option[DSLType]]
       }.flatten.toSeq
       assert(types.distinct.size == types.size, "DSL types contains duplicated entities in " + types)
       types

@@ -129,6 +129,8 @@ object SData {
     val force = SData.key[Boolean]("force")
     /** Freeze transformation f(x) ⇒ xˈ. */
     val freezeT = SData.key[Serialization.FreezeTransformation]("transform")
+    /** Initialize SData before acquire process. */
+    val initializeAcquireSData = SData.key[(URI, Option[Element.Timestamp], SData) ⇒ SData]("initializeAcquireSData")
     /** Initialize loader before completion in Serialization.acquireGraphLoader. */
     val initializeLoader = SData.key[(Serialization.Loader) ⇒ Serialization.Loader]("initializeLoader")
     /** Initialize SData before freeze process. */

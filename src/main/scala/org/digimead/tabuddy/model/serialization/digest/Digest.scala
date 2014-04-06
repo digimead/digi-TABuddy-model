@@ -383,8 +383,6 @@ object Digest extends Loggable {
   def default = DI.default
   /** Get digest container name. */
   def containerName = DI.containerName
-  /** Get digest file extension. */
-  def extension = DI.extension
   /** Get digest name. */
   def digestURI(baseURI: URI, transport: Transport, modified: Element.Timestamp, part: String*) =
     transport.append(baseURI, (Seq(containerName, Timestamp.dump(modified)) ++ part): _*)
@@ -420,8 +418,6 @@ object Digest extends Loggable {
     lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse Simple("SHA-512")
     /** Digest container name. */
     lazy val containerName = injectOptional[String]("Digest.ContainerName") getOrElse "digest"
-    /** Digest file extension. */
-    lazy val extension = injectOptional[String]("Digest.Extension") getOrElse "digest"
     /** Digest implementation. */
     lazy val implementation = injectOptional[Digest] getOrElse new Digest
     /**
@@ -437,12 +433,13 @@ object Digest extends Loggable {
       }.map {
         case (key, value) ⇒
           key.name match {
-            case Some(name) if name.startsWith("Serialization.Digest.") ⇒
+            case Some(name) if name.startsWith("Digest.Mechanism.") ⇒
               log.debug(s"'${name}' loaded.")
+              bindingModule.injectOptional(key).asInstanceOf[Option[Mechanism]]
             case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' digest mechanism skipped.")
+              None
           }
-          bindingModule.injectOptional(key).asInstanceOf[Option[Mechanism]]
       }.flatten.toSeq
       assert(mechanisms.distinct.size == mechanisms.size, "digest mechanisms contain duplicated entities in " + mechanisms)
       immutable.HashMap(mechanisms.map(m ⇒ m.identifier -> m): _*)

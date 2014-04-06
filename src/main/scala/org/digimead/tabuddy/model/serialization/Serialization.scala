@@ -29,6 +29,7 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.{ Coordinate, Element }
 import org.digimead.tabuddy.model.graph.{ ElementBox, Graph, Node, NodeState }
 import org.digimead.tabuddy.model.serialization.digest.Digest
+import org.digimead.tabuddy.model.serialization.signature.Signature
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.YAML
 import org.yaml.snakeyaml.nodes.{ Node ⇒ YAMLNode, SequenceNode, Tag }
@@ -608,14 +609,13 @@ object Serialization extends Loggable {
   def acquireLoader(bootstrapStorageURI: URI, sData: SData): Serialization.Loader = acquireLoader(bootstrapStorageURI, None, sData)
   /** Get graph loader with the specific origin. */
   def acquireLoader(bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Serialization.Loader = {
+    val acquireTReady = if (sData.isDefinedAt(SData.Key.acquireT)) sData else sData.updated(SData.Key.acquireT, defaultAcquireTransformation _)
+    val storageReady = acquireTReady.updated(SData.Key.storageURI, bootstrapStorageURI)
     // Digest.initAcquire is invoked inside acquireGraphLoader
-    val loader = if (sData.isDefinedAt(SData.Key.acquireT)) {
-      inner.acquireGraphLoader(modified, sData.updated(SData.Key.storageURI, bootstrapStorageURI))
-    } else {
-      val sDataNT = sData.updated(SData.Key.storageURI, bootstrapStorageURI)
-        .updated(SData.Key.acquireT, defaultAcquireTransformation _)
-      inner.acquireGraphLoader(modified, sDataNT)
-    }
+    val signatureReady = Signature.initFreeze(storageReady)
+    val userReady = signatureReady.get(SData.Key.initializeAcquireSData).map(_(bootstrapStorageURI, modified, signatureReady)) getOrElse signatureReady
+    val loader = inner.acquireGraphLoader(modified, userReady)
+    // Adjust loader inside SData.Key.initializeLoader callback
     loader.sData.get(SData.Key.initializeLoader).map(_(loader)) getOrElse loader
   }
   /** Acquire transformation that keeps arguments unmodified. */
@@ -626,20 +626,21 @@ object Serialization extends Loggable {
   def freeze(graph: Graph[_ <: Model.Like], additionalStorageURI: URI*): Element.Timestamp = freeze(graph, SData.empty, additionalStorageURI: _*)
   /** Save graph. */
   def freeze(graph: Graph[_ <: Model.Like], sData: SData, additionalStorageURI: URI*): Element.Timestamp = {
-    val sDataNfreezeT = if (sData.isDefinedAt(SData.Key.freezeT)) sData else sData.updated(SData.Key.freezeT, defaultFreezeTransformation _)
-    val sDataNAdditionalStorageURIs = additionalStorageURI match {
+    val freezeTReady = if (sData.isDefinedAt(SData.Key.freezeT)) sData else sData.updated(SData.Key.freezeT, defaultFreezeTransformation _)
+    val storageReady = additionalStorageURI match {
       case Nil ⇒
-        sDataNfreezeT
+        freezeTReady
       case seq ⇒
-        if (sDataNfreezeT.isDefinedAt(SData.Key.explicitStorages))
+        if (freezeTReady.isDefinedAt(SData.Key.explicitStorages))
           throw new IllegalArgumentException(s"Unable to add ${additionalStorageURI.mkString(",")}. There is already " + sData(SData.Key.explicitStorages))
         val append = Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeAppend)
-        sDataNfreezeT.updated(SData.Key.explicitStorages, append)
+        freezeTReady.updated(SData.Key.explicitStorages, append)
     }
-    val sDataNExplicitStorages = ExplicitStorages.init(sDataNAdditionalStorageURIs)
-    val sDataNDigest = Digest.initFreeze(sDataNExplicitStorages)
-    inner.freezeGraph(graph,
-      sDataNDigest.get(SData.Key.initializeFreezeSData).map(_(graph, sDataNDigest)) getOrElse sDataNDigest)
+    val explicitStoragesReady = ExplicitStorages.init(storageReady)
+    val digestReady = Digest.initFreeze(explicitStoragesReady)
+    val signatureReady = Signature.initFreeze(digestReady)
+    val userReady = signatureReady.get(SData.Key.initializeFreezeSData).map(_(graph, signatureReady)) getOrElse signatureReady
+    inner.freezeGraph(graph, userReady)
   }
   /** Serialization implementation. */
   def inner = DI.implementation
@@ -906,10 +907,11 @@ object Serialization extends Loggable {
           key.name match {
             case Some(name) if name.startsWith("Serialization.Mechanism.") ⇒
               log.debug(s"'${name}' loaded.")
+              bindingModule.injectOptional(key).asInstanceOf[Option[Mechanism]]
             case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' serialization mechanism skipped.")
+              None
           }
-          bindingModule.injectOptional(key).asInstanceOf[Option[Mechanism]]
       }.flatten.toSeq
       assert(mechanisms.distinct.size == mechanisms.size, "serialization mechanisms contain duplicated entities in " + mechanisms)
       immutable.HashMap(mechanisms.map(m ⇒ m.identifier -> m): _*)
@@ -929,10 +931,11 @@ object Serialization extends Loggable {
           key.name match {
             case Some(name) if name.startsWith("Serialization.Transport.") ⇒
               log.debug(s"'${name}' loaded.")
+              bindingModule.injectOptional(key).asInstanceOf[Option[Transport]]
             case _ ⇒
               log.debug(s"'${key.name.getOrElse("Unnamed")}' serialization transport skipped.")
+              None
           }
-          bindingModule.injectOptional(key).asInstanceOf[Option[Transport]]
       }.flatten.toSeq
       assert(transports.distinct.size == transports.size, "serialization transports contain duplicated entities in " + transports)
       immutable.HashMap(transports.map(t ⇒ t.scheme -> t): _*)
