@@ -113,7 +113,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val timestamp = Serialization.freeze(graph, sData, graphURI)
       Mockito.verify(testTransport, Mockito.times(21)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
-          case sData: SData ⇒ sData.size == 6 // modified, test, storages, transform, storages, freeze hook
+          case sData: SData ⇒ sData.size == 7 // modified, test, storages, transform, storages, freeze hook * 2
           case _ ⇒ false
         }
         def describeTo(description: Description) {}

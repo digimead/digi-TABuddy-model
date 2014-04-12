@@ -23,7 +23,7 @@ import org.digimead.digi.lib.DependencyInjection
 
 package object signature {
   lazy val default = new NewBindingModule(module ⇒ {
-    module.bind[Mechanism] identifiedBy ("Signature.Mechanism.Simple") toSingle { new Simple }
+    module.bind[Mechanism] identifiedBy ("Signature.Mechanism.Simple") toSingle { new SimpleSignature }
   })
   DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.serialization.signature.Signature$DI$")
 }

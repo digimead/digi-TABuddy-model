@@ -44,15 +44,16 @@ trait Mechanism {
     modified: Element.Timestamp, uri: URI, data: Array[Byte], transport: Transport, sData: SData)
   /** Just invoked before write completion. */
   def afterWrite(parameters: Mechanism.Parameters, uri: URI, data: Array[Byte], transport: Transport, sData: SData)
-  /** Just invoked after read beginning. */
-  def beforeRead(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
-    modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream
-  /** Just invoked after write beginning. */
-  def beforeWrite(parameters: Mechanism.Parameters, os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream
   /** Initialize SData for acquire process. */
   def initAcquire(sData: SData): SData
   /** Initialize SData for freeze process. */
   def initFreeze(sData: SData): SData
+  /** Just invoked after read beginning. */
+  def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
+    modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream
+  /** Just invoked after write beginning. */
+  def writeFilter(parameters: Mechanism.Parameters, os: OutputStream,
+    uri: URI, transport: Transport, sData: SData): OutputStream
 }
 
 object Mechanism {
@@ -76,8 +77,8 @@ object Mechanism {
    */
   trait Parameters {
     /** Digest algorithm name. */
-    val algorithm: String
+    def algorithm: String
     /** Mechanism instance. */
-    val mechanism: Mechanism
+    def mechanism: Mechanism
   }
 }

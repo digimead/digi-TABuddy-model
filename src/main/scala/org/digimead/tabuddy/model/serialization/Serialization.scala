@@ -141,6 +141,8 @@ class Serialization extends Serialization.Interface with Loggable {
         // Initialize Digest
         sData.set(Digest.initAcquire(sData.get()))
         val sources = getSources(transport, graphDescriptor, modified, sData)
+        if (sources.isEmpty)
+          throw new IllegalStateException("There are no suitable sources found.")
         modified match {
           case Some(modified) ⇒
             // Pass only sources that contain required modification.
@@ -514,7 +516,7 @@ class Serialization extends Serialization.Interface with Loggable {
           }
       }
     }
-    throw new IllegalArgumentException("There are no suitable sources found.")
+    Nil
   }
   /** Load model descriptor for the graph one. */
   protected def getModelDescriptor(transport: Transport,
@@ -598,6 +600,8 @@ object Serialization extends Loggable {
   type FreezeTransformation = Function1[Node.ThreadUnsafe[Element], Node.ThreadUnsafe[Element]]
   /** Serialization stash. */
   val stash = new ThreadLocal[AnyRef]()
+  /** Hex array characters. */
+  protected val hexArray = "0123456789ABCDEF".toCharArray()
 
   /** Load graph with the specific origin. */
   def acquire(bootstrapStorageURI: URI, sData: SData): Graph[_ <: Model.Like] =
@@ -612,11 +616,21 @@ object Serialization extends Loggable {
     val acquireTReady = if (sData.isDefinedAt(SData.Key.acquireT)) sData else sData.updated(SData.Key.acquireT, defaultAcquireTransformation _)
     val storageReady = acquireTReady.updated(SData.Key.storageURI, bootstrapStorageURI)
     // Digest.initAcquire is invoked inside acquireGraphLoader
-    val signatureReady = Signature.initFreeze(storageReady)
+    val signatureReady = Signature.initAcquire(storageReady)
     val userReady = signatureReady.get(SData.Key.initializeAcquireSData).map(_(bootstrapStorageURI, modified, signatureReady)) getOrElse signatureReady
     val loader = inner.acquireGraphLoader(modified, userReady)
     // Adjust loader inside SData.Key.initializeLoader callback
     loader.sData.get(SData.Key.initializeLoader).map(_(loader)) getOrElse loader
+  }
+  /** Convert byte array to hex string. */
+  def byteArrayToHexString(bytes: Array[Byte]): String = {
+    val hexChars = new Array[Char](bytes.length * 2)
+    for (j ← 0 until bytes.length) {
+      val v = bytes(j) & 0xFF
+      hexChars(j * 2) = hexArray(v >>> 4)
+      hexChars(j * 2 + 1) = hexArray(v & 0x0F)
+    }
+    new String(hexChars)
   }
   /** Acquire transformation that keeps arguments unmodified. */
   def defaultAcquireTransformation(ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], nodeDescriptor: Descriptor.Node[Element]) = nodeDescriptor
@@ -637,10 +651,20 @@ object Serialization extends Loggable {
         freezeTReady.updated(SData.Key.explicitStorages, append)
     }
     val explicitStoragesReady = ExplicitStorages.init(storageReady)
-    val digestReady = Digest.initFreeze(explicitStoragesReady)
-    val signatureReady = Signature.initFreeze(digestReady)
-    val userReady = signatureReady.get(SData.Key.initializeFreezeSData).map(_(graph, signatureReady)) getOrElse signatureReady
+    // Order is important ->
+    val signatureReady = Signature.initFreeze(explicitStoragesReady)
+    val digestReady = Digest.initFreeze(signatureReady)
+    // <- Order is important.
+    val userReady = digestReady.get(SData.Key.initializeFreezeSData).map(_(graph, digestReady)) getOrElse digestReady
     inner.freezeGraph(graph, userReady)
+  }
+  /** Convert hex string to byte array. */
+  def hexStringToByteArray(s: String): Array[Byte] = {
+    val len = s.length()
+    val data = new Array[Byte](len / 2)
+    for (i ← 0 until len by 2)
+      data(i / 2) = ((Character.digit(s.charAt(i), 16) << 4) + Character.digit(s.charAt(i + 1), 16)).toByte
+    data
   }
   /** Serialization implementation. */
   def inner = DI.implementation

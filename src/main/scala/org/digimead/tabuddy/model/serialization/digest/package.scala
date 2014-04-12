@@ -23,7 +23,7 @@ import org.digimead.digi.lib.DependencyInjection
 
 package object digest {
   lazy val default = new NewBindingModule(module ⇒ {
-    module.bind[Mechanism] identifiedBy ("Digest.Mechanism.Simple") toSingle { new Simple }
+    module.bind[Mechanism] identifiedBy ("Digest.Mechanism.SimpleDigest") toSingle { new SimpleDigest }
   })
   DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.serialization.digest.Digest$DI$")
 }

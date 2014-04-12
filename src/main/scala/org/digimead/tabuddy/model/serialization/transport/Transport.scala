@@ -81,7 +81,10 @@ trait Transport {
     val timestampStream = openRead(Serialization.inner.encode(Serialization.inner.decode(timestampURI, sData), sData), sData)
     val is = new DataInputStream(timestampStream)
     try Element.timestamp(is.readLong(), is.readLong())
-    finally try is.close() catch { case e: Throwable ⇒ }
+    finally try is.close() catch {
+      case e: SecurityException ⇒ throw e
+      case e: Throwable ⇒ log.error("Unable to close timestamp input stream: " + e.getMessage, e)
+    }
   }
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData)
@@ -98,7 +101,9 @@ trait Transport {
       os.writeLong(modified.milliseconds)
       os.writeLong(modified.nanoShift)
       os.flush()
-    } finally try os.close() catch { case e: Throwable ⇒ }
+    } finally try os.close() catch {
+      case e: SecurityException ⇒ throw e
+      case e: Throwable ⇒ "Unable to close timestamp output stream: " + log.error(e.getMessage, e)
+    }
   }
-
 }

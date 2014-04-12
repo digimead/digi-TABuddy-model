@@ -19,7 +19,7 @@
 package org.digimead.tabuddy.model.serialization.digest
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.{ BufferedOutputStream, File, FileOutputStream, InputStream, PrintStream }
+import java.io.{ BufferedOutputStream, File, FileOutputStream, FilterInputStream, FilterOutputStream, InputStream, OutputStream, PrintStream }
 import java.net.URI
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -27,7 +27,7 @@ import org.apache.log4j.Level
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
-import org.digimead.tabuddy.model.{ Model, TestDSL }
+import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
@@ -42,7 +42,7 @@ import scala.collection.{ immutable, mutable }
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.ref.SoftReference
 
-class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val testDigest = Mockito.spy(new TestSimple)
   lazy val testTransport = Mockito.spy(new Local)
   @volatile var test = true
@@ -63,7 +63,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
 
   before {
     DependencyInjection(new NewBindingModule(module ⇒ {
-      module.bind[Mechanism] identifiedBy ("Digest.Mechanism.Simple") toSingle { testDigest }
+      module.bind[Mechanism] identifiedBy ("Digest.Mechanism.SimpleDigest") toSingle { testDigest }
       module.bind[Transport] identifiedBy ("Serialization.Transport.Local") toSingle { testTransport }
     }) ~ org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false)
   }
@@ -111,21 +111,21 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
         for (i ← 0 until 3) {
           info("Iteration " + i)
           val sDataFreeze = SData(Digest.Key.freeze ->
-            immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+            immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
           Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
           folderA should be('exists)
           fileADigestType should not be ('exists)
           fileADigestData should not be ('exists)
           folderB should be('exists)
           fileBDigestType should be('exists)
-          fileBDigestType.length() should be(11)
-          scala.io.Source.fromFile(fileBDigestType).getLines.toList should be(Seq("simple", "MD5"))
+          fileBDigestType.length() should be(12)
+          scala.io.Source.fromFile(fileBDigestType).getLines.toList should be(Seq("simple", "", "MD5"))
           fileBDigestData should be('exists)
           scala.io.Source.fromFile(fileBDigestData).getLines.size should be(27)
           folderC should be('exists)
           fileCDigestType should be('exists)
-          fileCDigestType.length() should be(15)
-          scala.io.Source.fromFile(fileCDigestType).getLines.toList should be(Seq("simple", "SHA-512"))
+          fileCDigestType.length() should be(16)
+          scala.io.Source.fromFile(fileCDigestType).getLines.toList should be(Seq("simple", "", "SHA-512"))
           fileCDigestData should be('exists)
           scala.io.Source.fromFile(fileCDigestData).getLines.size should be(27)
 
@@ -270,7 +270,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
         val folderB = new File(folder, "B")
         val folderC = new File(folder, "C")
         val sDataFreeze = SData(Digest.Key.freeze ->
-          immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+          immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
         Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
         val folderBsum = new File(Digest.digestURI(folderB.toURI(), testTransport, graph.modified, Digest.containerName))
@@ -366,7 +366,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       val sDataAcquire = SData(Digest.Key.acquire -> true,
         SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
@@ -417,7 +417,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       val sDataAcquire = SData(Digest.Key.acquire -> true,
         SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
@@ -481,7 +481,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       val sDataAcquire = SData(Digest.Key.acquire -> true,
         SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
@@ -531,7 +531,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       val sDataAcquire = SData(Digest.Key.acquire -> true, SData.Key.force -> true,
         SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
@@ -618,7 +618,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -640,7 +640,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
 
       graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
       val sDataFreeze3 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Simple("MD2"), folderB.toURI -> Simple("MD5"), folderC.toURI -> Digest.NoDigest))
+        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
       Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
@@ -676,7 +676,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -698,7 +698,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
 
       graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
       val sDataFreeze3 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Simple("MD2"), folderB.toURI -> Simple("MD5"), folderC.toURI -> Digest.NoDigest))
+        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
       Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
@@ -729,7 +729,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -751,7 +751,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
 
       graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
       val sDataFreeze3 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Simple("MD2"), folderB.toURI -> Simple("MD5"), folderC.toURI -> Digest.NoDigest))
+        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
       Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true, SData.Key.force -> true))
@@ -785,7 +785,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5"), folderC.toURI -> Simple("SHA-512")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       // modify
@@ -827,7 +827,7 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Simple("MD5")))
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
 
       // modify
@@ -853,22 +853,140 @@ class SimpleSpec extends FreeSpec with Matchers with StorageHelper with LoggingH
       } should be(true)
     }
   }
+  "Digest mechanism should support Digest.Key.readFilter and Digest.Key.writeFilter hooks" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val readMap = new mutable.HashMap[URI, TestInputStream] with mutable.SynchronizedMap[URI, TestInputStream]
+      val writeMap = new mutable.HashMap[URI, TestOutputStream] with mutable.SynchronizedMap[URI, TestOutputStream]
+
+      test = false
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val readFilter = (is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+        val stream = new TestInputStream(is)
+        val base = Digest.digestURI(sData(SData.Key.storageURI), transport, graph.modified)
+        readMap(base.resolve(uri)) = stream
+        stream
+      }
+      val writeFilter = (os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+        val stream = new TestOutputStream(os)
+        val base = Digest.digestURI(sData(SData.Key.storageURI), transport, graph.modified)
+        writeMap(base.resolve(uri)) = stream
+        stream
+      }
+
+      val sDataFreeze = SData(Digest.Key.writeFilter -> writeFilter, Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      readMap should be(empty)
+      writeMap should have size (2)
+      writeMap.foreach { case (uri, stream) ⇒ new File(uri).length() should be(stream.doneBytes) }
+
+      val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(),
+        SData(Digest.Key.readFilter -> readFilter, Digest.Key.acquire -> true))
+      graph.node.safeRead { node ⇒
+        graph2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      readMap should have size (2)
+      writeMap should have size (2)
+
+      readMap.foreach { case (uri, stream) ⇒ new File(uri).length() should be(stream.doneBytes) }
+
+      readMap.keySet should be(writeMap.keySet)
+    }
+  }
+  "Digest loading should be stopped by Digest.Key.readFilter hook" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      test = false
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+
+      val readFilter = (is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+        new TestInputStream(is) {
+          override def close() {
+            super.close()
+            throw new SecurityException("Terminate process. Unauthorized content.")
+          }
+        }
+      }
+      an[IllegalStateException] should be thrownBy
+        Serialization.acquire(folderB.getAbsoluteFile().toURI(),
+          SData(Digest.Key.readFilter -> readFilter, Digest.Key.acquire -> true))
+    }
+  }
 
   override def beforeAll(configMap: org.scalatest.ConfigMap) {
     adjustLoggingBeforeAll(configMap)
     //addFileAppender()
   }
 
-  class TestSimple extends Simple {
+  /**
+   * Test FilterInputStream
+   */
+  class TestInputStream(val inputStream: InputStream) extends FilterInputStream(inputStream) {
+    @volatile var doneBytes = 0L
+
+    override def read(): Int = {
+      val result = super.read()
+      if (result != -1)
+        doneBytes = doneBytes + 1
+      result
+    }
+    override def read(b: Array[Byte], off: Int, len: Int): Int = {
+      val result = super.read(b, off, len)
+      if (result > 0)
+        doneBytes = doneBytes + result
+      result
+    }
+    override def read(b: Array[Byte]): Int = read(b, 0, b.length)
+  }
+  /**
+   * Test FilterOutputStream
+   */
+  class TestOutputStream(val outputStream: OutputStream) extends FilterOutputStream(outputStream) {
+    @volatile var doneBytes = 0L
+
+    override def write(b: Int) = {
+      super.write(b)
+      doneBytes = doneBytes + 1
+    }
+    override def write(b: Array[Byte], off: Int, len: Int) {
+      super.write(b, off, len)
+      doneBytes + len
+    }
+    override def write(b: Array[Byte]) = write(b, 0, b.length)
+  }
+  class TestSimple extends SimpleDigest {
     override def afterFreeze(parameters: Mechanism.Parameters, graph: Graph[_ <: Model.Like], transport: Transport, sData: SData) = {
       val result = super.afterFreeze(parameters, graph, transport, sData)
-      map1 = sData(Simple.Key.digestMap)
+      map1 = sData(SimpleDigest.Key.digestMap)
       result
     }
     /** Just invoked after read beginning. */
-    override def beforeRead(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
+    override def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
       modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
-      val result = super.beforeRead(parameters, context, modified, is, uri, transport, sData)
+      val result = super.readFilter(parameters, context, modified, is, uri, transport, sData)
       val map = getDigestMap(parameters, context, modified, transport, sData)
       val map0 = map1(sData(SData.Key.storageURI))
       if (test)

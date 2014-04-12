@@ -33,16 +33,16 @@ import scala.ref.SoftReference
 import scala.reflect.runtime.universe
 
 /*
- * Simple layout is
+ * SimpleDigest layout is
  *   storageURI/digest/${graph.modification}/type - process description
  *   storageURI/digest/${graph.modification}/digest - block with digest information that is related to graph.modification
  */
 /**
  * Provides digest mechanism for serialization process.
  */
-class Simple extends Mechanism with Loggable {
+class SimpleDigest extends Mechanism with Loggable {
   /** Identifier of the digest. */
-  val identifier = Simple.Identifier
+  val identifier = SimpleDigest.Identifier
   /** Cache for MessageDigest instance. */
   val digestCache = new ThreadLocal[MessageDigest]()
 
@@ -62,27 +62,41 @@ class Simple extends Mechanism with Loggable {
         val digestTypeURI = Digest.digestURI(storageURI, transport, graph.modified, Digest.typeName)
         if (!transport.exists(Serialization.inner.encode(digestTypeURI, sData), sData) ||
           sData.get(SData.Key.force) == Some(true)) {
-          val digestStream = transport.openWrite(Serialization.inner.encode(digestTypeURI, sData), sData, true)
-          val pos = new PrintStream(new BufferedOutputStream(digestStream))
+          val os = transport.openWrite(Serialization.inner.encode(digestTypeURI, sData), sData, true)
+          val pos = new PrintStream(new BufferedOutputStream(os))
           try {
-            pos.println(Simple.Identifier.name)
+            pos.println(SimpleDigest.Identifier.name)
+            pos.println()
             pos.println(algorithmName)
             pos.flush()
-          } finally try pos.close() catch { case e: Throwable ⇒ }
+          } finally try pos.close() catch {
+            case e: SecurityException ⇒ throw e
+            case e: Throwable ⇒ log.error("Unable to save digest type info: " + e.getMessage, e)
+          }
         }
         // Write payload.
         val digestSumURI = Digest.digestURI(storageURI, transport, graph.modified, Digest.containerName)
         if (!transport.exists(Serialization.inner.encode(digestSumURI, sData), sData) ||
           sData.get(SData.Key.force) == Some(true)) {
-          val digestStream = transport.openWrite(Serialization.inner.encode(digestSumURI, sData), sData, true)
-          val pos = new PrintStream(new BufferedOutputStream(digestStream))
+          val os = transport.openWrite(Serialization.inner.encode(digestSumURI, sData), sData, true)
+          val pos = sData.get(Digest.Key.writeFilter) match {
+            case Some(filter) ⇒
+              new PrintStream(filter(new BufferedOutputStream(os),
+                Digest.digestURI(storageURI, transport, graph.modified).relativize(digestSumURI),
+                transport, sData.updated(SData.Key.modified, graph.modified)))
+            case None ⇒
+              new PrintStream(new BufferedOutputStream(os))
+          }
           try {
-            sData(Simple.Key.digestMap)(storageURI).foreach {
+            sData(SimpleDigest.Key.digestMap)(storageURI).foreach {
               case (uri, digest) ⇒
-                pos.println(Digest.byteArrayToHexString(digest) + " " + uri)
+                pos.println(Serialization.byteArrayToHexString(digest) + " " + uri)
             }
             pos.flush()
-          } finally try pos.close() catch { case e: Throwable ⇒ }
+          } finally try pos.close() catch {
+            case e: SecurityException ⇒ throw e
+            case e: Throwable ⇒ log.error("Unable to save digest check sums: " + e.getMessage, e)
+          }
         }
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
@@ -112,7 +126,7 @@ class Simple extends Mechanism with Loggable {
     parameters match {
       case SimpleDigestParameters(algorithmName) ⇒ Option(digestCache.get()).foreach { dInstance ⇒
         val storageURI = sData(SData.Key.storageURI)
-        sData(Simple.Key.digestMap)(storageURI) += storageURI.relativize(uri) -> dInstance.digest()
+        sData(SimpleDigest.Key.digestMap)(storageURI) += storageURI.relativize(uri) -> dInstance.digest()
         dInstance.reset()
         digestCache.set(null)
       }
@@ -120,7 +134,7 @@ class Simple extends Mechanism with Loggable {
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
   /** Just invoked after read beginning. */
-  def beforeRead(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
+  def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream =
     parameters match {
       case SimpleDigestParameters(algorithmName) ⇒
@@ -131,7 +145,7 @@ class Simple extends Mechanism with Loggable {
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
   /** Just invoked after write beginning. */
-  def beforeWrite(parameters: Mechanism.Parameters, os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
+  def writeFilter(parameters: Mechanism.Parameters, os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
     parameters match {
       case SimpleDigestParameters(algorithmName) ⇒
         val dInstance = MessageDigest.getInstance(algorithmName)
@@ -148,7 +162,7 @@ class Simple extends Mechanism with Loggable {
       // Create digestMap
       val newDigestMap = immutable.Map(sData(Digest.Key.freeze).keys.map(
         uri ⇒ uri -> new mutable.HashMap[URI, Array[Byte]] with mutable.SynchronizedMap[URI, Array[Byte]]).toSeq: _*)
-      sData.updated(Simple.Key.digestMap, newDigestMap)
+      sData.updated(SimpleDigest.Key.digestMap, newDigestMap)
     case _ ⇒
       sData
   }
@@ -167,42 +181,52 @@ class Simple extends Mechanism with Loggable {
       case _ ⇒ context.get().clear
     }
     val storageURI = sData(SData.Key.storageURI)
-    log.debug(s"Load digest data from ${storageURI}")
+    log.debug(s"Load digest data from storage ${storageURI}")
     val builder = immutable.Map.newBuilder[URI, Array[Byte]]
     val digestSumURI = Digest.digestURI(storageURI, transport, modified, Digest.containerName)
     val digestStream = transport.openRead(Serialization.inner.encode(digestSumURI, sData), sData)
-    val reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(digestStream)))
+    val reader = sData.get(Digest.Key.readFilter) match {
+      case Some(filter) ⇒
+        new BufferedReader(new InputStreamReader(filter(new BufferedInputStream(digestStream),
+          Digest.digestURI(storageURI, transport, modified).relativize(digestSumURI),
+          transport, sData.updated(SData.Key.modified, modified))))
+      case None ⇒
+        new BufferedReader(new InputStreamReader(new BufferedInputStream(digestStream)))
+    }
     try {
       var line = reader.readLine()
       while (line != null) {
         val hash = line.takeWhile(_ != ' ')
         val uri = new URI(line.drop(hash.length() + 1))
-        builder += uri -> Digest.hexStringToByteArray(hash)
+        builder += uri -> Serialization.hexStringToByteArray(hash)
         line = reader.readLine()
       }
-    } finally try reader.close() catch { case e: Throwable ⇒ }
+    } finally try reader.close() catch {
+      case e: SecurityException ⇒ throw e
+      case e: Throwable ⇒ log.error("Unable to load digest data: " + e.getMessage, e)
+    }
     val map = builder.result
     context.set(new SoftReference(map))
     map
   }
 
   /**
-   * Simple digest parameters.
+   * SimpleDigest parameters.
    */
   case class SimpleDigestParameters(val algorithm: String) extends Mechanism.Parameters {
-    val mechanism = Simple.this
+    val mechanism = SimpleDigest.this
   }
 }
 
-object Simple {
-  /** Get simple mechanism parameters. */
+object SimpleDigest {
+  /** Get SimpleDigest mechanism parameters. */
   def apply(algorithm: String): Mechanism.Parameters = Digest.perIdentifier.get(Identifier) match {
-    case Some(digest: Simple) ⇒ digest(algorithm)
-    case _ ⇒ throw new IllegalStateException("Simple digest is not available.")
+    case Some(digest: SimpleDigest) ⇒ digest(algorithm)
+    case _ ⇒ throw new IllegalStateException("SimpleDigest mechanism is not available.")
   }
 
   /**
-   * Simple mechanism identifier.
+   * SimpleDigest mechanism identifier.
    */
   object Identifier extends Mechanism.Identifier { val name = "simple" }
   /**

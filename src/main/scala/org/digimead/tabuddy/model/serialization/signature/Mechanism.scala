@@ -18,6 +18,17 @@
 
 package org.digimead.tabuddy.model.serialization.signature
 
+import java.io.{ InputStream, OutputStream }
+import java.net.URI
+import java.security.PublicKey
+import java.util.concurrent.atomic.AtomicReference
+import org.digimead.tabuddy.model.Model
+import org.digimead.tabuddy.model.element.Element
+import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.serialization.SData
+import org.digimead.tabuddy.model.serialization.transport.Transport
+import scala.ref.SoftReference
+
 /**
  * Signature mechanism interface.
  */
@@ -27,6 +38,18 @@ trait Mechanism {
 
   /** Get mechanism parameters. */
   def apply(algorithmName: String, args: String*): Mechanism.Parameters
+  /** Just invoked before freeze completion. */
+  def afterFreeze(parameters: Mechanism.Parameters, graph: Graph[_ <: Model.Like], transport: Transport, sData: SData)
+  /** Initialize SData for acquire process. */
+  def initAcquire(sData: SData): SData
+  /** Initialize SData for freeze process. */
+  def initFreeze(sData: SData): SData
+  /** Just invoked after read beginning. */
+  def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
+    modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream
+  /** Just invoked after write beginning. */
+  def writeFilter(parameters: Mechanism.Parameters, os: OutputStream,
+    uri: URI, transport: Transport, sData: SData): OutputStream
 }
 
 object Mechanism {
@@ -50,8 +73,10 @@ object Mechanism {
    */
   trait Parameters {
     /** Signature algorithm name. */
-    val algorithm: String
+    def algorithm: String
     /** Mechanism instance. */
-    val mechanism: Mechanism
+    def mechanism: Mechanism
+    /** Get public key for the current parameter. */
+    def publicKey: PublicKey
   }
 }

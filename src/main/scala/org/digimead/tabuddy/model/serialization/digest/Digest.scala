@@ -41,8 +41,10 @@ import scala.ref.SoftReference
  *
  * type file contains the description of the mechanism
  * 1st line (mandatory) - Mechanism.Identifier.name
- * 2nd line (mandatory) - digest algorithm
- * 3rd line and others ... optional parameters
+ * 2nd blank separator
+ * 3rd line (mandatory) - digest algorithm
+ * 4th blank separator
+ * 5th line and others ... optional parameters and blank separators
  */
 /**
  * Provides digest mechanism for serialization process.
@@ -52,27 +54,6 @@ class Digest extends Loggable {
   protected val acquire = new Acquire
   /** Freeze routines. */
   protected val freeze = new Freeze
-  /** Hex array characters. */
-  protected val hexArray = "0123456789ABCDEF".toCharArray()
-
-  /** Convert hex string to byte array. */
-  def hexStringToByteArray(s: String): Array[Byte] = {
-    val len = s.length()
-    val data = new Array[Byte](len / 2)
-    for (i ← 0 until len by 2)
-      data(i / 2) = ((Character.digit(s.charAt(i), 16) << 4) + Character.digit(s.charAt(i + 1), 16)).toByte
-    data
-  }
-  /** Convert byte array to hex string. */
-  def byteArrayToHexString(bytes: Array[Byte]): String = {
-    val hexChars = new Array[Char](bytes.length * 2)
-    for (j ← 0 until bytes.length) {
-      val v = bytes(j) & 0xFF
-      hexChars(j * 2) = hexArray(v >>> 4)
-      hexChars(j * 2 + 1) = hexArray(v & 0x0F)
-    }
-    new String(hexChars)
-  }
 
   /** Initialize SData for acquire process. */
   def initAcquire(sData: SData): SData = sData.get(Digest.Key.acquire) match {
@@ -90,12 +71,14 @@ class Digest extends Loggable {
   }
   /** Initialize SData for freeze process. */
   def initFreeze(sData: SData): SData =
-    sData.updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData)))
+    sData.
+      updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze))).
+      updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData)))
 
   /** Get digest parameter for the specific modification of the storage. */
   protected def getDigestParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = {
     val storageURI = sData(SData.Key.storageURI)
-    log.debug(s"Load digest information from ${storageURI}")
+    log.debug(s"Load digest information at ${modified} from storage ${storageURI}")
     // Read type info.
     val mechanismTypeURI = Digest.digestURI(storageURI, transport, modified, Digest.typeName)
     val lines = try {
@@ -105,7 +88,10 @@ class Digest extends Loggable {
         case e: Throwable ⇒
           log.debug(s"Unable to read ${mechanismTypeURI}: " + e.getMessage())
           Seq()
-      } finally try typeStream.close() catch { case e: Throwable ⇒ }
+      } finally try typeStream.close() catch {
+        case e: SecurityException ⇒ throw e
+        case e: Throwable ⇒ log.error("Unable to load digest information: " + e.getMessage, e)
+      }
     } catch {
       case e: Throwable ⇒
         log.debug(s"Unable to read ${mechanismTypeURI}: " + e.getMessage())
@@ -113,7 +99,17 @@ class Digest extends Loggable {
     }
     // Create digest parameters.
     if (lines.nonEmpty) {
-      val (mechanismIdentifier :: digestAlgorithm :: arguments) = lines
+      val (mechanismIdentifier :: digestAlgorithm :: arguments) = {
+        var result = Seq.empty[String]
+        var begin = 0
+        var end = lines.indexWhere(_.trim.isEmpty())
+        while (end >= 0) {
+          result = result :+ lines.slice(begin, end).map(_.trim).mkString("\n")
+          begin = end + 1
+          end = lines.indexWhere(_.trim.isEmpty(), begin)
+        }
+        (result :+ lines.drop(begin).map(_.trim).mkString("\n")).filterNot(_.isEmpty())
+      }
       Digest.perIdentifier.find(_._1.name == mechanismIdentifier) match {
         case Some((identifier, mechanism)) ⇒
           try {
@@ -180,7 +176,7 @@ class Digest extends Loggable {
               case Some(history) ⇒
                 history.get(modified) match {
                   case Some((parameters, context)) if parameters.mechanism != null ⇒
-                    val stream = parameters.mechanism.beforeRead(parameters, context, modified, is, uri, transport, sData)
+                    val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
                     sData(Digest.modifiedCache).set(modified)
                     userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
                   case _ ⇒
@@ -199,7 +195,7 @@ class Digest extends Loggable {
       }
     }
     /**
-     * Hook that propagate Digest.historyPerURI with retrospective data.
+     * Hook that propagates Digest.historyPerURI with retrospective data.
      */
     class InitializeLoader(val userInitialize: Option[Function1[Serialization.Loader, Serialization.Loader]])
       extends Function1[Serialization.Loader, Serialization.Loader] {
@@ -225,7 +221,8 @@ class Digest extends Loggable {
           adjustedSData = adjustedSData.updated(Digest.historyPerURI,
             adjustedSData(Digest.historyPerURI).updated(storageURI, immutable.Map(content.toSeq: _*)))
         }
-        new Serialization.Loader(loader.sources, loader.modified, adjustedSData)
+        val updated = new Serialization.Loader(loader.sources, loader.modified, adjustedSData)
+        userInitialize.foldLeft(updated)((loader, hook) ⇒ hook(loader))
       }
     }
     /**
@@ -234,8 +231,8 @@ class Digest extends Loggable {
     class InitializeSourceSData(val userInitialize: Option[Function3[Element.Timestamp, Transport, SData, SData]])
       extends Function3[Element.Timestamp, Transport, SData, SData] {
       /** Load digest map from storage. */
-      def apply(modified: Element.Timestamp, transport: Transport, sData: SData): SData =
-        sData(Digest.historyPerURI).get(sData(SData.Key.storageURI)) match {
+      def apply(modified: Element.Timestamp, transport: Transport, sData: SData): SData = {
+        val updated = sData(Digest.historyPerURI).get(sData(SData.Key.storageURI)) match {
           case None ⇒
             /*
              * Update SData historyPerURI.
@@ -247,6 +244,8 @@ class Digest extends Loggable {
           case Some(parameters) ⇒
             sData // Skip. Already initialized.
         }
+        userInitialize.foldLeft(updated)((sData, hook) ⇒ hook(modified, transport, sData))
+      }
     }
   }
   /**
@@ -260,7 +259,7 @@ class Digest extends Loggable {
       extends Function3[Graph[_ <: Model.Like], Transport, SData, Unit] {
       /** Save digest results. */
       def apply(graph: Graph[_ <: Model.Like], transport: Transport, sData: SData) {
-        sData(Digest.Key.freeze).get(sData(SData.Key.storageURI)).foreach(parameter ⇒
+        sData.get(Digest.Key.freeze).flatMap(_.get(sData(SData.Key.storageURI))).foreach(parameter ⇒
           if (parameter.mechanism != null)
             parameter.mechanism.afterFreeze(parameter, graph, transport, sData))
         userAfterFreeze.foreach(_(graph, transport, sData))
@@ -288,7 +287,7 @@ class Digest extends Loggable {
       def apply(os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
         sData(Digest.Key.freeze).get(sData(SData.Key.storageURI)) match {
           case Some(parameter) if parameter.mechanism != null ⇒
-            val stream = parameter.mechanism.beforeWrite(parameter, os, uri, transport, sData)
+            val stream = parameter.mechanism.writeFilter(parameter, os, uri, transport, sData)
             userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
           case _ ⇒
             userFilter.map(_(os, uri, transport, sData)) getOrElse os
@@ -330,7 +329,7 @@ class Digest extends Loggable {
                 }
                 val digestParametersMap = immutable.Map((previousParameters ++ newParameters).toSeq: _*)
                 if (digestParametersMap.nonEmpty) {
-                  log.debug("Freeze with default digest parameters: " + digestParametersMap)
+                  log.debug("Freeze with digest parameters: " + digestParametersMap)
                   sData.updated(Digest.Key.freeze, digestParametersMap)
                 } else
                   sData
@@ -348,8 +347,7 @@ class Digest extends Loggable {
               updated(Digest.Key.freeze, updatedDigestAlgorithm).
               updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData))).
               updated(SData.Key.encodeFilter, new freeze.EncodeFilter(sData.get(SData.Key.encodeFilter))).
-              updated(SData.Key.afterWrite, new freeze.AfterWrite(sData.get(SData.Key.afterWrite))).
-              updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze)))
+              updated(SData.Key.afterWrite, new freeze.AfterWrite(sData.get(SData.Key.afterWrite)))
             Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initFreeze(sData))
           case None ⇒
             sData
@@ -369,11 +367,11 @@ object Digest extends Loggable {
    *   There was modification B with digest MySolid(X10)
    *   There was modification C with digest Solid(SHA-512)
    *
-   *   then container contains 3 records A,B,C with suitable Digest.Parameters and empty AtomicReference.
+   *   then container contains 3 records A,B,C with suitable Mechanism.Parameters and empty context -AtomicReference.
    *
    *   AtomicReference is SoftReference container with a context information of the specific digest.
    *   AtomicReference with SoftReference is using for lazy loading.
-   *   There is hash map with sums as example of such type information.
+   *   There is hash map with sums as an example of such type information.
    */
   val historyPerURI = SData.key[immutable.Map[URI, Digest.History]]("digest")
   /** Cache for Element.Timestamp value. */
@@ -383,15 +381,19 @@ object Digest extends Loggable {
   def default = DI.default
   /** Get digest container name. */
   def containerName = DI.containerName
-  /** Get digest name. */
+  /** Get URI of digest data. */
   def digestURI(baseURI: URI, transport: Transport, modified: Element.Timestamp, part: String*) =
-    transport.append(baseURI, (Seq(containerName, Timestamp.dump(modified)) ++ part): _*)
+    if (part.nonEmpty)
+      transport.append(baseURI, (Seq(containerName, Timestamp.dump(modified)) ++ part): _*)
+    else
+      transport.append(baseURI, (Seq(containerName, Timestamp.dump(modified)) :+ ""): _*)
   /** Get digest implementation. */
   def inner = DI.implementation
   /** Map of all available digest implementations. */
   def perIdentifier = DI.perIdentifier
   /** Get digest type name. */
   def typeName = DI.typeName
+
   /**
    * Predefined SData keys.
    */
@@ -400,6 +402,10 @@ object Digest extends Loggable {
     val acquire = SData.key[Boolean]("digest")
     /** Freeze parameters per storageURI. */
     val freeze = SData.key[immutable.Map[URI, Mechanism.Parameters]]("digest")
+    /** Apply F(x) to digest content. */
+    val readFilter = SData.key[(InputStream, URI, Transport, SData) ⇒ InputStream]("filter")
+    /** Apply F(x) to digest content. */
+    val writeFilter = SData.key[(OutputStream, URI, Transport, SData) ⇒ OutputStream]("filter")
   }
   /**
    * No mechanism parameter.
@@ -415,7 +421,7 @@ object Digest extends Loggable {
    */
   private object DI extends DependencyInjection.PersistentInjectable {
     /** Default digest algorithm. */
-    lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse Simple("SHA-512")
+    lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse SimpleDigest("SHA-512")
     /** Digest container name. */
     lazy val containerName = injectOptional[String]("Digest.ContainerName") getOrElse "digest"
     /** Digest implementation. */
