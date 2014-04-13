@@ -201,7 +201,7 @@ class Signature extends Loggable {
       }
     }
     /**
-     * Hook that adds SignatureInputStream to stream sequence.
+     * Hook that initiates signature calculation.
      */
     class ReadFilter(val userFilter: Option[Function4[InputStream, URI, Transport, SData, InputStream]])
       extends Function4[InputStream, URI, Transport, SData, InputStream] {
@@ -249,7 +249,7 @@ class Signature extends Loggable {
       }
     }
     /**
-     * Hook that adds SignatureOutputStream to stream sequence.
+     * Hook that calculates signature.
      */
     class WriteFilter(val userFilter: Option[Function4[OutputStream, URI, Transport, SData, OutputStream]])
       extends Function4[OutputStream, URI, Transport, SData, OutputStream] {
@@ -325,7 +325,7 @@ object Signature extends Loggable {
   /**
    * A transparent stream that updates the associated verifier using the bits going through the stream.
    */
-  class SignatureInputStream[T](stream: InputStream, val verifier: java.security.Signature,
+  class SignatureInputStream[T](stream: InputStream, verifier: java.security.Signature,
     onClose: java.security.Signature ⇒ T) extends FilterInputStream(stream) {
     override def close() {
       super.close()
@@ -348,7 +348,7 @@ object Signature extends Loggable {
   /**
    * A transparent stream that updates the associated signature using the bits going through the stream.
    */
-  class SignatureOutputStream[T](stream: OutputStream, val signature: java.security.Signature,
+  class SignatureOutputStream[T](stream: OutputStream, signature: java.security.Signature,
     onClose: java.security.Signature ⇒ T) extends FilterOutputStream(stream) {
     override def close() {
       super.close()

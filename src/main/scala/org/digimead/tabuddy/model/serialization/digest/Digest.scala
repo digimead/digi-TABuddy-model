@@ -60,11 +60,9 @@ class Digest extends Loggable {
     case Some(mandatory) ⇒
       val updated = sData.
         updated(Digest.historyPerURI, immutable.Map[URI, Digest.History]()).
-        updated(Digest.modifiedCache, new ThreadLocal[Element.Timestamp]()).
         updated(SData.Key.initializeLoader, new acquire.InitializeLoader(sData.get(SData.Key.initializeLoader))).
         updated(SData.Key.initializeSourceSData, new acquire.InitializeSourceSData(sData.get(SData.Key.initializeSourceSData))).
-        updated(SData.Key.decodeFilter, new acquire.DecodeFilter(sData.get(SData.Key.decodeFilter))).
-        updated(SData.Key.afterRead, new acquire.AfterRead(sData.get(SData.Key.afterRead)))
+        updated(SData.Key.decodeFilter, new acquire.ReadFilter(sData.get(SData.Key.decodeFilter)))
       Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initAcquire(sData))
     case None ⇒
       sData
@@ -143,30 +141,9 @@ class Digest extends Loggable {
    */
   class Acquire {
     /**
-     * Hook that compare calculated digest with original value.
+     * Hook that initiates digest calculation.
      */
-    class AfterRead(val userAfterRead: Option[Function4[URI, Array[Byte], Transport, SData, _]])
-      extends Function4[URI, Array[Byte], Transport, SData, Unit] {
-      /** Compare calculated digest with original value. */
-      def apply(uri: URI, data: Array[Byte], transport: Transport, sData: SData) {
-        sData(Digest.historyPerURI).get(sData(SData.Key.storageURI)) match {
-          case Some(history) ⇒
-            Option(sData(Digest.modifiedCache).get()).foreach { modified ⇒
-              history.get(modified).foreach {
-                case ((parameters, context)) if parameters.mechanism != null ⇒
-                  parameters.mechanism.afterRead(parameters, context, modified, uri, data, transport, sData)
-              }
-              sData(Digest.modifiedCache).remove()
-            }
-          case None ⇒
-        }
-        userAfterRead.foreach(_(uri, data, transport, sData))
-      }
-    }
-    /**
-     * Hook that adds DigestInputStream to stream sequence.
-     */
-    class DecodeFilter(val userFilter: Option[Function4[InputStream, URI, Transport, SData, InputStream]])
+    class ReadFilter(val userFilter: Option[Function4[InputStream, URI, Transport, SData, InputStream]])
       extends Function4[InputStream, URI, Transport, SData, InputStream] {
       /** Apply MessageDigest instance to InputStream. */
       def apply(is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
@@ -177,7 +154,6 @@ class Digest extends Loggable {
                 history.get(modified) match {
                   case Some((parameters, context)) if parameters.mechanism != null ⇒
                     val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
-                    sData(Digest.modifiedCache).set(modified)
                     userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
                   case _ ⇒
                     if (sData(Digest.Key.acquire))
@@ -279,7 +255,7 @@ class Digest extends Loggable {
       }
     }
     /**
-     * Hook that adds DigestOutputStream to stream sequence.
+     * Hook that calculates digest.
      */
     class EncodeFilter(val userFilter: Option[Function4[OutputStream, URI, Transport, SData, OutputStream]])
       extends Function4[OutputStream, URI, Transport, SData, OutputStream] {
@@ -374,8 +350,6 @@ object Digest extends Loggable {
    *   There is hash map with sums as an example of such type information.
    */
   val historyPerURI = SData.key[immutable.Map[URI, Digest.History]]("digest")
-  /** Cache for Element.Timestamp value. */
-  val modifiedCache = SData.key[ThreadLocal[Element.Timestamp]]("digestModifiedCache")
 
   /** Get default digest algorithm. */
   def default = DI.default
@@ -394,6 +368,29 @@ object Digest extends Loggable {
   /** Get digest type name. */
   def typeName = DI.typeName
 
+  /**
+   * A transparent stream that updates the associated verifier using the bits going through the stream.
+   */
+  class DigestInputStream[T](stream: InputStream, verifier: java.security.MessageDigest,
+    onClose: java.security.MessageDigest ⇒ T) extends java.security.DigestInputStream(stream, verifier) {
+    override def close() {
+      super.close()
+      onClose(verifier)
+    }
+    override def read(): Int = {
+      val result = in.read()
+      if (result != -1)
+        verifier.update(result.asInstanceOf[Byte])
+      result
+    }
+    override def read(b: Array[Byte], off: Int, len: Int) = {
+      val result = in.read(b, off, len)
+      if (result > 0)
+        verifier.update(b.take(result))
+      result
+    }
+    override def read(b: Array[Byte]): Int = read(b, 0, b.length)
+  }
   /**
    * Predefined SData keys.
    */

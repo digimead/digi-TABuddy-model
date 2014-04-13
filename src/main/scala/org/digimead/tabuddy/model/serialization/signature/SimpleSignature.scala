@@ -113,7 +113,7 @@ class SimpleSignature extends Mechanism with Loggable {
       }
       verifier.initVerify(publicKey)
       new Signature.SignatureInputStream(is, verifier, verifier ⇒
-        readSignature(publicKey, verifier, context, modified, uri, transport, sData))
+        checkSignature(publicKey, verifier, context, modified, uri, transport, sData))
     case unexpected ⇒
       throw new IllegalArgumentException("Unexpected parameters " + unexpected)
   }
@@ -182,6 +182,21 @@ class SimpleSignature extends Mechanism with Loggable {
   /** Approve resource check sum. */
   protected def approve(resourceURI: URI, sData: SData) =
     log.debug("Approve signature for .../" + sData(SData.Key.storageURI).relativize(resourceURI))
+  /** Check signature data. */
+  @throws[SecurityException]("if verification is failed")
+  protected def checkSignature(publicKey: PublicKey, verifier: java.security.Signature,
+    context: AtomicReference[SoftReference[AnyRef]], modified: Element.Timestamp, uri: URI, transport: Transport, sData: SData) {
+    val storageURI = sData(SData.Key.storageURI)
+    val map = getSignatureMap(context, modified, transport, sData)
+    map.get(uri) match {
+      case Some(originalValue) ⇒
+        // throws SecurityException
+        sData(Signature.Key.acquire)(Digest.digestURI(storageURI, transport, modified).resolve(uri),
+          modified, Some(publicKey, verifier.verify(originalValue)), sData)
+      case None ⇒
+        throw new IllegalStateException("Unable to find signature for " + uri)
+    }
+  }
   /** Get loaded or load new signature map. */
   protected def getSignatureMap(context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, transport: Transport, sData: SData): immutable.Map[URI, Array[Byte]] = {
@@ -210,19 +225,6 @@ class SimpleSignature extends Mechanism with Loggable {
     val map = builder.result
     context.set(new SoftReference(map))
     map
-  }
-  /** Reat signature data from file. */
-  protected def readSignature(publicKey: PublicKey, verifier: java.security.Signature,
-    context: AtomicReference[SoftReference[AnyRef]], modified: Element.Timestamp, uri: URI, transport: Transport, sData: SData) {
-    val storageURI = sData(SData.Key.storageURI)
-    val map = getSignatureMap(context, modified, transport, sData)
-    map.get(uri) match {
-      case Some(originalValue) ⇒
-        sData(Signature.Key.acquire)(Digest.digestURI(storageURI, transport, modified).resolve(uri),
-          modified, Some(publicKey, verifier.verify(originalValue)), sData)
-      case None ⇒
-        throw new IllegalStateException("Unable to find digest for " + uri)
-    }
   }
   /** Refuse resource check sum. */
   protected def refuse(resourceURI: URI, sData: SData) =

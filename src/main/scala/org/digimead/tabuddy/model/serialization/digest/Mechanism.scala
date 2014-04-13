@@ -39,9 +39,6 @@ trait Mechanism {
   def apply(algorithmName: String, args: String*): Mechanism.Parameters
   /** Just invoked before freeze completion. */
   def afterFreeze(parameters: Mechanism.Parameters, graph: Graph[_ <: Model.Like], transport: Transport, sData: SData)
-  /** Just invoked before read completion. */
-  def afterRead(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
-    modified: Element.Timestamp, uri: URI, data: Array[Byte], transport: Transport, sData: SData)
   /** Just invoked before write completion. */
   def afterWrite(parameters: Mechanism.Parameters, uri: URI, data: Array[Byte], transport: Transport, sData: SData)
   /** Initialize SData for acquire process. */

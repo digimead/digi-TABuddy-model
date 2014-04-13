@@ -987,7 +987,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     override def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
       modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
       val result = super.readFilter(parameters, context, modified, is, uri, transport, sData)
-      val map = getDigestMap(parameters, context, modified, transport, sData)
+      val map = getDigestMap(context, modified, transport, sData)
       val map0 = map1(sData(SData.Key.storageURI))
       if (test)
         map.forall { case (k, v) ⇒ v.deep == map0(k).deep } should be(true)

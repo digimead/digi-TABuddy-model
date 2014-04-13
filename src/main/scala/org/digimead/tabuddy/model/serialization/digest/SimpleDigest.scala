@@ -101,26 +101,6 @@ class SimpleDigest extends Mechanism with Loggable {
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
-  /** Just invoked before read completion. */
-  def afterRead(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
-    modified: Element.Timestamp, uri: URI, data: Array[Byte], transport: Transport, sData: SData) =
-    Option(digestCache.get()).foreach { dInstance ⇒
-      val storageURI = sData(SData.Key.storageURI)
-      val resourceURI = storageURI.relativize(uri)
-      val map = getDigestMap(parameters, context, modified, transport, sData)
-      map.get(resourceURI) match {
-        case Some(originalValue) ⇒
-          val actualValue = dInstance.digest()
-          if (java.util.Arrays.equals(originalValue, actualValue))
-            approve(uri, sData)
-          else
-            refuse(uri, sData)
-        case None ⇒
-          throw new IllegalStateException("Unable to find digest for " + uri)
-      }
-      dInstance.reset()
-      digestCache.set(null)
-    }
   /** Just invoked before write completion. */
   def afterWrite(parameters: Mechanism.Parameters, uri: URI, data: Array[Byte], transport: Transport, sData: SData) =
     parameters match {
@@ -138,9 +118,9 @@ class SimpleDigest extends Mechanism with Loggable {
     modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream =
     parameters match {
       case SimpleDigestParameters(algorithmName) ⇒
-        val dInstance = MessageDigest.getInstance(algorithmName)
-        digestCache.set(dInstance)
-        new DigestInputStream(is, dInstance)
+        val verifier = MessageDigest.getInstance(algorithmName)
+        new Digest.DigestInputStream(is, verifier, verifier ⇒
+          checkDigest(verifier, context, modified, uri, transport, sData))
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
@@ -170,11 +150,26 @@ class SimpleDigest extends Mechanism with Loggable {
   /** Approve resource check sum. */
   protected def approve(resourceURI: URI, sData: SData) =
     log.debug("Approve digest for .../" + sData(SData.Key.storageURI).relativize(resourceURI))
-  /** Refuse resource check sum. */
-  protected def refuse(resourceURI: URI, sData: SData) =
-    throw new IllegalStateException("Incorrect digest for " + resourceURI)
+  /** Check digest data. */
+  @throws[SecurityException]("if verification is failed")
+  protected def checkDigest(verifier: java.security.MessageDigest, context: AtomicReference[SoftReference[AnyRef]],
+    modified: Element.Timestamp, uri: URI, transport: Transport, sData: SData) {
+    val storageURI = sData(SData.Key.storageURI)
+    val resourceURI = storageURI.relativize(uri)
+    val map = getDigestMap(context, modified, transport, sData)
+    map.get(resourceURI) match {
+      case Some(originalValue) ⇒
+        val actualValue = verifier.digest()
+        if (java.util.Arrays.equals(originalValue, actualValue))
+          approve(uri, sData)
+        else
+          refuse(uri, sData)
+      case None ⇒
+        throw new IllegalStateException("Unable to find digest for " + uri)
+    }
+  }
   /** Get loaded or load new digest map. */
-  protected def getDigestMap(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
+  protected def getDigestMap(context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, transport: Transport, sData: SData): immutable.Map[URI, Array[Byte]] = {
     context.get().get match {
       case Some(map: immutable.Map[_, _]) ⇒ return map.asInstanceOf[immutable.Map[URI, Array[Byte]]]
@@ -209,6 +204,10 @@ class SimpleDigest extends Mechanism with Loggable {
     context.set(new SoftReference(map))
     map
   }
+  /** Refuse resource check sum. */
+  @throws[SecurityException]("if verification is failed")
+  protected def refuse(resourceURI: URI, sData: SData) =
+    throw new IllegalStateException("Incorrect digest for " + resourceURI)
 
   /**
    * SimpleDigest parameters.
