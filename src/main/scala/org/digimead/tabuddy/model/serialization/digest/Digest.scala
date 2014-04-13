@@ -242,22 +242,9 @@ class Digest extends Loggable {
       }
     }
     /**
-     * Hook that saves calculated digest to somewhere.
-     */
-    class AfterWrite(val userAfterWrite: Option[Function4[URI, Array[Byte], Transport, SData, _]])
-      extends Function4[URI, Array[Byte], Transport, SData, Unit] {
-      /** Handle value calculated by MessageDigest. */
-      def apply(uri: URI, data: Array[Byte], transport: Transport, sData: SData) = {
-        sData(Digest.Key.freeze).get(sData(SData.Key.storageURI)).foreach(parameter ⇒
-          if (parameter.mechanism != null)
-            parameter.mechanism.afterWrite(parameter, uri, data, transport, sData))
-        userAfterWrite.foreach(_(uri, data, transport, sData))
-      }
-    }
-    /**
      * Hook that calculates digest.
      */
-    class EncodeFilter(val userFilter: Option[Function4[OutputStream, URI, Transport, SData, OutputStream]])
+    class WriteFilter(val userFilter: Option[Function4[OutputStream, URI, Transport, SData, OutputStream]])
       extends Function4[OutputStream, URI, Transport, SData, OutputStream] {
       /** Apply MessageDigest instance to OutputStream. */
       def apply(os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
@@ -322,8 +309,7 @@ class Digest extends Loggable {
             val updated = sData.
               updated(Digest.Key.freeze, updatedDigestAlgorithm).
               updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData))).
-              updated(SData.Key.encodeFilter, new freeze.EncodeFilter(sData.get(SData.Key.encodeFilter))).
-              updated(SData.Key.afterWrite, new freeze.AfterWrite(sData.get(SData.Key.afterWrite)))
+              updated(SData.Key.encodeFilter, new freeze.WriteFilter(sData.get(SData.Key.encodeFilter)))
             Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initFreeze(sData))
           case None ⇒
             sData
@@ -377,19 +363,16 @@ object Digest extends Loggable {
       super.close()
       onClose(verifier)
     }
-    override def read(): Int = {
-      val result = in.read()
-      if (result != -1)
-        verifier.update(result.asInstanceOf[Byte])
-      result
+  }
+  /**
+   * A transparent stream that updates the associated digest using the bits going through the stream.
+   */
+  class DigestOutputStream[T](stream: OutputStream, digest: java.security.MessageDigest,
+    onClose: java.security.MessageDigest ⇒ T) extends java.security.DigestOutputStream(stream, digest) {
+    override def close() {
+      super.close()
+      onClose(digest)
     }
-    override def read(b: Array[Byte], off: Int, len: Int) = {
-      val result = in.read(b, off, len)
-      if (result > 0)
-        verifier.update(b.take(result))
-      result
-    }
-    override def read(b: Array[Byte]): Int = read(b, 0, b.length)
   }
   /**
    * Predefined SData keys.

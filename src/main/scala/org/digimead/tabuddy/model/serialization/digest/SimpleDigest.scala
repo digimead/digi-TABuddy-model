@@ -43,8 +43,6 @@ import scala.reflect.runtime.universe
 class SimpleDigest extends Mechanism with Loggable {
   /** Identifier of the digest. */
   val identifier = SimpleDigest.Identifier
-  /** Cache for MessageDigest instance. */
-  val digestCache = new ThreadLocal[MessageDigest]()
 
   /** Get simple mechanism parameters. */
   def apply(algorithmName: String, args: String*): Mechanism.Parameters = {
@@ -75,41 +73,15 @@ class SimpleDigest extends Mechanism with Loggable {
           }
         }
         // Write payload.
-        val digestSumURI = Digest.digestURI(storageURI, transport, graph.modified, Digest.containerName)
-        if (!transport.exists(Serialization.inner.encode(digestSumURI, sData), sData) ||
-          sData.get(SData.Key.force) == Some(true)) {
-          val os = transport.openWrite(Serialization.inner.encode(digestSumURI, sData), sData, true)
-          val pos = sData.get(Digest.Key.writeFilter) match {
-            case Some(filter) ⇒
-              new PrintStream(filter(new BufferedOutputStream(os),
-                Digest.digestURI(storageURI, transport, graph.modified).relativize(digestSumURI),
-                transport, sData.updated(SData.Key.modified, graph.modified)))
-            case None ⇒
-              new PrintStream(new BufferedOutputStream(os))
-          }
-          try {
-            sData(SimpleDigest.Key.digestMap)(storageURI).foreach {
-              case (uri, digest) ⇒
-                pos.println(Serialization.byteArrayToHexString(digest) + " " + uri)
+        sData.get(SimpleDigest.printStream).foreach(streamContainer ⇒
+          streamContainer.synchronized {
+            Option(streamContainer.get).foreach { stream ⇒
+              log.debug(s"Close container with digests.")
+              stream.flush()
+              stream.close()
+              streamContainer.set(null)
             }
-            pos.flush()
-          } finally try pos.close() catch {
-            case e: SecurityException ⇒ throw e
-            case e: Throwable ⇒ log.error("Unable to save digest check sums: " + e.getMessage, e)
-          }
-        }
-      case unexpected ⇒
-        throw new IllegalArgumentException("Unexpected parameters " + unexpected)
-    }
-  /** Just invoked before write completion. */
-  def afterWrite(parameters: Mechanism.Parameters, uri: URI, data: Array[Byte], transport: Transport, sData: SData) =
-    parameters match {
-      case SimpleDigestParameters(algorithmName) ⇒ Option(digestCache.get()).foreach { dInstance ⇒
-        val storageURI = sData(SData.Key.storageURI)
-        sData(SimpleDigest.Key.digestMap)(storageURI) += storageURI.relativize(uri) -> dInstance.digest()
-        dInstance.reset()
-        digestCache.set(null)
-      }
+          })
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
@@ -128,9 +100,9 @@ class SimpleDigest extends Mechanism with Loggable {
   def writeFilter(parameters: Mechanism.Parameters, os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
     parameters match {
       case SimpleDigestParameters(algorithmName) ⇒
-        val dInstance = MessageDigest.getInstance(algorithmName)
-        digestCache.set(dInstance)
-        new DigestOutputStream(os, dInstance)
+        val digest = MessageDigest.getInstance(algorithmName)
+        new Digest.DigestOutputStream(os, digest, digest ⇒
+          writeDigest(digest, uri, transport, sData))
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
@@ -139,10 +111,7 @@ class SimpleDigest extends Mechanism with Loggable {
   /** Initialize SData for freeze process. */
   def initFreeze(sData: SData): SData = sData.get(Digest.Key.freeze) match {
     case Some(parameters) if parameters.exists { case (uri, parameters) ⇒ parameters.isInstanceOf[SimpleDigestParameters] } ⇒
-      // Create digestMap
-      val newDigestMap = immutable.Map(sData(Digest.Key.freeze).keys.map(
-        uri ⇒ uri -> new mutable.HashMap[URI, Array[Byte]] with mutable.SynchronizedMap[URI, Array[Byte]]).toSeq: _*)
-      sData.updated(SimpleDigest.Key.digestMap, newDigestMap)
+      sData.updated(SimpleDigest.printStream, new AtomicReference[PrintStream]())
     case _ ⇒
       sData
   }
@@ -208,7 +177,36 @@ class SimpleDigest extends Mechanism with Loggable {
   @throws[SecurityException]("if verification is failed")
   protected def refuse(resourceURI: URI, sData: SData) =
     throw new IllegalStateException("Incorrect digest for " + resourceURI)
-
+  /** Write digest data to file. */
+  protected def writeDigest(digest: java.security.MessageDigest, uri: URI, transport: Transport, sData: SData): Unit = synchronized {
+    sData.get(SimpleDigest.printStream).foreach(streamContainer ⇒ streamContainer.synchronized {
+      val modified = sData(SData.Key.modified)
+      val storageURI = sData(SData.Key.storageURI)
+      val printStream = Option(streamContainer.get) getOrElse {
+        val digestDataURI = Digest.digestURI(storageURI, transport, modified, Digest.containerName)
+        if (!transport.exists(Serialization.inner.encode(digestDataURI, sData), sData) ||
+          sData.get(SData.Key.force) == Some(true)) {
+          log.debug(s"Open container with digests for ${modified} at ${digestDataURI}")
+          val stream = transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
+          val printStream = sData.get(Digest.Key.writeFilter) match {
+            case Some(filter) ⇒
+              new PrintStream(filter(new BufferedOutputStream(stream),
+                Digest.digestURI(storageURI, transport, modified).relativize(digestDataURI),
+                transport, sData.updated(SData.Key.modified, modified)))
+            case None ⇒
+              new PrintStream(new BufferedOutputStream(stream))
+          }
+          streamContainer.set(printStream)
+          printStream
+        } else {
+          log.debug(s"Skip digest data ${modified} for storage ${storageURI}")
+          return
+        }
+      }
+      log.debug(s"Append digest for '${uri}'.")
+      printStream.println(Serialization.byteArrayToHexString(digest.digest()) + " " + storageURI.relativize(uri))
+    })
+  }
   /**
    * SimpleDigest parameters.
    */
@@ -218,6 +216,9 @@ class SimpleDigest extends Mechanism with Loggable {
 }
 
 object SimpleDigest {
+  /** Simple digest print stream. */
+  val printStream = SData.key[AtomicReference[PrintStream]]("simpleDigestPrintStream")
+
   /** Get SimpleDigest mechanism parameters. */
   def apply(algorithm: String): Mechanism.Parameters = Digest.perIdentifier.get(Identifier) match {
     case Some(digest: SimpleDigest) ⇒ digest(algorithm)
@@ -228,11 +229,4 @@ object SimpleDigest {
    * SimpleDigest mechanism identifier.
    */
   object Identifier extends Mechanism.Identifier { val name = "simple" }
-  /**
-   * Predefined keys of a generic process.
-   */
-  object Key {
-    /** Digest map with graph hash sums: storageURI -> Map[Relative URI, digest] */
-    val digestMap = SData.key[immutable.Map[URI, mutable.Map[URI, Array[Byte]] with mutable.SynchronizedMap[URI, Array[Byte]]]]("digest")
-  }
 }

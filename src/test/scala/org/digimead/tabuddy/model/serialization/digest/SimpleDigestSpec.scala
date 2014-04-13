@@ -45,9 +45,7 @@ import scala.ref.SoftReference
 class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val testDigest = Mockito.spy(new TestSimple)
   lazy val testTransport = Mockito.spy(new Local)
-  @volatile var test = true
 
-  @volatile var map1: immutable.Map[URI, mutable.Map[URI, Array[Byte]]] = null
   /** Log test. */
   val logTest: ArgumentCaptor[org.apache.log4j.spi.LoggingEvent] ⇒ Unit = {
     logCaptor ⇒
@@ -74,7 +72,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       withTempFolder { folder ⇒
         import TestDSL._
 
-        test = true
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -128,10 +125,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
           scala.io.Source.fromFile(fileCDigestType).getLines.toList should be(Seq("simple", "", "SHA-512"))
           fileCDigestData should be('exists)
           scala.io.Source.fromFile(fileCDigestData).getLines.size should be(27)
-
-          map1(folderA.getAbsoluteFile().toURI).size should be(0)
-          map1(folderB.getAbsoluteFile().toURI).size should be(27)
-          map1(folderC.getAbsoluteFile().toURI).size should be(27)
 
           val graphWithoutDigest = Serialization.acquire(folderB.getAbsoluteFile().toURI())
           graph.retrospective should be(graphWithoutDigest.retrospective)
@@ -246,7 +239,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       withTempFolder { folder ⇒
         import TestDSL._
 
-        test = false
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -356,7 +348,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = true
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -407,7 +398,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = true
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -471,7 +461,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = true
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -518,7 +507,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = true
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -608,7 +596,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -666,7 +653,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -719,7 +705,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -775,7 +760,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -818,7 +802,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -860,7 +843,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val readMap = new mutable.HashMap[URI, TestInputStream] with mutable.SynchronizedMap[URI, TestInputStream]
       val writeMap = new mutable.HashMap[URI, TestOutputStream] with mutable.SynchronizedMap[URI, TestOutputStream]
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -909,7 +891,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      test = false
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
@@ -978,21 +959,6 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     override def write(b: Array[Byte]) = write(b, 0, b.length)
   }
   class TestSimple extends SimpleDigest {
-    override def afterFreeze(parameters: Mechanism.Parameters, graph: Graph[_ <: Model.Like], transport: Transport, sData: SData) = {
-      val result = super.afterFreeze(parameters, graph, transport, sData)
-      map1 = sData(SimpleDigest.Key.digestMap)
-      result
-    }
-    /** Just invoked after read beginning. */
-    override def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
-      modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
-      val result = super.readFilter(parameters, context, modified, is, uri, transport, sData)
-      val map = getDigestMap(context, modified, transport, sData)
-      val map0 = map1(sData(SData.Key.storageURI))
-      if (test)
-        map.forall { case (k, v) ⇒ v.deep == map0(k).deep } should be(true)
-      result
-    }
     override def approve(resourceURI: URI, sData: SData) = super.approve(resourceURI, sData)
     override def refuse(resourceURI: URI, sData: SData) = super.refuse(resourceURI, sData)
   }

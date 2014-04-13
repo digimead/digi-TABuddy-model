@@ -244,7 +244,7 @@ class SimpleSignature extends Mechanism with Loggable {
           streamContainer.set(printStream)
           printStream
         } else {
-          log.debug(s"Skip signature data ${modified} to ${storageURI}")
+          log.debug(s"Skip signature data ${modified} for storage ${storageURI}")
           return
         }
       }
