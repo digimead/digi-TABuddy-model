@@ -29,10 +29,10 @@ import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
-import scala.Option.option2Iterable
-import scala.collection.immutable
+import scala.collection.{ immutable, mutable }
 import scala.language.implicitConversions
 import scala.ref.SoftReference
+import scala.util.control.ControlThrowable
 
 /*
  * Simple layout is
@@ -72,6 +72,41 @@ class Digest extends Loggable {
     sData.
       updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze))).
       updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData)))
+  /** Get digest history for loader. */
+  def history(loader: Serialization.Loader): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+    loader.sData.get(Digest.historyPerURI).map { history ⇒
+      val transition = mutable.HashMap[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]]()
+      history.foreach {
+        case (uri, historyPerURI) ⇒
+          historyPerURI.foreach {
+            case (timestamp, (parameters, context)) ⇒
+              transition.get(timestamp) match {
+                case Some(mapWithURI) ⇒
+                  transition(timestamp) = mapWithURI.updated(uri, parameters)
+                case None ⇒
+                  transition(timestamp) = immutable.Map(uri -> parameters)
+              }
+          }
+      }
+      transition.toMap
+    } getOrElse immutable.HashMap()
+  /** Get digest history for graph. */
+  def history(graph: Graph[_ <: Model.Like]): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+    graph.storages match {
+      case Nil ⇒
+        immutable.HashMap()
+      case storages ⇒
+        storages.sortBy(_.getScheme == "file").foreach { bootstrapStorageURI ⇒
+          try {
+            return history(Serialization.acquireLoader(bootstrapStorageURI,
+              graph.retrospective.last, SData(Digest.Key.acquire -> false)))
+          } catch {
+            case ce: ControlThrowable ⇒ throw ce
+            case e: Throwable ⇒ log.fatal(e.getMessage(), e)
+          }
+        }
+        immutable.HashMap()
+    }
 
   /** Get digest parameter for the specific modification of the storage. */
   protected def getDigestParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = {

@@ -274,7 +274,7 @@ class SimpleSignature extends Mechanism with Loggable {
       case Some(privateKey) ⇒
         s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey.getAlgorithm()} key, private ${publicKey.getAlgorithm()} key, ${sAlgorithm}, ${sProvider})"
       case None ⇒
-        s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey} key, ${sAlgorithm}, ${sProvider})"
+        s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey.getAlgorithm()} key, ${sAlgorithm}, ${sProvider})"
     }
   }
 }

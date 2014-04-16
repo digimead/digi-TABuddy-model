@@ -31,9 +31,10 @@ import org.digimead.tabuddy.model.serialization.digest.Digest
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
-import scala.collection.immutable
+import scala.collection.{ immutable, mutable }
 import scala.language.implicitConversions
 import scala.ref.SoftReference
+import scala.util.control.ControlThrowable
 
 class Signature extends Loggable {
   /** Acquire routines. */
@@ -77,6 +78,42 @@ class Signature extends Loggable {
     case None ⇒
       sData
   }
+  /** Get signature history for loader. */
+  def history(loader: Serialization.Loader): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+    loader.sData.get(Signature.historyPerURI).map { history ⇒
+      val transition = mutable.HashMap[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]]()
+      history.foreach {
+        case (uri, historyPerURI) ⇒
+          historyPerURI.foreach {
+            case (timestamp, (parameters, context)) ⇒
+              transition.get(timestamp) match {
+                case Some(mapWithURI) ⇒
+                  transition(timestamp) = mapWithURI.updated(uri, parameters)
+                case None ⇒
+                  transition(timestamp) = immutable.Map(uri -> parameters)
+              }
+          }
+      }
+      transition.toMap
+    } getOrElse immutable.HashMap()
+  /** Get signature history for graph. */
+  def history(graph: Graph[_ <: Model.Like]): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+    graph.storages match {
+      case Nil ⇒
+        immutable.HashMap()
+      case storages ⇒
+        storages.sortBy(_.getScheme == "file").foreach { bootstrapStorageURI ⇒
+          try {
+            return history(Serialization.acquireLoader(bootstrapStorageURI,
+              graph.retrospective.last, SData(Digest.Key.acquire -> false,
+                Signature.Key.acquire -> Signature.acceptAll)))
+          } catch {
+            case ce: ControlThrowable ⇒ throw ce
+            case e: Throwable ⇒ log.fatal(e.getMessage(), e)
+          }
+        }
+        immutable.HashMap()
+    }
 
   /** Get signature parameter for the specific modification of the storage. */
   protected def getSignatureParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = {
@@ -272,6 +309,11 @@ class Signature extends Loggable {
 object Signature extends Loggable {
   implicit def signature2implementation(s: Signature.type): Signature = s.inner
   type History = immutable.Map[Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]])]
+  /** Accept signed and unsigned. */
+  lazy val acceptAll = (_: URI, _: Element.Timestamp, _: Option[(PublicKey, Boolean)], _: SData) ⇒ {}
+  /** Accept any signed. */
+  lazy val acceptSigned = (uri: URI, _: Element.Timestamp, v: Option[(PublicKey, Boolean)], _: SData) ⇒
+    if (v.isEmpty) throw new SecurityException(uri + " not signed.")
 
   /** Get digest container name. */
   def containerName = DI.containerName

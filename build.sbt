@@ -70,9 +70,9 @@ resolvers += "digimead-maven" at "http://storage.googleapis.com/maven.repository
 
 libraryDependencies ++= Seq(
   "com.google.protobuf" % "protobuf-java" % "2.5.0",
-  "org.digimead" %% "digi-lib" % "0.2.3.4-SNAPSHOT",
+  "org.digimead" %% "digi-lib" % "0.2.3.5-SNAPSHOT",
   "org.yaml" % "snakeyaml" % "1.12",
-  "org.digimead" %% "digi-lib-test" % "0.2.2.4-SNAPSHOT" % "test"
+  "org.digimead" %% "digi-lib-test" % "0.2.2.5-SNAPSHOT" % "test"
 )
 
 //

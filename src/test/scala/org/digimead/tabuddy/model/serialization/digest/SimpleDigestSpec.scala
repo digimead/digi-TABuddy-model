@@ -19,7 +19,7 @@
 package org.digimead.tabuddy.model.serialization.digest
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.{ BufferedOutputStream, File, FileOutputStream, FilterInputStream, FilterOutputStream, InputStream, OutputStream, PrintStream }
+import java.io.{ BufferedOutputStream, File, FileOutputStream, FilterInputStream, FilterOutputStream, InputStream, OutputStream, PrintStream, RandomAccessFile }
 import java.net.URI
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -31,15 +31,15 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
 import org.digimead.tabuddy.model.serialization.SData
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
+import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
 import org.hamcrest.{ BaseMatcher, Description }
 import org.mockito.{ ArgumentCaptor, Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
-import scala.collection.{ immutable, mutable }
 import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.{ immutable, mutable }
 import scala.ref.SoftReference
 
 class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
@@ -914,6 +914,399 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       an[IllegalStateException] should be thrownBy
         Serialization.acquire(folderB.getAbsoluteFile().toURI(),
           SData(Digest.Key.readFilter -> readFilter, Digest.Key.acquire -> true))
+    }
+  }
+  "Digest history should be projection of Graph.Retrospective: everything OK" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+
+      info("There are no retrospective records")
+      Digest.history(graph) should be(empty)
+
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val graphWith1Record = graphLoaderWith1Record.load()
+
+      info("There is a single retrospective record")
+      val h1l = Digest.history(graphLoaderWith1Record)
+      val h1g = Digest.history(graph)
+      h1l should be(h1g)
+      h1l.size should be(1)
+      h1l.head._2.size should be(3)
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      Serialization.freeze(graph)
+      val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are two retrospective records")
+      val h2l = Digest.history(graphLoaderWith2Records)
+      val h2g = Digest.history(graph)
+      h2l should be(h2g)
+      h2l.size should be(2)
+      h2l.head._2.size should be(3)
+      val h2keys = h2l.keys.toSeq
+      h2l(h2keys.head) should be(h2l(h2keys.last))
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      Serialization.freeze(graph, SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
+      val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are three retrospective records")
+      val h3l = Digest.history(graphLoaderWith3Records)
+      val h3g = Digest.history(graph)
+      h3l should be(h3g)
+      h3l.size should be(3)
+      h3l.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val h3keys = h3l.keys.toSeq.sorted
+      h3keys.last should be(graph.modified)
+      h3l(h3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3l(h3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3l(h3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD5", "B/" -> "MD5", "C/" -> "MD5"))
+    }
+  }
+  "Digest history should be projection of Graph.Retrospective: something wrong" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+
+      info("There are no retrospective records")
+      Digest.history(graph) should be(empty)
+
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val graphWith1Record = graphLoaderWith1Record.load()
+
+      info("There is a single retrospective record")
+      val h1l = Digest.history(graphLoaderWith1Record)
+      val h1g = Digest.history(graph)
+      h1l should be(h1g)
+      h1l.size should be(1)
+      h1l.head._2.size should be(3)
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      Serialization.freeze(graph)
+      val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are two retrospective records")
+      val h2l = Digest.history(graphLoaderWith2Records)
+      val h2g = Digest.history(graph)
+      h2l should be(h2g)
+      h2l.size should be(2)
+      h2l.head._2.size should be(3)
+      val h2keys = h2l.keys.toSeq
+      h2l(h2keys.head) should be(h2l(h2keys.last))
+
+      info(s"Damage 'digest' in ${folderB} and 'type' in ${folderC}")
+      val file2BDigestType = new File(folderB, s"digest/${Timestamp.dump(graphLoaderWith2Records.modified)}/type")
+      val file2CDigestData = new File(folderC, s"digest/${Timestamp.dump(graphLoaderWith2Records.modified)}/digest")
+      assert(file2BDigestType.delete(), "Unable to delete " + file2BDigestType)
+      assert(file2CDigestData.delete(), "Unable to delete " + file2CDigestData)
+
+      info("There are two retrospective records where one of them is broken")
+      val graphLoaderWith2RecordsX = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val h2lx = Digest.history(graphLoaderWith2RecordsX)
+      val h2gx = Digest.history(graph)
+      h2lx should be(h2gx)
+      h2lx.size should be(2)
+      h2lx.head._2.size should be(3)
+      val h2keysx = h2lx.keys.toSeq
+      h2lx(h2keysx.head) should not be (h2lx(h2keysx.last))
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      Serialization.freeze(graph)
+      val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are three retrospective records")
+      val h3l = Digest.history(graphLoaderWith3Records)
+      val h3g = Digest.history(graph)
+      h3l should be(h3g)
+      h3l.size should be(3)
+      h3l.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val h3keys = h3l.keys.toSeq.sorted
+      h3keys.last should be(graph.modified)
+      h3l(h3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3l(h3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "SHA-512"))
+      h3l(h3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "SHA-512"))
+    }
+  }
+  "Digest history should be projection of Graph.Retrospective: mostly damaged" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+
+      info("There are no retrospective records")
+      Digest.history(graph) should be(empty)
+
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val graphWith1Record = graphLoaderWith1Record.load()
+
+      info("There is a single retrospective record")
+      val h1l = Digest.history(graphLoaderWith1Record)
+      val h1g = Digest.history(graph)
+      h1l should be(h1g)
+      h1l.size should be(1)
+      h1l.head._2.size should be(3)
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      Serialization.freeze(graph)
+      val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are two retrospective records")
+      val h2l = Digest.history(graphLoaderWith2Records)
+      val h2g = Digest.history(graph)
+      h2l should be(h2g)
+      h2l.size should be(2)
+      h2l.head._2.size should be(3)
+      val h2keys = h2l.keys.toSeq
+      h2l(h2keys.head) should be(h2l(h2keys.last))
+
+      info(s"Damage 'digest' in ${folderB} and 'type' in ${folderC}")
+      val file2BDigestType = new File(folderB, s"digest/${Timestamp.dump(graphLoaderWith2Records.modified)}/type")
+      val file2CDigestData = new File(folderC, s"digest/${Timestamp.dump(graphLoaderWith2Records.modified)}/digest")
+      assert(file2BDigestType.delete(), "Unable to delete " + file2BDigestType)
+      assert(file2CDigestData.delete(), "Unable to delete " + file2CDigestData)
+
+      info("There are two retrospective records where one of them is broken")
+      val graphLoaderWith2RecordsX = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val h2lx = Digest.history(graphLoaderWith2RecordsX)
+      val h2gx = Digest.history(graph)
+      h2lx should be(h2gx)
+      h2lx.size should be(2)
+      h2lx.head._2.size should be(3)
+      val h2keysx = h2lx.keys.toSeq
+      h2lx(h2keysx.head) should not be (h2lx(h2keysx.last))
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      Serialization.freeze(graph)
+      val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are three retrospective records")
+      val h3l = Digest.history(graphLoaderWith3Records)
+      val h3g = Digest.history(graph)
+      h3l should be(h3g)
+      h3l.size should be(3)
+      h3l.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val h3keys = h3l.keys.toSeq.sorted
+      h3keys.last should be(graph.modified)
+      h3l(h3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3l(h3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "SHA-512"))
+      h3l(h3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "SHA-512"))
+
+      info(s"Damage 'digest' and 'type' in ${folderC}")
+      val file3BDigestType = new File(folderB, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/type")
+      val file3BDigestData = new File(folderB, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/digest")
+      val file3CDigestType = new File(folderC, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/type")
+      val file3CDigestData = new File(folderC, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/digest")
+      file3BDigestType should not be ('exists)
+      file3BDigestData should not be ('exists)
+      for (fileToModify ← Seq(file3CDigestType, file3CDigestData)) {
+        val file = new RandomAccessFile(fileToModify, "rws")
+        val text = new Array[Byte](fileToModify.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("anoheutnoahetuh")
+        file.write(text)
+        file.close()
+      }
+      val graphLoaderWith3RecordsX = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val h3lx = Digest.history(graphLoaderWith3RecordsX)
+      val h3gx = Digest.history(graph)
+      h3lx should be(h3gx)
+      h3lx.size should be(3)
+      h3lx.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val h3keysx = h3l.keys.toSeq.sorted
+      h3keysx.last should be(graph.modified)
+      h3lx(h3keysx(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3lx(h3keysx(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "SHA-512"))
+      h3lx(h3keysx(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> ""))
+    }
+  }
+  "Digest history should be projection of Graph.Retrospective: everything failed" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      Serialization.freeze(graph)
+      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      Serialization.freeze(graph, SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
+      val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+
+      info("There are three retrospective records")
+      val h3l = Digest.history(graphLoaderWith3Records)
+      val h3g = Digest.history(graph)
+      h3l should be(h3g)
+      h3l.size should be(3)
+      h3l.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val h3keys = h3l.keys.toSeq.sorted
+      h3keys.last should be(graph.modified)
+      h3l(h3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3l(h3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "MD5", "C/" -> "SHA-512"))
+      h3l(h3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD5", "B/" -> "MD5", "C/" -> "MD5"))
+
+      val Seq(modified, modified2, modified3) = graph.retrospective.history.keys.toSeq.sorted
+      assert(modified < modified3)
+
+      info("Damage 1st modification")
+      val file1ADigestType = new File(folderA, s"digest/${Timestamp.dump(modified)}/type")
+      val file1ADigestData = new File(folderA, s"digest/${Timestamp.dump(modified)}/digest")
+      val file1BDigestType = new File(folderB, s"digest/${Timestamp.dump(modified)}/type")
+      val file1BDigestData = new File(folderB, s"digest/${Timestamp.dump(modified)}/digest")
+      val file1CDigestType = new File(folderC, s"digest/${Timestamp.dump(modified)}/type")
+      val file1CDigestData = new File(folderC, s"digest/${Timestamp.dump(modified)}/digest")
+      file1ADigestType should not be ('exists)
+      file1ADigestData should not be ('exists)
+      file1BDigestType should be('exists)
+      file1BDigestData should be('exists)
+      file1CDigestType should be('exists)
+      file1CDigestData should be('exists)
+      for (fileToModify ← Seq(file1BDigestType, file1BDigestData, file1CDigestType, file1CDigestData)) {
+        val file = new RandomAccessFile(fileToModify, "rws")
+        val text = new Array[Byte](fileToModify.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("anoheutnoahetuh")
+        file.write(text)
+        file.close()
+      }
+      info("Damage 2nd modification")
+      val file2ADigestType = new File(folderA, s"digest/${Timestamp.dump(modified2)}/type")
+      val file2ADigestData = new File(folderA, s"digest/${Timestamp.dump(modified2)}/digest")
+      val file2BDigestType = new File(folderB, s"digest/${Timestamp.dump(modified2)}/type")
+      val file2BDigestData = new File(folderB, s"digest/${Timestamp.dump(modified2)}/digest")
+      val file2CDigestType = new File(folderC, s"digest/${Timestamp.dump(modified2)}/type")
+      val file2CDigestData = new File(folderC, s"digest/${Timestamp.dump(modified2)}/digest")
+      file2ADigestType should not be ('exists)
+      file2ADigestData should not be ('exists)
+      file2BDigestType should be('exists)
+      file2BDigestData should be('exists)
+      file2CDigestType should be('exists)
+      file2CDigestData should be('exists)
+      for (fileToModify ← Seq(file2BDigestType, file2BDigestData, file2CDigestType, file2CDigestData)) {
+        val file = new RandomAccessFile(fileToModify, "rws")
+        val text = new Array[Byte](fileToModify.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("anoheutnoahetuh")
+        file.write(text)
+        file.close()
+      }
+      info("Damage 3rd modification")
+      val file3ADigestType = new File(folderA, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/type")
+      val file3ADigestData = new File(folderA, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/digest")
+      val file3BDigestType = new File(folderB, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/type")
+      val file3BDigestData = new File(folderB, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/digest")
+      val file3CDigestType = new File(folderC, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/type")
+      val file3CDigestData = new File(folderC, s"digest/${Timestamp.dump(graphLoaderWith3Records.modified)}/digest")
+      file3ADigestType should be('exists)
+      file3ADigestData should be('exists)
+      file3BDigestType should be('exists)
+      file3BDigestData should be('exists)
+      file3CDigestType should be('exists)
+      file3CDigestData should be('exists)
+      for (fileToModify ← Seq(file3ADigestType, file3ADigestData, file3BDigestType, file3BDigestData, file3CDigestType, file3CDigestData)) {
+        val file = new RandomAccessFile(fileToModify, "rws")
+        val text = new Array[Byte](fileToModify.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("anoheutnoahetuh")
+        file.write(text)
+        file.close()
+      }
+      info("There are three broken retrospective records")
+      val graphLoaderWith3RecordsX = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
+      val h3lx = Digest.history(graphLoaderWith3RecordsX)
+      val h3gx = Digest.history(graph)
+      h3lx should be(h3gx)
+      h3lx.size should be(3)
+      h3lx.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val h3keysx = h3lx.keys.toSeq.sorted
+      h3keysx.last should be(graph.modified)
+      h3lx(h3keysx(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> ""))
+      h3lx(h3keysx(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> ""))
+      h3lx(h3keysx(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> ""))
     }
   }
 

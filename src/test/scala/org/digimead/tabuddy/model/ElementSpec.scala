@@ -149,7 +149,7 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with Loggable
         //graph.node.getChildren.size should be(1)
         //graph.node.getChildren.head.getProjections.size should be(2)
         // create element with different type
-        evaluating { graph.model.note('a, ('x, 3 + i)) } should produce[IllegalArgumentException]
+        an[IllegalArgumentException] should be thrownBy { graph.model.note('a, ('x, 3 + i)) }
         //graph.node.getChildren.head.getProjections.size should be(2)
         //log.___glance(s"${r1.eBox.get} projections are ${r1.eNode.getProjections}")
         val r3 = graph.model.withRecord('b, ('xcbv, 4 + i)) { r ⇒ r }
