@@ -191,10 +191,10 @@ class SimpleSignature extends Mechanism with Loggable {
     map.get(uri) match {
       case Some(originalValue) ⇒
         // throws SecurityException
-        sData(Signature.Key.acquire)(Digest.digestURI(storageURI, transport, modified).resolve(uri),
-          modified, Some(publicKey, verifier.verify(originalValue)), sData)
+        sData(Signature.Key.acquire)(uri, modified, Some(publicKey, verifier.verify(originalValue)), sData)
       case None ⇒
-        throw new IllegalStateException("Unable to find signature for " + uri)
+        throw new IllegalStateException("Unable to find signature for " +
+          Digest.digestURI(storageURI, transport, modified).resolve(uri))
     }
   }
   /** Get loaded or load new signature map. */

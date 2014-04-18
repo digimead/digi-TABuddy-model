@@ -105,8 +105,7 @@ class Signature extends Loggable {
         storages.sortBy(_.getScheme == "file").foreach { bootstrapStorageURI ⇒
           try {
             return history(Serialization.acquireLoader(bootstrapStorageURI,
-              graph.retrospective.last, SData(Digest.Key.acquire -> false,
-                Signature.Key.acquire -> Signature.acceptAll)))
+              graph.retrospective.last, SData(Signature.Key.acquire -> Signature.acceptAll)))
           } catch {
             case ce: ControlThrowable ⇒ throw ce
             case e: Throwable ⇒ log.fatal(e.getMessage(), e)
@@ -201,7 +200,7 @@ class Signature extends Loggable {
                 record -> (parametersForTimestamp, new AtomicReference(new SoftReference[AnyRef](null)))
               } catch {
                 case e: Throwable ⇒
-                  log.error("Unable to load digest information: " + e.getMessage(), e)
+                  log.error("Unable to load signature information: " + e.getMessage(), e)
                   record -> (Signature.NoSignature, new AtomicReference(new SoftReference[AnyRef](null)))
               }
             }
@@ -229,8 +228,6 @@ class Signature extends Loggable {
              */
             val parametersForTimestamp = getSignatureParameters(modified, transport, sData)
             updateHistory(Seq((modified, parametersForTimestamp)), transport, sData)
-          //            sData.updated(Signature.historyPerURI, sData(Signature.historyPerURI).updated(sData(SData.Key.storageURI),
-          //              immutable.Map(modified -> parametersForTimestamp)))
           case Some(parameters) ⇒
             sData // Skip. Already initialized.
         }
@@ -245,7 +242,7 @@ class Signature extends Loggable {
       /** Apply signature verification instance to InputStream. */
       def apply(is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
         if (uri.isAbsolute())
-          throw new IllegalArgumentException(s"Unable to calculate digest for absolute URI ${uri}")
+          throw new IllegalArgumentException(s"Unable to calculate signature for absolute URI ${uri}")
         sData.get(SData.Key.modified) match {
           case Some(modified) ⇒
             sData(Signature.historyPerURI).get(sData(SData.Key.storageURI)) match {
@@ -313,7 +310,8 @@ object Signature extends Loggable {
   lazy val acceptAll = (_: URI, _: Element.Timestamp, _: Option[(PublicKey, Boolean)], _: SData) ⇒ {}
   /** Accept any signed. */
   lazy val acceptSigned = (uri: URI, _: Element.Timestamp, v: Option[(PublicKey, Boolean)], _: SData) ⇒
-    if (v.isEmpty) throw new SecurityException(uri + " not signed.")
+    if (v.isEmpty)
+      throw new SecurityException(s"'${uri}' is not signed.")
 
   /** Get digest container name. */
   def containerName = DI.containerName

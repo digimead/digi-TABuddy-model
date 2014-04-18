@@ -92,7 +92,7 @@ class SimpleDigest extends Mechanism with Loggable {
       case SimpleDigestParameters(algorithmName) ⇒
         val verifier = MessageDigest.getInstance(algorithmName)
         new Digest.DigestInputStream(is, verifier, verifier ⇒
-          checkDigest(verifier, context, modified, uri, transport, sData))
+          validateDigest(verifier, context, modified, uri, transport, sData))
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
@@ -118,14 +118,24 @@ class SimpleDigest extends Mechanism with Loggable {
 
   /** Approve resource check sum. */
   protected def approve(resourceURI: URI, sData: SData) =
-    log.debug("Approve digest for .../" + sData(SData.Key.storageURI).relativize(resourceURI))
+    log.debug("Approve validation for .../" + sData(SData.Key.storageURI).relativize(resourceURI))
   /** Check digest data. */
   @throws[SecurityException]("if verification is failed")
-  protected def checkDigest(verifier: java.security.MessageDigest, context: AtomicReference[SoftReference[AnyRef]],
+  protected def validateDigest(verifier: java.security.MessageDigest, context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, uri: URI, transport: Transport, sData: SData) {
     val storageURI = sData(SData.Key.storageURI)
     val resourceURI = storageURI.relativize(uri)
-    val map = getDigestMap(context, modified, transport, sData)
+    val map = if (sData(Digest.Key.acquire))
+      // Digest is required.
+      getDigestMap(context, modified, transport, sData)
+    else
+      // Digest is optional.
+      try getDigestMap(context, modified, transport, sData)
+      catch {
+        case e: SecurityException ⇒
+          log.debug(s"Skip validation for .../${resourceURI}: ${e.getMessage}")
+          return
+      }
     map.get(resourceURI) match {
       case Some(originalValue) ⇒
         val actualValue = verifier.digest()
@@ -134,7 +144,7 @@ class SimpleDigest extends Mechanism with Loggable {
         else
           refuse(uri, sData)
       case None ⇒
-        throw new IllegalStateException("Unable to find digest for " + uri)
+        throw new IllegalStateException("Unable to find digest for .../" + resourceURI)
     }
   }
   /** Get loaded or load new digest map. */
@@ -176,7 +186,7 @@ class SimpleDigest extends Mechanism with Loggable {
   /** Refuse resource check sum. */
   @throws[SecurityException]("if verification is failed")
   protected def refuse(resourceURI: URI, sData: SData) =
-    throw new IllegalStateException("Incorrect digest for " + resourceURI)
+    throw new IllegalStateException("Validation failed for " + sData(SData.Key.storageURI).relativize(resourceURI))
   /** Write digest data to file. */
   protected def writeDigest(digest: java.security.MessageDigest, uri: URI, transport: Transport, sData: SData): Unit = synchronized {
     sData.get(SimpleDigest.printStream).foreach(streamContainer ⇒ streamContainer.synchronized {

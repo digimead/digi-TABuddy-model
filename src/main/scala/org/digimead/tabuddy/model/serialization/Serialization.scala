@@ -119,8 +119,11 @@ class Serialization extends Serialization.Interface with Loggable {
   def acquireGraphLoader(modified: Option[Element.Timestamp], sDataOriginal: SData): Serialization.Loader = {
     // Put sData into AtomicReference container because it may be modified by 'initialize' hooks.
     val sData = new AtomicReference(sDataOriginal)
+    if (sData.get.get(Signature.Key.acquire).nonEmpty)
+      // Digest is REQUIRED for signature verification.
+      sData.set(sData.get.updated(Digest.Key.acquire, true))
     val sDataOriginalDigestFlag = sData.get.get(Digest.Key.acquire)
-    if (sDataOriginalDigestFlag == Some(true))
+    if (sDataOriginalDigestFlag.nonEmpty)
       // Lower security and load all sources even without digest.
       // Actual security control located at the next level.
       sData.set(sData.get.updated(Digest.Key.acquire, false))
@@ -157,7 +160,7 @@ class Serialization extends Serialization.Interface with Loggable {
     if (sources.isEmpty)
       throw new IllegalArgumentException("Unable to aquire graph loader. There are no suitable sources found.")
     sources.foreach(source ⇒ Source.recalculate(source, storageURI == source.storageURI, sData.get))
-    // Restore original digest flag.
+    // Restore original values.
     sDataOriginalDigestFlag.foreach(flag ⇒ sData.set(sData.get.updated(Digest.Key.acquire, flag)))
     modified match {
       case Some(modified) ⇒ new Serialization.Loader(sources, modified,
@@ -496,7 +499,7 @@ class Serialization extends Serialization.Interface with Loggable {
                 log.warn(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage())
                 None
               case e: Throwable ⇒
-                log.error(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage(), e)
+                log.fatal(s"Unable to acquire graph ${origin} from ${storageURI}: " + e.getMessage(), e)
                 None
             }
             case storageURI ⇒
@@ -613,6 +616,8 @@ object Serialization extends Loggable {
   def acquireLoader(bootstrapStorageURI: URI, sData: SData): Serialization.Loader = acquireLoader(bootstrapStorageURI, None, sData)
   /** Get graph loader with the specific origin. */
   def acquireLoader(bootstrapStorageURI: URI, modified: Option[Element.Timestamp] = None, sData: SData = SData.empty): Serialization.Loader = {
+    if (sData.get(Digest.Key.acquire) == Some(false) && sData.get(Signature.Key.acquire).nonEmpty)
+      throw new IllegalArgumentException("Incompatible combination: Signature.Key.acquire and Digest.Key.acquire -> false")
     val acquireTReady = if (sData.isDefinedAt(SData.Key.acquireT)) sData else sData.updated(SData.Key.acquireT, defaultAcquireTransformation _)
     val storageReady = acquireTReady.updated(SData.Key.storageURI, bootstrapStorageURI)
     // Digest.initAcquire is invoked inside acquireGraphLoader

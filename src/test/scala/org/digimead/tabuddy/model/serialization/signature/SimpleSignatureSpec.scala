@@ -34,7 +34,8 @@ import org.digimead.tabuddy.model.serialization.digest.{ Digest, SimpleDigest }
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization, YAMLSerialization }
-import org.mockito.Mockito
+import org.hamcrest.{ BaseMatcher, Description }
+import org.mockito.{ ArgumentCaptor, Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
 import scala.collection.immutable
 import sun.security.rsa.RSAPublicKeyImpl
@@ -206,7 +207,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       toRead should be(5)
     }
   }
-  "Signature should generated for every graph digest" taggedAs (TestDSL.Mark) in {
+  "Signature should generated for every graph digest" in {
     withTempFolder { folder ⇒
       import TestDSL._
 
@@ -281,16 +282,29 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       val signatureAcquire = (uri: URI, modified: Element.Timestamp, validation: Option[(PublicKey, Boolean)], sData: SData) ⇒
         validation match {
           case Some((publicKey, true)) if publicKey.getAlgorithm == "RSA" ⇒
-            publicKey should be(pairRSA.getPublic())
-            info("RSA validation passed for " + uri)
+            if (publicKey == pairRSA.getPublic())
+              info("RSA validation passed for " + uri)
+            else {
+              info("RSA validation failed for " + uri)
+              throw new SecurityException
+            }
           case Some((publicKey, true)) if publicKey.getAlgorithm == "DSA" ⇒
-            publicKey should be(pairDSA.getPublic())
-            info("DSA validation passed for " + uri)
+            if (publicKey == pairDSA.getPublic())
+              info("DSA validation passed for " + uri)
+            else {
+              info("DSA validation failed for " + uri)
+              throw new SecurityException
+            }
           case unexpected ⇒
-            fail("Unexpected: " + unexpected)
+            info("Unexpected: " + unexpected)
+            throw new SecurityException
         }
+
+      an[IllegalArgumentException] should be thrownBy Serialization.acquire(folderB.getAbsoluteFile().toURI(),
+        SData(Signature.Key.acquire -> signatureAcquire, Digest.Key.acquire -> false))
+
       val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(),
-        SData(Signature.Key.acquire -> signatureAcquire, Digest.Key.acquire -> true))
+        SData(Signature.Key.acquire -> signatureAcquire))
 
       val keyGenRSA2 = KeyPairGenerator.getInstance("RSA")
       keyGenRSA.initialize(1024)
@@ -308,10 +322,10 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
         validation match {
           case Some((publicKey, true)) if publicKey.getAlgorithm == "RSA" ⇒
             info("RSA validation passed for " + uri)
-            keys = keys :+ (uri -> publicKey)
+            keys = keys :+ (sData(SData.Key.storageURI) -> publicKey)
           case Some((publicKey, true)) if publicKey.getAlgorithm == "DSA" ⇒
             info("DSA validation passed for " + uri)
-            keys = keys :+ (uri -> publicKey)
+            keys = keys :+ (sData(SData.Key.storageURI) -> publicKey)
           case unexpected ⇒
             fail("Unexpected: " + unexpected)
         }
@@ -327,10 +341,303 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       } should be(true)
     }
   }
+  "Signature history should be projection of Graph.Retrospective: everything OK" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val keyGenDSA1 = KeyPairGenerator.getInstance("DSA")
+      keyGenDSA1.initialize(1024)
+      val pairDSA1 = keyGenDSA1.genKeyPair()
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")),
+        Signature.Key.freeze ->
+          immutable.Map(folderA.toURI -> Signature.NoSignature,
+            folderB.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate()),
+            folderC.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate())))
+
+      info("There are no retrospective records")
+      Signature.history(graph) should be(empty)
+
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(),
+        SData(Signature.Key.acquire -> Signature.acceptAll))
+      val graphWith1Record = graphLoaderWith1Record.load()
+
+      info("There is a single retrospective record")
+      val s1l = Signature.history(graphLoaderWith1Record)
+      val s1g = Signature.history(graph)
+      s1l should be(s1g)
+      s1l.size should be(1)
+      s1l.head._2.size should be(3)
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      val keyGenDSA2 = KeyPairGenerator.getInstance("DSA")
+      keyGenDSA2.initialize(1024)
+      val pairDSA2 = keyGenDSA2.genKeyPair()
+      Serialization.freeze(graph, SData(Signature.Key.freeze ->
+        immutable.Map(folderA.toURI -> Signature.NoSignature,
+          folderB.toURI -> SimpleSignature(pairDSA2.getPublic(), pairDSA2.getPrivate()),
+          folderC.toURI -> SimpleSignature(pairDSA2.getPublic(), pairDSA2.getPrivate()))))
+      val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
+
+      info("There are two retrospective records")
+      val s2l = Signature.history(graphLoaderWith2Records)
+      val s2g = Signature.history(graph)
+      s2l should be(s2g)
+      s2l.size should be(2)
+      s2l.head._2.size should be(3)
+      val s2keys = s2l.keys.toSeq
+      s2l(s2keys.head) should not be (s2l(s2keys.last))
+
+      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      val keyGenRSA3 = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA3.initialize(1024)
+      val pairRSA3 = keyGenRSA3.genKeyPair()
+      Serialization.freeze(graph, SData(Signature.Key.freeze ->
+        immutable.Map(folderA.toURI -> Signature.NoSignature,
+          folderB.toURI -> SimpleSignature(pairRSA3.getPublic(), pairRSA3.getPrivate()),
+          folderC.toURI -> SimpleSignature(pairRSA3.getPublic(), pairRSA3.getPrivate()))))
+      val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
+
+      info("There are three retrospective records")
+      val s3l = Signature.history(graphLoaderWith3Records)
+      val s3g = Signature.history(graph)
+      s3l should be(s3g)
+      s3l.size should be(3)
+      s3l.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val s3keys = s3l.keys.toSeq.sorted
+      s3keys.last should be(graph.modified)
+
+      s3l(s3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "DSA", "C/" -> "DSA"))
+      s3l(s3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "DSA", "C/" -> "DSA"))
+      s3l(s3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "RSA", "C/" -> "RSA"))
+
+      s3l(s3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(),
+          try Option(b.publicKey) catch { case e: Throwable ⇒ None })
+      } should be(Map("A/" -> None, "B/" -> Some(pairDSA1.getPublic()), "C/" -> Some(pairDSA1.getPublic())))
+      s3l(s3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(),
+          try Option(b.publicKey) catch { case e: Throwable ⇒ None })
+      } should be(Map("A/" -> None, "B/" -> Some(pairDSA2.getPublic()), "C/" -> Some(pairDSA2.getPublic())))
+      s3l(s3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(),
+          try Option(b.publicKey) catch { case e: Throwable ⇒ None })
+      } should be(Map("A/" -> None, "B/" -> Some(pairRSA3.getPublic()), "C/" -> Some(pairRSA3.getPublic())))
+    }
+  }
+  "Signature history should be projection of Graph.Retrospective: everything OK, but only signed loaded" taggedAs (TestDSL.Mark) in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel1) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+      val keyGenDSA1 = KeyPairGenerator.getInstance("DSA")
+      keyGenDSA1.initialize(1024)
+      val pairDSA1 = keyGenDSA1.genKeyPair()
+      val sDataFreeze = SData(Digest.Key.freeze ->
+        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")),
+        Signature.Key.freeze ->
+          immutable.Map(folderA.toURI -> Signature.NoSignature,
+            folderB.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate()),
+            folderC.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate())))
+
+      info("There are no retrospective records")
+      Signature.history(graph) should be(empty)
+
+      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
+      val graphWith1Record = graphLoaderWith1Record.load()
+
+      info("There is a single retrospective record")
+      val s1l = Signature.history(graphLoaderWith1Record)
+      val s1g = Signature.history(graph)
+      s1l should be(s1g)
+      s1l.size should be(1)
+      s1l.head._2.size should be(3)
+
+      model.takeRecord('baseLevel2) { r ⇒ r.name = "222" }
+      val keyGenDSA2 = KeyPairGenerator.getInstance("DSA")
+      keyGenDSA2.initialize(1024)
+      val pairDSA2 = keyGenDSA2.genKeyPair()
+      Serialization.freeze(graph, SData(Signature.Key.freeze ->
+        immutable.Map(folderA.toURI -> Signature.NoSignature,
+          folderB.toURI -> Signature.NoSignature,
+          folderC.toURI -> SimpleSignature(pairDSA2.getPublic(), pairDSA2.getPrivate()))))
+      val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
+
+      info("There are two retrospective records")
+      val s2l = Signature.history(graphLoaderWith2Records)
+      val s2g = Signature.history(graph)
+      s2l should be(s2g)
+      s2l.size should be(2)
+      s2l.head._2.size should be(3)
+      val s2keys = s2l.keys.toSeq
+      s2l(s2keys.head) should not be (s2l(s2keys.last))
+
+      model.takeRecord('baseLevel3) { r ⇒ r.name = "333" }
+      val keyGenRSA3 = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA3.initialize(1024)
+      val pairRSA3 = keyGenRSA3.genKeyPair()
+      Serialization.freeze(graph, SData(Signature.Key.freeze ->
+        immutable.Map(folderA.toURI -> Signature.NoSignature,
+          folderB.toURI -> SimpleSignature(pairRSA3.getPublic(), pairRSA3.getPrivate()),
+          folderC.toURI -> Signature.NoSignature)))
+      val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptSigned))
+      // Serialization.scala L124
+      graphLoaderWith3Records.sData(Digest.Key.acquire) should be(true)
+      graphLoaderWith3Records.sources should have size (3)
+      graphLoaderWith3Records.sData(Signature.historyPerURI) should have size (3)
+      graphLoaderWith3Records.sData(Signature.historyPerURI).values.map(_.size).toSeq should be(Seq(3, 3, 3))
+
+      info("There are three retrospective records")
+      val s3l = Signature.history(graphLoaderWith3Records)
+      val s3g = Signature.history(graph)
+      s3l should be(s3g)
+      s3l.size should be(3)
+      s3l.map(_._2.size).toSeq should be(Seq(3, 3, 3))
+      val s3keys = s3l.keys.toSeq.sorted
+      s3keys.last should be(graph.modified)
+
+      s3l(s3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "DSA", "C/" -> "DSA"))
+      s3l(s3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "DSA"))
+      s3l(s3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "RSA", "C/" -> ""))
+
+      s3l(s3keys(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(),
+          try Option(b.publicKey) catch { case e: Throwable ⇒ None })
+      } should be(Map("A/" -> None, "B/" -> Some(pairDSA1.getPublic()), "C/" -> Some(pairDSA1.getPublic())))
+      s3l(s3keys(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(),
+          try Option(b.publicKey) catch { case e: Throwable ⇒ None })
+      } should be(Map("A/" -> None, "B/" -> None, "C/" -> Some(pairDSA2.getPublic())))
+      s3l(s3keys(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(),
+          try Option(b.publicKey) catch { case e: Throwable ⇒ None })
+      } should be(Map("A/" -> None, "B/" -> Some(pairRSA3.getPublic()), "C/" -> None))
+
+      val graphLoaderAll = Serialization.acquireLoader(folderA.toURI(),
+        SData(Signature.Key.acquire -> Signature.acceptAll))
+      graphLoaderAll.sData(Digest.Key.acquire) should be(true)
+      val graphLoaderSigned = Serialization.acquireLoader(folderA.toURI(),
+        SData(Signature.Key.acquire -> Signature.acceptSigned))
+      graphLoaderSigned.sData(Digest.Key.acquire) should be(true)
+      val graphLoaderNone = Serialization.acquireLoader(folderA.toURI(),
+        SData(Signature.Key.acquire ->
+          ((uri: URI, _: Element.Timestamp, v: Option[(PublicKey, Boolean)], _: SData) ⇒ throw new SecurityException)))
+      graphLoaderNone.sData(Digest.Key.acquire) should be(true)
+
+      Mockito.reset(testTransport)
+      val inOrderAll = Mockito.inOrder(testTransport)
+      log.___glance("AAAAAAALLLLLLLLLLLLLLLLLLLL")
+      val graphAll = graphLoaderAll.load()
+      inOrderAll.verify(testTransport, Mockito.times(15)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      inOrderAll.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      inOrderAll.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      graphAll.node.safeRead { node ⇒
+        graph.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      Mockito.reset(testTransport)
+      val inOrderSigned = Mockito.inOrder(testTransport)
+      log.___glance("SIGNNNNED")
+      val graphSigned = graphLoaderSigned.load()
+      inOrderSigned.verify(testTransport, Mockito.times(11)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      inOrderSigned.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      inOrderSigned.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      graphSigned.node.safeRead { node ⇒
+        graph.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+    }
+  }
+  "Signature history should be projection of Graph.Retrospective: something wrong" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      assert(true)
+    }
+  }
+  "Signature history should be projection of Graph.Retrospective: mostly damaged" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      assert(true)
+    }
+  }
+  "Signature history should be projection of Graph.Retrospective: everything failed" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+
+      assert(true)
+    }
+  }
 
   override def beforeAll(configMap: org.scalatest.ConfigMap) {
     adjustLoggingBeforeAll(configMap)
-    addFileAppender()
+    //addFileAppender()
   }
 
   class TestSimple extends SimpleSignature
