@@ -55,14 +55,17 @@ class Digest extends Loggable {
   /** Freeze routines. */
   protected val freeze = new Freeze
 
+  /** Approve resource check sum. */
+  def approve(resourceURI: URI, sData: SData) =
+    log.debug("Approve validation for .../" + sData(SData.Key.storageURI).relativize(resourceURI))
   /** Initialize SData for acquire process. */
   def initAcquire(sData: SData): SData = sData.get(Digest.Key.acquire) match {
     case Some(mandatory) ⇒
       val updated = sData.
-        updated(Digest.historyPerURI, immutable.Map[URI, Digest.History]()).
+        updated(Digest.historyPerURI, Map[URI, Digest.History]()).
         updated(SData.Key.initializeLoader, new acquire.InitializeLoader(sData.get(SData.Key.initializeLoader))).
         updated(SData.Key.initializeSourceSData, new acquire.InitializeSourceSData(sData.get(SData.Key.initializeSourceSData))).
-        updated(SData.Key.decodeFilter, new acquire.ReadFilter(sData.get(SData.Key.decodeFilter)))
+        updated(SData.Key.readFilter, new acquire.ReadFilter(sData.get(SData.Key.readFilter)))
       Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initAcquire(sData))
     case None ⇒
       sData
@@ -73,9 +76,9 @@ class Digest extends Loggable {
       updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze))).
       updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData)))
   /** Get digest history for loader. */
-  def history(loader: Serialization.Loader): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+  def history(loader: Serialization.Loader): Map[Element.Timestamp, Map[URI, Mechanism.Parameters]] =
     loader.sData.get(Digest.historyPerURI).map { history ⇒
-      val transition = mutable.HashMap[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]]()
+      val transition = mutable.HashMap[Element.Timestamp, Map[URI, Mechanism.Parameters]]()
       history.foreach {
         case (uri, historyPerURI) ⇒
           historyPerURI.foreach {
@@ -84,14 +87,14 @@ class Digest extends Loggable {
                 case Some(mapWithURI) ⇒
                   transition(timestamp) = mapWithURI.updated(uri, parameters)
                 case None ⇒
-                  transition(timestamp) = immutable.Map(uri -> parameters)
+                  transition(timestamp) = Map(uri -> parameters)
               }
           }
       }
       transition.toMap
     } getOrElse immutable.HashMap()
   /** Get digest history for graph. */
-  def history(graph: Graph[_ <: Model.Like]): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+  def history(graph: Graph[_ <: Model.Like]): Map[Element.Timestamp, Map[URI, Mechanism.Parameters]] =
     graph.storages match {
       case Nil ⇒
         immutable.HashMap()
@@ -107,6 +110,10 @@ class Digest extends Loggable {
         }
         immutable.HashMap()
     }
+  /** Refuse resource check sum. */
+  @throws[SecurityException]("if verification is failed")
+  def refuse(resourceURI: URI, sData: SData) =
+    throw new SecurityException("Validation failed for " + sData(SData.Key.storageURI).relativize(resourceURI))
 
   /** Get digest parameter for the specific modification of the storage. */
   protected def getDigestParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = {
@@ -168,7 +175,7 @@ class Digest extends Loggable {
     val content: Seq[(Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]]))] = history.map {
       case (modified, parameters) ⇒ modified -> ((parameters, new AtomicReference(new SoftReference[AnyRef](null))))
     }
-    sData.updated(Digest.historyPerURI, sData(Digest.historyPerURI).updated(sData(SData.Key.storageURI), immutable.Map(content: _*)))
+    sData.updated(Digest.historyPerURI, sData(Digest.historyPerURI).updated(sData(SData.Key.storageURI), Map(content: _*)))
   }
 
   /**
@@ -181,29 +188,31 @@ class Digest extends Loggable {
     class ReadFilter(val userFilter: Option[Function4[InputStream, URI, Transport, SData, InputStream]])
       extends Function4[InputStream, URI, Transport, SData, InputStream] {
       /** Apply MessageDigest instance to InputStream. */
-      def apply(is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
-        (try Option(transport.readTimestamp(uri, sData)) catch { case e: Throwable ⇒ None }) match {
-          case Some(modified) ⇒
-            sData(Digest.historyPerURI).get(sData(SData.Key.storageURI)) match {
-              case Some(history) ⇒
-                history.get(modified) match {
-                  case Some((parameters, context)) if parameters.mechanism != null ⇒
-                    val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
-                    userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
-                  case _ ⇒
-                    if (sData(Digest.Key.acquire))
-                      throw new SecurityException(s"Digest is not available for ${modified} " + uri)
-                    userFilter.map(_(is, uri, transport, sData)) getOrElse is
-                }
-              case _ ⇒
-                if (sData(Digest.Key.acquire))
-                  throw new SecurityException(s"Digest is not available for ${modified} " + uri)
-                userFilter.map(_(is, uri, transport, sData)) getOrElse is
-            }
-          case None ⇒
-            throw new SecurityException(s"Unable to find modification timestamp for digest validation.")
-        }
-      }
+      def apply(is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream =
+        if (sData.isDefinedAt(Digest.Key.acquire)) {
+          (try Option(transport.readTimestamp(uri, sData)) catch { case e: Throwable ⇒ None }) match {
+            case Some(modified) ⇒
+              sData(Digest.historyPerURI).get(sData(SData.Key.storageURI)) match {
+                case Some(history) ⇒
+                  history.get(modified) match {
+                    case Some((parameters, context)) if parameters.mechanism != null ⇒
+                      val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
+                      userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
+                    case _ ⇒
+                      if (sData(Digest.Key.acquire))
+                        throw new SecurityException(s"Digest is not available for ${modified} " + uri)
+                      userFilter.map(_(is, uri, transport, sData)) getOrElse is
+                  }
+                case _ ⇒
+                  if (sData(Digest.Key.acquire))
+                    throw new SecurityException(s"Digest is not available for ${modified} " + uri)
+                  userFilter.map(_(is, uri, transport, sData)) getOrElse is
+              }
+            case None ⇒
+              throw new SecurityException(s"Unable to find modification timestamp for digest validation.")
+          }
+        } else
+          is
     }
     /**
      * Hook that propagates Digest.historyPerURI with retrospective data.
@@ -230,8 +239,11 @@ class Digest extends Loggable {
             }
           }
           adjustedSData = adjustedSData.updated(Digest.historyPerURI,
-            adjustedSData(Digest.historyPerURI).updated(storageURI, immutable.Map(content.toSeq: _*)))
+            adjustedSData(Digest.historyPerURI).updated(storageURI, Map(content.toSeq: _*)))
         }
+        // Reset cached data for Digest.historyPerURI.
+        adjustedSData.get(Digest.historyPerURI).foreach(history ⇒
+          history.values.foreach(_.values.map(_._2.set(new SoftReference(null)))))
         val updated = new Serialization.Loader(loader.sources, loader.modified, adjustedSData)
         userInitialize.foldLeft(updated)((loader, hook) ⇒ hook(loader))
       }
@@ -298,53 +310,51 @@ class Digest extends Loggable {
       extends Function2[Graph[_ <: Model.Like], SData, SData] {
       /** Check Digest.Key.freeze and adjust Digest.Key.freeze if needed. */
       def apply(graph: Graph[_ <: Model.Like], sData: SData): SData = {
-        val updatedSData = sData.get(Digest.Key.freeze) match {
-          case None ⇒
-            (graph.storages, graph.retrospective.last) match {
-              case (seq, last) if seq.isEmpty || last.isEmpty ⇒
-                sData
-              case (storages, Some(modified)) ⇒
-                val previousParameters = storages.map { storageURI ⇒
-                  try {
-                    Serialization.perScheme.get(storageURI.getScheme()) match {
-                      case Some(transport) ⇒
-                        storageURI -> getDigestParameters(modified, transport, sData.updated(SData.Key.storageURI, storageURI))
-                      case None ⇒
-                        log.warn(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
-                        storageURI -> Digest.NoDigest
-                    }
-                  } catch {
-                    case e: Throwable ⇒
-                      log.warn(s"Unable to get digest parameters for ${}: ${e.getMessage}")
-                      storageURI -> Digest.NoDigest
-                  }
-                }
-                val newParameters = sData.get(SData.Key.explicitStorages) match {
-                  case Some(explicitStorages: Serialization.ExplicitStorages) ⇒
-                    explicitStorages.storages.filterNot(previousParameters.contains).map(storageURI ⇒ storageURI -> Digest.default)
-                  case None ⇒
-                    Nil
-                }
-                val digestParametersMap = immutable.Map((previousParameters ++ newParameters).toSeq: _*)
-                if (digestParametersMap.nonEmpty) {
-                  log.debug("Freeze with digest parameters: " + digestParametersMap)
-                  sData.updated(Digest.Key.freeze, digestParametersMap)
-                } else
-                  sData
+        val updatedSData = {
+          val skipKnownStorages = sData.get(Digest.Key.freeze) match {
+            case Some(userParameters) ⇒ userParameters.keys.map(Serialization.inner.addTrailingSlash).toSeq
+            case None ⇒ Nil
+          }
+          val explicitStorages = sData.get(SData.Key.explicitStorages) match {
+            case Some(explicitStorages: Serialization.ExplicitStorages) ⇒ explicitStorages.storages
+            case None ⇒ Nil
+          }
+          val previousParameters = for {
+            storageURI ← graph.storages.filterNot(skipKnownStorages.contains)
+            modified ← graph.retrospective.last
+          } yield try {
+            Serialization.perScheme.get(storageURI.getScheme()) match {
+              case Some(transport) ⇒
+                storageURI -> getDigestParameters(modified, transport, sData.updated(SData.Key.storageURI, storageURI))
+              case None ⇒
+                log.warn(s"Transport for the specified scheme '${storageURI.getScheme()}' not found.")
+                storageURI -> Digest.NoDigest
             }
-          case Some(freezeValue) ⇒
-            sData // Skip. Already present.
+          } catch {
+            case e: Throwable ⇒
+              log.warn(s"Unable to get digest parameters for ${}: ${e.getMessage}")
+              storageURI -> Digest.NoDigest
+          }
+          val defaultParameters = for {
+            storageURI ← explicitStorages.filterNot(skipKnownStorages.contains)
+          } yield storageURI -> Digest.default
+          val digestParametersMap = Map((previousParameters ++ defaultParameters).toSeq: _*)
+          if (digestParametersMap.nonEmpty) {
+            log.debug("Freeze with digest parameters: " + digestParametersMap)
+            sData.updated(Digest.Key.freeze, digestParametersMap)
+          } else
+            sData
         }
         updatedSData.get(Digest.Key.freeze) match {
           case Some(parameters) ⇒
             // Add trailing slash to digestAlgorithm keys
-            val updatedDigestAlgorithm = immutable.Map(parameters.map {
+            val updatedDigestAlgorithm = Map(parameters.map {
               case (uri, algorithm) ⇒ Serialization.inner.addTrailingSlash(uri) -> algorithm
             }.toSeq: _*)
             val updated = sData.
               updated(Digest.Key.freeze, updatedDigestAlgorithm).
               updated(SData.Key.initializeFreezeSData, new freeze.InitializeFreezeSData(sData.get(SData.Key.initializeFreezeSData))).
-              updated(SData.Key.encodeFilter, new freeze.WriteFilter(sData.get(SData.Key.encodeFilter)))
+              updated(SData.Key.writeFilter, new freeze.WriteFilter(sData.get(SData.Key.writeFilter)))
             Digest.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initFreeze(sData))
           case None ⇒
             sData
@@ -356,7 +366,7 @@ class Digest extends Loggable {
 
 object Digest extends Loggable {
   implicit def digest2implementation(d: Digest.type): Digest = d.inner
-  type History = immutable.Map[Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]])]
+  type History = Map[Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]])]
   /**
    * Composite container that merges all available digests per storage URI.
    * For example:
@@ -370,7 +380,7 @@ object Digest extends Loggable {
    *   AtomicReference with SoftReference is using for lazy loading.
    *   There is hash map with sums as an example of such type information.
    */
-  val historyPerURI = SData.key[immutable.Map[URI, Digest.History]]("digest")
+  val historyPerURI = SData.key[Map[URI, Digest.History]]("digest")
 
   /** Get default digest algorithm. */
   def default = DI.default
@@ -416,7 +426,7 @@ object Digest extends Loggable {
     /** Acquire parameter. Digest mandatory if true. */
     val acquire = SData.key[Boolean]("digest")
     /** Freeze parameters per storageURI. */
-    val freeze = SData.key[immutable.Map[URI, Mechanism.Parameters]]("digest")
+    val freeze = SData.key[Map[URI, Mechanism.Parameters]]("digest")
     /** Apply F(x) to digest content. */
     val readFilter = SData.key[(InputStream, URI, Transport, SData) ⇒ InputStream]("filter")
     /** Apply F(x) to digest content. */

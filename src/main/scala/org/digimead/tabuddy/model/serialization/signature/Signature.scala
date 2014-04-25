@@ -28,6 +28,7 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.serialization.digest.Digest
+import org.digimead.tabuddy.model.serialization.digest
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
@@ -42,6 +43,9 @@ class Signature extends Loggable {
   /** Freeze routines. */
   protected val freeze = new Freeze
 
+  /** Approve signature. */
+  def approve(resourceURI: URI, sData: SData) =
+    log.debug("Approve signature for .../" + sData(SData.Key.storageURI).relativize(resourceURI))
   /** Initialize SData for acquire process. */
   def initAcquire(sData: SData): SData = sData.get(Signature.Key.acquire) match {
     case Some(validator) ⇒
@@ -49,7 +53,7 @@ class Signature extends Loggable {
         updated(Digest.Key.readFilter, new acquire.ReadFilter(sData.get(Digest.Key.readFilter))).
         updated(SData.Key.initializeLoader, new acquire.InitializeLoader(sData.get(SData.Key.initializeLoader))).
         updated(SData.Key.initializeSourceSData, new acquire.InitializeSourceSData(sData.get(SData.Key.initializeSourceSData))).
-        updated(Signature.historyPerURI, immutable.Map[URI, Signature.History]())
+        updated(Signature.historyPerURI, Map[URI, Signature.History]())
       Signature.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initAcquire(sData))
     case None ⇒
       sData
@@ -65,13 +69,17 @@ class Signature extends Loggable {
         case None ⇒
           Nil
       }
-      val signatureParametersMap = parametersMap ++ immutable.Map(newParameters.toSeq: _*)
+      val signatureParametersMap = parametersMap ++ Map(newParameters.toSeq: _*)
       val signatureReady = if (signatureParametersMap.nonEmpty) {
         log.debug("Freeze with signature parameters: " + signatureParametersMap)
         sData.updated(Signature.Key.freeze, signatureParametersMap)
       } else
         sData
-      val updated = signatureReady.
+      val withDigest = signatureReady.get(Digest.Key.freeze) match {
+        case Some(key) ⇒ signatureReady
+        case None ⇒ signatureReady.updated(Digest.Key.freeze, Map[URI, digest.Mechanism.Parameters]())
+      }
+      val updated = withDigest.
         updated(Digest.Key.writeFilter, new freeze.WriteFilter(sData.get(Digest.Key.writeFilter))).
         updated(SData.Key.afterFreeze, new freeze.AfterFreeze(sData.get(SData.Key.afterFreeze)))
       Signature.perIdentifier.values.foldLeft(updated)((sData, mechanism) ⇒ mechanism.initFreeze(sData))
@@ -79,9 +87,9 @@ class Signature extends Loggable {
       sData
   }
   /** Get signature history for loader. */
-  def history(loader: Serialization.Loader): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+  def history(loader: Serialization.Loader): Map[Element.Timestamp, Map[URI, Mechanism.Parameters]] =
     loader.sData.get(Signature.historyPerURI).map { history ⇒
-      val transition = mutable.HashMap[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]]()
+      val transition = mutable.HashMap[Element.Timestamp, Map[URI, Mechanism.Parameters]]()
       history.foreach {
         case (uri, historyPerURI) ⇒
           historyPerURI.foreach {
@@ -90,14 +98,14 @@ class Signature extends Loggable {
                 case Some(mapWithURI) ⇒
                   transition(timestamp) = mapWithURI.updated(uri, parameters)
                 case None ⇒
-                  transition(timestamp) = immutable.Map(uri -> parameters)
+                  transition(timestamp) = Map(uri -> parameters)
               }
           }
       }
       transition.toMap
     } getOrElse immutable.HashMap()
   /** Get signature history for graph. */
-  def history(graph: Graph[_ <: Model.Like]): immutable.Map[Element.Timestamp, immutable.Map[URI, Mechanism.Parameters]] =
+  def history(graph: Graph[_ <: Model.Like]): Map[Element.Timestamp, Map[URI, Mechanism.Parameters]] =
     graph.storages match {
       case Nil ⇒
         immutable.HashMap()
@@ -113,9 +121,13 @@ class Signature extends Loggable {
         }
         immutable.HashMap()
     }
+  /** Refuse signature. */
+  @throws[SecurityException]("if validation is failed")
+  def refuse(resourceURI: URI, sData: SData) =
+    throw new SecurityException("Validation failed for " + sData(SData.Key.storageURI).relativize(resourceURI))
 
   /** Get signature parameter for the specific modification of the storage. */
-  protected def getSignatureParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = {
+  protected def getSignatureParameters(modified: Element.Timestamp, transport: Transport, sData: SData): Mechanism.Parameters = try {
     val storageURI = sData(SData.Key.storageURI)
     log.debug(s"Load signature information at ${modified} from storage ${storageURI} ")
     // Read type info.
@@ -168,13 +180,20 @@ class Signature extends Loggable {
       log.info(s"Signature parameters not found for storage ${storageURI}")
       Signature.NoSignature
     }
+  } catch {
+    case e: MatchError ⇒
+      log.warn(s"Unable to get signature parameters: broken type descriptor.")
+      Signature.NoSignature
+    case e: Throwable ⇒
+      log.warn(s"Unable to get signature parameters: " + e.getMessage())
+      Signature.NoSignature
   }
   /** Update history for storage. */
   protected def updateHistory(history: Seq[(Element.Timestamp, Mechanism.Parameters)], transport: Transport, sData: SData): SData = {
     val content: Seq[(Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]]))] = history.map {
       case (modified, parameters) ⇒ modified -> ((parameters, new AtomicReference(new SoftReference[AnyRef](null))))
     }
-    sData.updated(Signature.historyPerURI, sData(Signature.historyPerURI).updated(sData(SData.Key.storageURI), immutable.Map(content: _*)))
+    sData.updated(Signature.historyPerURI, sData(Signature.historyPerURI).updated(sData(SData.Key.storageURI), Map(content: _*)))
   }
 
   /**
@@ -206,8 +225,11 @@ class Signature extends Loggable {
             }
           }
           adjustedSData = adjustedSData.updated(Signature.historyPerURI,
-            adjustedSData(Signature.historyPerURI).updated(storageURI, immutable.Map(content.toSeq: _*)))
+            adjustedSData(Signature.historyPerURI).updated(storageURI, Map(content.toSeq: _*)))
         }
+        // Reset cached data for Signature.historyPerURI.
+        adjustedSData.get(Signature.historyPerURI).foreach(history ⇒
+          history.values.foreach(_.values.map(_._2.set(new SoftReference(null)))))
         val updated = new Serialization.Loader(loader.sources, loader.modified, adjustedSData)
         userInitialize.foldLeft(updated)((loader, hook) ⇒ hook(loader))
       }
@@ -240,29 +262,41 @@ class Signature extends Loggable {
     class ReadFilter(val userFilter: Option[Function4[InputStream, URI, Transport, SData, InputStream]])
       extends Function4[InputStream, URI, Transport, SData, InputStream] {
       /** Apply signature verification instance to InputStream. */
-      def apply(is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = {
-        if (uri.isAbsolute())
-          throw new IllegalArgumentException(s"Unable to calculate signature for absolute URI ${uri}")
-        sData.get(SData.Key.modified) match {
-          case Some(modified) ⇒
-            sData(Signature.historyPerURI).get(sData(SData.Key.storageURI)) match {
-              case Some(history) ⇒
-                history.get(modified) match {
-                  case Some((parameters, context)) if parameters.mechanism != null ⇒
-                    val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
-                    userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
-                  case _ ⇒
-                    sData.get(Signature.Key.acquire).map(_(uri, modified, None, sData))
-                    userFilter.map(_(is, uri, transport, sData)) getOrElse is
-                }
-              case _ ⇒
-                sData.get(Signature.Key.acquire).map(_(uri, modified, None, sData))
-                userFilter.map(_(is, uri, transport, sData)) getOrElse is
-            }
-          case None ⇒
-            throw new SecurityException(s"Unable to find modification timestamp for signature validation.")
-        }
-      }
+      def apply(is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream =
+        if (sData.isDefinedAt(Signature.Key.acquire)) {
+          if (uri.isAbsolute())
+            throw new IllegalArgumentException(s"Unable to calculate signature for absolute URI ${uri}")
+          sData.get(SData.Key.modified) match {
+            case Some(modified) ⇒
+              sData(Signature.historyPerURI).get(sData(SData.Key.storageURI)) match {
+                case Some(history) ⇒
+                  history.get(modified) match {
+                    case Some((parameters, context)) if parameters.mechanism != null ⇒
+                      val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
+                      userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
+                    case _ ⇒
+                      val storageURI = sData(SData.Key.storageURI)
+                      if (sData.get(Digest.Key.acquire) == Some(false)) {
+                        // Initialization stage
+                        // sData.get(Digest.Key.acquire) == Some(false) is only at acquireGraphLoader
+                        userFilter.map(_(is, uri, transport, sData)) getOrElse is
+                      } else if (sData(Signature.Key.acquire)(None)) {
+                        approve(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
+                        userFilter.map(_(is, uri, transport, sData)) getOrElse is
+                      } else {
+                        refuse(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
+                        is
+                      }
+                  }
+                case _ ⇒
+                  sData.get(Signature.Key.acquire).map(_(None))
+                  userFilter.map(_(is, uri, transport, sData)) getOrElse is
+              }
+            case None ⇒
+              throw new SecurityException(s"Unable to find modification timestamp for signature validation.")
+          }
+        } else
+          is
     }
   }
   /**
@@ -305,13 +339,11 @@ class Signature extends Loggable {
 
 object Signature extends Loggable {
   implicit def signature2implementation(s: Signature.type): Signature = s.inner
-  type History = immutable.Map[Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]])]
+  type History = Map[Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]])]
   /** Accept signed and unsigned. */
-  lazy val acceptAll = (_: URI, _: Element.Timestamp, _: Option[(PublicKey, Boolean)], _: SData) ⇒ {}
+  lazy val acceptAll = (_: Option[PublicKey]) ⇒ true
   /** Accept any signed. */
-  lazy val acceptSigned = (uri: URI, _: Element.Timestamp, v: Option[(PublicKey, Boolean)], _: SData) ⇒
-    if (v.isEmpty)
-      throw new SecurityException(s"'${uri}' is not signed.")
+  lazy val acceptSigned = (key: Option[PublicKey]) ⇒ key.nonEmpty
 
   /** Get digest container name. */
   def containerName = DI.containerName
@@ -330,7 +362,7 @@ object Signature extends Loggable {
    *   AtomicReference with SoftReference is using for lazy loading.
    *   There is hash map with signatures as an example of such type information.
    */
-  val historyPerURI = SData.key[immutable.Map[URI, Signature.History]]("signature")
+  val historyPerURI = SData.key[Map[URI, Signature.History]]("signature")
   /** Get signature implementation. */
   def inner = DI.implementation
   /** Map of all available signature implementations. */
@@ -346,9 +378,9 @@ object Signature extends Loggable {
    */
   object Key {
     /** Acquire parameter. Validation is blocked by user with SecurityException. */
-    val acquire = SData.key[(URI, Element.Timestamp, Option[(PublicKey, Boolean)], SData) ⇒ _]("signature")
+    val acquire = SData.key[Option[PublicKey] ⇒ Boolean]("signature")
     /** Freeze parameters per storageURI. */
-    val freeze = SData.key[immutable.Map[URI, Mechanism.Parameters]]("signature")
+    val freeze = SData.key[Map[URI, Mechanism.Parameters]]("signature")
   }
   /**
    * No mechanism parameter.
@@ -365,7 +397,7 @@ object Signature extends Loggable {
   /**
    * A transparent stream that updates the associated verifier using the bits going through the stream.
    */
-  class SignatureInputStream[T](stream: InputStream, verifier: java.security.Signature,
+  class SignatureInputStream[T](val stream: InputStream, val verifier: java.security.Signature,
     onClose: java.security.Signature ⇒ T) extends FilterInputStream(stream) {
     override def close() {
       super.close()
@@ -388,7 +420,7 @@ object Signature extends Loggable {
   /**
    * A transparent stream that updates the associated signature using the bits going through the stream.
    */
-  class SignatureOutputStream[T](stream: OutputStream, signature: java.security.Signature,
+  class SignatureOutputStream[T](val stream: OutputStream, val signature: java.security.Signature,
     onClose: java.security.Signature ⇒ T) extends FilterOutputStream(stream) {
     override def close() {
       super.close()

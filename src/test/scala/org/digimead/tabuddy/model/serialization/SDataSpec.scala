@@ -69,8 +69,8 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       SData.key[Int]("four") -> 4,
       SData.key[Int]("five") -> 5)
     state.underlying shouldBe a[immutable.HashMap[_, _]]
-    state.take(1).underlying shouldBe a[immutable.Map.Map1[_, _]]
-    state.take(4).underlying shouldBe a[immutable.Map.Map4[_, _]]
+    state.take(1).underlying shouldBe a[Map.Map1[_, _]]
+    state.take(4).underlying shouldBe a[Map.Map4[_, _]]
     state.take(10).underlying shouldBe a[immutable.HashMap[_, _]]
 
     val state2 = SData(SData.key[Int]("zero") -> 10)
@@ -113,7 +113,10 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       val timestamp = Serialization.freeze(graph, sData, graphURI)
       Mockito.verify(testTransport, Mockito.times(21)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.argThat(new BaseMatcher {
         def matches(state: Any): Boolean = state match {
-          case sData: SData ⇒ sData.size == 7 // modified, test, storages, transform, storages, freeze hook * 2
+          case sData: SData ⇒
+            // afterFreeze, digest, initializeFreezeSData, modified, simpleDigestPrintStream,
+            // storage, storages, test, transform, writeFilter (from digest)
+            sData.size == 10
           case _ ⇒ false
         }
         def describeTo(description: Description) {}
@@ -357,7 +360,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       kg.init(new SecureRandom())
       val key = kg.generateKey()
 
-      val sDataWrite = SData(SData.Key.encodeFilter -> ((os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+      val sDataWrite = SData(SData.Key.writeFilter -> ((os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
         val c = Cipher.getInstance("DES/CFB8/NoPadding")
         c.init(Cipher.ENCRYPT_MODE, key)
         val md5 = MessageDigest.getInstance("MD5")
@@ -394,7 +397,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
 
       a[ReaderException] should be thrownBy Serialization.acquire(folder.getAbsoluteFile().toURI())
 
-      val sDataRead = SData(SData.Key.decodeFilter -> ((is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+      val sDataRead = SData(SData.Key.readFilter -> ((is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
         val (iv, hash) = sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash"))(uri)
         val c = Cipher.getInstance("DES/CFB8/NoPadding")
         c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv))

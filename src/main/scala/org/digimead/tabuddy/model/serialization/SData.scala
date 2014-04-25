@@ -33,7 +33,7 @@ import scala.reflect.runtime.universe.TypeTag
 /**
  * Serialization data with options, arguments, parameters and side effects of the (de)serialization process.
  */
-class SData(val underlying: immutable.Map[SData.Key[_], Any] = immutable.Map()) extends IterableLike[(SData.Key[_], Any), SData] {
+class SData(val underlying: Map[SData.Key[_], Any] = Map()) extends IterableLike[(SData.Key[_], Any), SData] {
   def ++(xs: GenTraversableOnce[(SData.Key[_], Any)]): SData = new SData(underlying ++ xs)
   def +[A](elem1: (SData.Key[A], A), elem2: (SData.Key[A], A), elems: (SData.Key[A], A)*): SData = new SData(underlying + (elem1, elem2, elems: _*))
   def +[A](kv: (SData.Key[A], A)): SData = new SData(underlying + kv)
@@ -67,9 +67,9 @@ class SData(val underlying: immutable.Map[SData.Key[_], Any] = immutable.Map()) 
 }
 
 object SData {
-  implicit def state2underlying(s: SData): immutable.Map[SData.Key[_], Any] = s.underlying
+  implicit def state2underlying(s: SData): Map[SData.Key[_], Any] = s.underlying
 
-  def apply(elems: KeyValue[_]*): SData = new SData(immutable.Map(elems: _*))
+  def apply(elems: KeyValue[_]*): SData = new SData(Map(elems: _*))
   def empty: SData = Nil
 
   /** Get key for transport parameter. */
@@ -119,10 +119,6 @@ object SData {
     val beforeWrite = SData.key[(URI, Array[Byte], Transport, SData) ⇒ _]("beforeWrite")
     /** Encode/decode URI path parts. */
     val convertURI = SData.key[((String, SData) ⇒ String, (String, SData) ⇒ String)]("convertURI")
-    /** Decode file content. */
-    val decodeFilter = SData.key[(InputStream, URI, Transport, SData) ⇒ InputStream]("decode")
-    /** Encode file content. */
-    val encodeFilter = SData.key[(OutputStream, URI, Transport, SData) ⇒ OutputStream]("encode")
     /** Explicit storages. */
     val explicitStorages = SData.key[Serialization.ExplicitStorages]("storages")
     /** Skip broken nodes on load/overwrite everything. */
@@ -139,10 +135,14 @@ object SData {
     val initializeSourceSData = SData.key[(Element.Timestamp, Transport, SData) ⇒ SData]("initializeSourceSData")
     /** Current process modified timestamp. */
     val modified = SData.key[Element.Timestamp]("modified")
+    /** Decode/process file content. */
+    val readFilter = SData.key[(InputStream, URI, Transport, SData) ⇒ InputStream]("readFilter")
     /** Sequence with graph sources from best to worst. */
     val sources = SData.key[Seq[Source[_ <: Model.Like, _ <: Element]]]("sources")
     /** Storage base URI. */
     val storageURI = SData.key[URI]("storage")
+    /** Encode/process file content. */
+    val writeFilter = SData.key[(OutputStream, URI, Transport, SData) ⇒ OutputStream]("writeFilter")
   }
   /**
    * Key value class that provides type safe state pairs.
@@ -151,5 +151,5 @@ object SData {
   /**
    * Empty state.
    */
-  private case object Nil extends SData(immutable.Map())
+  private case object Nil extends SData(Map())
 }

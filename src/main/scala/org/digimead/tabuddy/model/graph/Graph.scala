@@ -205,7 +205,7 @@ object Graph extends Loggable {
   /**
    * Container with graph evolution.
    */
-  case class Retrospective(val history: immutable.Map[Element.Timestamp, Retrospective.Indexes], val origins: Seq[Symbol], val storages: Seq[URI]) {
+  case class Retrospective(val history: Map[Element.Timestamp, Retrospective.Indexes], val origins: Seq[Symbol], val storages: Seq[URI]) {
     /** Get last modification. */
     def last: Option[Element.Timestamp] = if (history.isEmpty) None else Some(history.keys.max)
     /** Get head modification. */

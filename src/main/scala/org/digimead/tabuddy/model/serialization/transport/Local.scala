@@ -99,7 +99,7 @@ class Local extends Transport with Loggable {
     log.debug("Read " + uri)
     sData.get(SData.Key.beforeRead).map(_(uri, this, sData))
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
-    val array = sData.get(SData.Key.decodeFilter) match {
+    val array = sData.get(SData.Key.readFilter) match {
       case Some(filter) ⇒
         val fis = filter(bis, uri, this, sData)
         try { Stream.continually(fis.read).takeWhile(_ != -1).map(_.toByte).toArray }
@@ -121,7 +121,7 @@ class Local extends Transport with Loggable {
       if (!contentDirectory.mkdirs())
         throw new IOException(s"Unable to create ${contentDirectory}.")
     val bos = new BufferedOutputStream(new FileOutputStream(contentFile))
-    sData.get(SData.Key.encodeFilter) match {
+    sData.get(SData.Key.writeFilter) match {
       case Some(filter) ⇒
         val fos = filter(bos, uri, this, sData)
         try { fos.write(content) }

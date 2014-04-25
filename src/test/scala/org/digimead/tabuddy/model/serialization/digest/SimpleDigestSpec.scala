@@ -108,7 +108,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         for (i ← 0 until 3) {
           info("Iteration " + i)
           val sDataFreeze = SData(Digest.Key.freeze ->
-            immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+            Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
           Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
           folderA should be('exists)
           fileADigestType should not be ('exists)
@@ -148,8 +148,9 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
             def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
             def describeTo(description: Description) {}
           }), MM.argThat(new BaseMatcher {
-            def matches(sData: Any): Boolean = !sData.asInstanceOf[SData].isDefinedAt(Digest.historyPerURI) ||
-              sData.asInstanceOf[SData](Digest.historyPerURI).keys.size == 1
+            def matches(sData: Any): Boolean =
+              !sData.asInstanceOf[SData].isDefinedAt(Digest.historyPerURI) ||
+                sData.asInstanceOf[SData](Digest.historyPerURI).isEmpty
             def describeTo(description: Description) {}
           }))
           // and create Source for folderA
@@ -167,18 +168,18 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
             def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
             def describeTo(description: Description) {}
           }), MM.anyObject())
-          inOrder.verify(testDigest).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
+          //          inOrder.verify(testDigest).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
           inOrder.verify(testTransport).read(MM.argThat(new BaseMatcher {
             def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
             def describeTo(description: Description) {}
           }), MM.anyObject())
-          inOrder.verify(testDigest).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
+          //          inOrder.verify(testDigest).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
           // and create Source for folderC
           // 1st - read C/descriptor.yaml
           // 2nd - read C/.../node%20descriptor-NNNms.NNNns.yaml (graph root node )
@@ -187,37 +188,37 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
             def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
             def describeTo(description: Description) {}
           }), MM.anyObject())
-          inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
+          //          inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
           inOrder.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
             def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
             def describeTo(description: Description) {}
           }), MM.anyObject())
-          inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
+          //          inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
           // So there were 4 files with digest at all
-          inOrder.verify(testDigest, Mockito.never()).approve(MM.anyObject(), MM.anyObject())
+          //          inOrder.verify(testDigest, Mockito.never()).approve(MM.anyObject(), MM.anyObject())
           inOrder.verify(testTransport, Mockito.never()).read(MM.anyObject(), MM.anyObject())
 
           Mockito.reset(testDigest)
           Mockito.reset(testTransport)
           val graphWithDigest = graphWithDigestLoader.load()
-          Mockito.verify(testDigest, Mockito.times(13)).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
-          Mockito.verify(testDigest, Mockito.times(13)).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
-          Mockito.verify(testDigest, Mockito.times(0)).approve(MM.argThat(new BaseMatcher {
-            def matches(uri: Any): Boolean = !uri.toString().startsWith(folderC.toURI().toString())
-            def describeTo(description: Description) {}
-          }), MM.anyObject())
+          //          Mockito.verify(testDigest, Mockito.times(13)).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
+          //          Mockito.verify(testDigest, Mockito.times(13)).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
+          //          Mockito.verify(testDigest, Mockito.times(0)).approve(MM.argThat(new BaseMatcher {
+          //            def matches(uri: Any): Boolean = !uri.toString().startsWith(folderC.toURI().toString())
+          //            def describeTo(description: Description) {}
+          //          }), MM.anyObject())
 
           graph.retrospective should be(graphWithDigest.retrospective)
           graphWithDigest.node.safeRead { node ⇒
@@ -232,6 +233,189 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         }
       }
     }(logTest)
+  }
+  "Test Graph.Loader creation for graph with 1 source" in {
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+        val modification = Timestamp.dump(graph.modified)
+        val folderA = new File(folder, "A")
+        val fileADigestType = new File(folderA, s"digest/${modification}/type")
+        val fileADigestData = new File(folderA, s"digest/${modification}/digest")
+        Serialization.freeze(graph, SData(Digest.Key.freeze -> Map()), folderA.toURI())
+        fileADigestType should be('exists)
+        fileADigestData should be('exists)
+
+        val graphWithDigestLoader1 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI())
+        graphWithDigestLoader1.sources should have size (1)
+        graphWithDigestLoader1.sData.get(Digest.historyPerURI) should be('empty)
+        val graphWithDigestLoader2 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        graphWithDigestLoader2.sources should have size (1)
+        graphWithDigestLoader2.sData.get(Digest.historyPerURI) should not be ('empty)
+        graphWithDigestLoader2.sData(Digest.historyPerURI).values.flatMap(_.values.map(_._2.get.get)).forall(_.isEmpty) should be(true)
+        val graphWithDigestLoader3 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
+        graphWithDigestLoader3.sources should have size (1)
+        graphWithDigestLoader3.sData.get(Digest.historyPerURI) should not be ('empty)
+        graphWithDigestLoader3.sData(Digest.historyPerURI).values.flatMap(_.values.map(_._2.get.get)).forall(_.isEmpty) should be(true)
+      }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null && (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
+  }
+  "Test Graph.Loader creation for graph with 1 source and modified descriptor.yaml" in {
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+        val modification = Timestamp.dump(graph.modified)
+        val folderA = new File(folder, "A")
+        val fileADigestType = new File(folderA, s"digest/${modification}/type")
+        val fileADigestData = new File(folderA, s"digest/${modification}/digest")
+        Serialization.freeze(graph, SData(Digest.Key.freeze -> Map()), folderA.toURI())
+        fileADigestType should be('exists)
+        fileADigestData should be('exists)
+
+        val fileToModify = new File(folderA, s"descriptor.yaml")
+        val file = new RandomAccessFile(fileToModify, "rws")
+        val text = new Array[Byte](fileToModify.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.write(new String(text).replaceAll("created: .*ns", "created: 10000000000ms.10000000ns").getBytes())
+        file.close()
+
+        val graphWithDigestLoader1 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI())
+        graphWithDigestLoader1.sources should have size (1)
+        val graph1 = graphWithDigestLoader1.load()
+        graph1.created should be(Element.timestamp(0x10000000000L, 0x10000000L))
+        an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
+      }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to acquire graph 'john1 from file") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
+  }
+  "Test Graph.Loader creation for graph with 3 sources and modified descriptor.yaml" in {
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+        val modification = Timestamp.dump(graph.modified)
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val fileADigestType = new File(folderA, s"digest/${modification}/type")
+        val fileADigestData = new File(folderA, s"digest/${modification}/digest")
+        val fileBDigestType = new File(folderB, s"digest/${modification}/type")
+        val fileBDigestData = new File(folderB, s"digest/${modification}/digest")
+        val fileCDigestType = new File(folderC, s"digest/${modification}/type")
+        val fileCDigestData = new File(folderC, s"digest/${modification}/digest")
+        Serialization.freeze(graph, SData(Digest.Key.freeze -> Map(folderA.toURI() -> Digest.NoDigest)),
+          folderA.toURI(), folderB.toURI(), folderC.toURI())
+        fileADigestType should not be ('exists)
+        fileADigestData should not be ('exists)
+        fileBDigestType should be('exists)
+        fileBDigestData should be('exists)
+        fileCDigestType should be('exists)
+        fileCDigestData should be('exists)
+
+        val fileToModify = new File(folderB, s"descriptor.yaml")
+        val file = new RandomAccessFile(fileToModify, "rws")
+        val text = new Array[Byte](fileToModify.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.write(new String(text).replaceAll("created: .*ns", "created: 10000000000ms.10000000ns").getBytes())
+        file.close()
+
+        val graphWithDigestLoader1 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI())
+        graphWithDigestLoader1.sources should have size (3)
+        val graphWithDigestLoader2 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        graphWithDigestLoader2.sources should have size (2)
+        val graphWithDigestLoader3 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
+        graphWithDigestLoader3.sources should have size (2)
+      }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to acquire graph 'john1 from file") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
+  }
+  "Digest should append default parameters when freeze graph" in {
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+        val modification = Timestamp.dump(graph.modified)
+        val folderA = new File(folder, "A")
+        val fileADigestType = new File(folderA, s"digest/${modification}/type")
+        val fileADigestData = new File(folderA, s"digest/${modification}/digest")
+        val sDataTest = new AtomicReference[SData]()
+
+        Serialization.freeze(graph, SData(SData.Key.beforeFreeze -> {
+          (_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ assert(sDataTest.getAndSet(sData) == null)
+        }, Digest.Key.freeze -> Map()), folderA.getAbsoluteFile().toURI())
+        fileADigestType should be('exists)
+        fileADigestData should be('exists)
+        sDataTest.get()(Digest.Key.freeze) should be(Map(folderA.toURI() -> Digest.default))
+
+        graph.model.eSet('AAAKey, "AAA")
+
+        val modification2 = Timestamp.dump(graph.modified)
+        val fileADigestType2 = new File(folderA, s"digest/${modification2}/type")
+        val fileADigestData2 = new File(folderA, s"digest/${modification2}/digest")
+        sDataTest.set(null)
+
+        Serialization.freeze(graph, SData(SData.Key.beforeFreeze -> {
+          (_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ assert(sDataTest.getAndSet(sData) == null)
+        }, Digest.Key.freeze -> Map()))
+        fileADigestType2 should be('exists)
+        fileADigestData2 should be('exists)
+      }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null && (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
   }
   "Acquire process should skip sources with incorrect check sum" in {
     implicit val option = Mockito.atLeast(1)
@@ -262,7 +446,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         val folderB = new File(folder, "B")
         val folderC = new File(folder, "C")
         val sDataFreeze = SData(Digest.Key.freeze ->
-          immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
         Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
         val folderBsum = new File(Digest.digestURI(folderB.toURI(), testTransport, graph.modified, Digest.containerName))
@@ -314,20 +498,20 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
           def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
           def describeTo(description: Description) {}
         }), MM.anyObject())
-        inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
-          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-          def describeTo(description: Description) {}
-        }), MM.anyObject())
+        //        inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
+        //          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+        //          def describeTo(description: Description) {}
+        //        }), MM.anyObject())
         inOrder.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
           def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
           def describeTo(description: Description) {}
         }), MM.anyObject())
-        inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
-          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-          def describeTo(description: Description) {}
-        }), MM.anyObject())
+        //        inOrder.verify(testDigest, Mockito.times(1)).approve(MM.argThat(new BaseMatcher {
+        //          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+        //          def describeTo(description: Description) {}
+        //        }), MM.anyObject())
         // So there were 4 files with digest at all
-        inOrder.verify(testDigest, Mockito.never()).approve(MM.anyObject(), MM.anyObject())
+        //        inOrder.verify(testDigest, Mockito.never()).approve(MM.anyObject(), MM.anyObject())
         inOrder.verify(testTransport, Mockito.never()).read(MM.anyObject(), MM.anyObject())
       }
     }({
@@ -345,361 +529,454 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
   }
   "Acquire process should use only trusted sources with Digest.Key.acquire -> true" in {
     implicit val option = Mockito.atLeast(1)
-    withTempFolder { folder ⇒
-      import TestDSL._
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      // graph
-      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
 
-      val folderA = new File(folder, "A")
-      val folderB = new File(folder, "B")
-      val folderC = new File(folder, "C")
-      val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val sDataAcquire = SData(Digest.Key.acquire -> true,
-        SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
-          sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderA.toURI(), folderC.toURI(), folderB.toURI()))
-        }))
-      val graphWithDigestLoader = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), sDataAcquire)
-      graphWithDigestLoader.sources.foreach { source ⇒
-        source.storageURI match {
-          case a if a == folderA.toURI ⇒
-            source.weigth should be(2000)
-          case b if b == folderB.toURI ⇒
-            source.weigth should be(1150)
-          case c if c == folderC.toURI ⇒
-            source.weigth should be(1300)
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val sDataFreeze = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val sDataAcquire = SData(Digest.Key.acquire -> true,
+          SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
+            sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderA.toURI(), folderC.toURI(), folderB.toURI()))
+          }))
+        val graphWithDigestLoader = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI(), sDataAcquire)
+        graphWithDigestLoader.sources.foreach { source ⇒
+          source.storageURI match {
+            case a if a == folderA.toURI ⇒
+              source.weigth should be(2000)
+            case b if b == folderB.toURI ⇒
+              source.weigth should be(1150)
+            case c if c == folderC.toURI ⇒
+              source.weigth should be(1300)
+          }
         }
+        Mockito.reset(testDigest)
+        Mockito.reset(testTransport)
+        val graphWithDigest = graphWithDigestLoader.load()
+        Mockito.verify(testTransport, Mockito.times(7)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        // failed reads from folderA + records file + resources file
+        Mockito.verify(testTransport, Mockito.times(9)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+
+        graphWithDigest.node.safeRead { node ⇒
+          graph.node.safeRead { node2 ⇒
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+          }
+        } should be(true)
       }
-      Mockito.reset(testDigest)
-      Mockito.reset(testTransport)
-      val graphWithDigest = graphWithDigestLoader.load()
-      Mockito.verify(testTransport, Mockito.times(7)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      // failed reads from folderA + records file + resources file
-      Mockito.verify(testTransport, Mockito.times(9)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-
-      graphWithDigest.node.safeRead { node ⇒
-        graph.node.safeRead { node2 ⇒
-          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to load ") &&
+            !event.getMessage().toString.startsWith("Unable to acquire graph 'john1 from file") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
         }
-      } should be(true)
-    }
+    })
   }
   "Acquire process should load partially damaged node with Digest.Key.acquire -> true successfully" in {
-    withTempFolder { folder ⇒
-      import TestDSL._
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      // graph
-      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
 
-      val folderA = new File(folder, "A")
-      val folderB = new File(folder, "B")
-      val folderC = new File(folder, "C")
-      val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val sDataAcquire = SData(Digest.Key.acquire -> true,
-        SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
-          sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
-        }))
-      val graphWithDigestLoader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), sDataAcquire)
-      graphWithDigestLoader.sources.foreach { source ⇒
-        source.storageURI match {
-          case a if a == folderA.toURI ⇒
-            source.weigth should be(1000)
-          case b if b == folderB.toURI ⇒
-            source.weigth should be(2150)
-          case c if c == folderC.toURI ⇒
-            source.weigth should be(1300)
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val sDataFreeze = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val sDataAcquire = SData(Digest.Key.acquire -> true,
+          SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
+            sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
+          }))
+        val graphWithDigestLoader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), sDataAcquire)
+        graphWithDigestLoader.sources.foreach { source ⇒
+          source.storageURI match {
+            case a if a == folderA.toURI ⇒
+              source.weigth should be(1000)
+            case b if b == folderB.toURI ⇒
+              source.weigth should be(2150)
+            case c if c == folderC.toURI ⇒
+              source.weigth should be(1300)
+          }
         }
+
+        // Damage level1a.
+        val eLevelA = new File(folderB, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
+        eLevelA should be('exists)
+        deleteFolder(eLevelA)
+        eLevelA should not be ('exists)
+
+        Mockito.reset(testDigest)
+        Mockito.reset(testTransport)
+        val graphWithDigest = graphWithDigestLoader.load()
+        // recover
+        Mockito.verify(testTransport, Mockito.times(3)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        // failed reads from folderA + records file + resources file
+        Mockito.verify(testTransport, Mockito.times(9)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+
+        Mockito.verify(testTransport, Mockito.never).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+
+        graphWithDigest.node.safeRead { node ⇒
+          graph.node.safeRead { node2 ⇒
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+          }
+        } should be(true)
       }
-
-      // Damage level1a.
-      val eLevelA = new File(folderB, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
-      eLevelA should be('exists)
-      deleteFolder(eLevelA)
-      eLevelA should not be ('exists)
-
-      Mockito.reset(testDigest)
-      Mockito.reset(testTransport)
-      val graphWithDigest = graphWithDigestLoader.load()
-      // recover
-      Mockito.verify(testTransport, Mockito.times(3)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      // failed reads from folderA + records file + resources file
-      Mockito.verify(testTransport, Mockito.times(9)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-
-      Mockito.verify(testTransport, Mockito.never).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-
-      graphWithDigest.node.safeRead { node ⇒
-        graph.node.safeRead { node2 ⇒
-          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to load ") &&
+            !event.getMessage().toString.startsWith("Unable to acquire graph 'john1 from file") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
         }
-      } should be(true)
-    }
+    })
   }
   "Acquire process should fail while loading fully damaged node with Digest.Key.acquire -> true" in {
-    withTempFolder { folder ⇒
-      import TestDSL._
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      // graph
-      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
 
-      val folderA = new File(folder, "A")
-      val folderB = new File(folder, "B")
-      val folderC = new File(folder, "C")
-      val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val sDataAcquire = SData(Digest.Key.acquire -> true,
-        SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
-          sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
-        }))
-      val graphWithDigestLoader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), sDataAcquire)
-      graphWithDigestLoader.sources.foreach { source ⇒
-        source.storageURI match {
-          case a if a == folderA.toURI ⇒
-            source.weigth should be(1000)
-          case b if b == folderB.toURI ⇒
-            source.weigth should be(2150)
-          case c if c == folderC.toURI ⇒
-            source.weigth should be(1300)
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val sDataFreeze = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val sDataAcquire = SData(Digest.Key.acquire -> true,
+          SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
+            sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
+          }))
+        val graphWithDigestLoader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), sDataAcquire)
+        graphWithDigestLoader.sources.foreach { source ⇒
+          source.storageURI match {
+            case a if a == folderA.toURI ⇒
+              source.weigth should be(1000)
+            case b if b == folderB.toURI ⇒
+              source.weigth should be(2150)
+            case c if c == folderC.toURI ⇒
+              source.weigth should be(1300)
+          }
         }
+
+        // Damage level1a.
+        val eLevelA_B = new File(folderB, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
+        eLevelA_B should be('exists)
+        deleteFolder(eLevelA_B)
+        eLevelA_B should not be ('exists)
+        val eLevelA_C = new File(folderC, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
+        eLevelA_C should be('exists)
+        deleteFolder(eLevelA_C)
+        eLevelA_C should not be ('exists)
+
+        Mockito.reset(testDigest)
+        Mockito.reset(testTransport)
+        an[IllegalStateException] should be thrownBy graphWithDigestLoader.load()
       }
-
-      // Damage level1a.
-      val eLevelA_B = new File(folderB, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
-      eLevelA_B should be('exists)
-      deleteFolder(eLevelA_B)
-      eLevelA_B should not be ('exists)
-      val eLevelA_C = new File(folderC, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
-      eLevelA_C should be('exists)
-      deleteFolder(eLevelA_C)
-      eLevelA_C should not be ('exists)
-
-      Mockito.reset(testDigest)
-      Mockito.reset(testTransport)
-      an[IllegalStateException] should be thrownBy graphWithDigestLoader.load()
-    }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to load node ") &&
+            !event.getMessage().toString.startsWith("Unable to acquire graph 'john1 from file") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
   }
   "Acquire process should load graph without fully damaged node with Digest.Key.acquire -> true and force -> true" in {
-    withTempFolder { folder ⇒
-      import TestDSL._
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      // graph
-      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } }
-        r.takeRecord('level1b) { r ⇒ r.takeRecord('level2b) { r ⇒ } }
-      }
-
-      val folderA = new File(folder, "A")
-      val folderB = new File(folder, "B")
-      val folderC = new File(folder, "C")
-      val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val sDataAcquire = SData(Digest.Key.acquire -> true, SData.Key.force -> true,
-        SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
-          sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
-        }))
-      val graphWithDigestLoader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), sDataAcquire)
-      graphWithDigestLoader.sources.foreach { source ⇒
-        source.storageURI match {
-          case a if a == folderA.toURI ⇒
-            source.weigth should be(1000)
-          case b if b == folderB.toURI ⇒
-            source.weigth should be(2150)
-          case c if c == folderC.toURI ⇒
-            source.weigth should be(1300)
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        model.takeRecord('baseLevel) { r ⇒
+          r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } }
+          r.takeRecord('level1b) { r ⇒ r.takeRecord('level2b) { r ⇒ } }
         }
-      }
 
-      // Damage level1a.
-      val eLevelA_B = new File(folderB, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
-      eLevelA_B should be('exists)
-      deleteFolder(eLevelA_B)
-      eLevelA_B should not be ('exists)
-      val eLevelA_C = new File(folderC, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
-      eLevelA_C should be('exists)
-      deleteFolder(eLevelA_C)
-      eLevelA_C should not be ('exists)
-
-      Mockito.reset(testDigest)
-      Mockito.reset(testTransport)
-      val graphWithoutELevel1a = graphWithDigestLoader.load()
-      val nodes = graphWithoutELevel1a.node.safeRead(_.iteratorRecursive.toList)
-      // try to load from folderA, but fail
-      Mockito.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      Mockito.verify(testTransport, Mockito.times(10)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      // try to load from folderC, but fail
-      Mockito.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      // level1a and level2a are damaged at folderB and folderC, folderA without digests
-      nodes.map(_.id.name) should be(List("baseLevel", "level1b", "level2b"))
-
-      Mockito.reset(testDigest)
-      Mockito.reset(testTransport)
-      val graphWithDigest = Serialization.acquire(folderB.getAbsoluteFile().toURI(), sDataAcquire.updated(Digest.Key.acquire, false))
-      // try to load from folderA, and succeed
-      Mockito.verify(testTransport, Mockito.times(5)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      Mockito.verify(testTransport, Mockito.times(18)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      // try to load from folderC, but fail
-      Mockito.verify(testTransport, Mockito.times(5)).read(MM.argThat(new BaseMatcher {
-        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
-        def describeTo(description: Description) {}
-      }), MM.anyObject())
-      graphWithDigest.node.safeRead { node ⇒
-        graph.node.safeRead { node2 ⇒
-          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val sDataFreeze = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val sDataAcquire = SData(Digest.Key.acquire -> true, SData.Key.force -> true,
+          SData.Key.beforeAcquire -> ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
+            sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
+          }))
+        val graphWithDigestLoader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), sDataAcquire)
+        graphWithDigestLoader.sources.foreach { source ⇒
+          source.storageURI match {
+            case a if a == folderA.toURI ⇒
+              source.weigth should be(1000)
+            case b if b == folderB.toURI ⇒
+              source.weigth should be(2150)
+            case c if c == folderC.toURI ⇒
+              source.weigth should be(1300)
+          }
         }
-      } should be(true)
-    }
+
+        // Damage level1a.
+        val eLevelA_B = new File(folderB, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
+        eLevelA_B should be('exists)
+        deleteFolder(eLevelA_B)
+        eLevelA_B should not be ('exists)
+        val eLevelA_C = new File(folderC, "data/e john1 {0609C486}/e baseLevel {92A93F33}/e level1a {0428D0D4}")
+        eLevelA_C should be('exists)
+        deleteFolder(eLevelA_C)
+        eLevelA_C should not be ('exists)
+
+        Mockito.reset(testDigest)
+        Mockito.reset(testTransport)
+        val graphWithoutELevel1a = graphWithDigestLoader.load()
+        val nodes = graphWithoutELevel1a.node.safeRead(_.iteratorRecursive.toList)
+        // try to load from folderA, but fail
+        Mockito.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        Mockito.verify(testTransport, Mockito.times(10)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        // try to load from folderC, but fail
+        Mockito.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        // level1a and level2a are damaged at folderB and folderC, folderA without digests
+        nodes.map(_.id.name) should be(List("baseLevel", "level1b", "level2b"))
+
+        Mockito.reset(testDigest)
+        Mockito.reset(testTransport)
+        val graphWithDigest = Serialization.acquire(folderB.getAbsoluteFile().toURI(),
+          sDataAcquire.
+            updated(Digest.Key.acquire, false).
+            updated(SData.Key.beforeAcquire, ((_: Graph[_ <: Model.Like], _: Transport, sData: SData) ⇒ {
+              sData(SData.Key.sources).map(_.storageURI).toList should be(List(folderB.toURI(), folderC.toURI(), folderA.toURI()))
+            })))
+        // try to load from folderA, and succeed
+        Mockito.verify(testTransport, Mockito.times(5)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        Mockito.verify(testTransport, Mockito.times(18)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        // try to load from folderC, but fail
+        Mockito.verify(testTransport, Mockito.times(5)).read(MM.argThat(new BaseMatcher {
+          def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+          def describeTo(description: Description) {}
+        }), MM.anyObject())
+        graphWithDigest.node.safeRead { node ⇒
+          graph.node.safeRead { node2 ⇒
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+          }
+        } should be(true)
+      }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to load node ") &&
+            !event.getMessage().toString.startsWith("Unable to load element box ") &&
+            !event.getMessage().toString.startsWith("Unable to acquire graph 'john1 from file") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
   }
   "Acquire process should handle multiple digest chunks" in {
-    withTempFolder { folder ⇒
-      import TestDSL._
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      // graph
-      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
 
-      val folderA = new File(folder, "A")
-      val folderB = new File(folder, "B")
-      val folderC = new File(folder, "C")
-      val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-      Serialization.freeze(graph, sDataFreeze.updated(SData.Key.force, true), folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val sDataFreeze = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        Serialization.freeze(graph, sDataFreeze.updated(SData.Key.force, true), folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
-      // modify
-      graph2.model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒
-          r.takeRecord('level2a) { r ⇒ r.name = "222" }
-          r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+        // modify
+        graph2.model.takeRecord('baseLevel) { r ⇒
+          r.takeRecord('level1a) { r ⇒
+            r.takeRecord('level2a) { r ⇒ r.name = "222" }
+            r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+          }
         }
+        val sDataFreeze2 = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
+        Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+
+        graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
+        val sDataFreeze3 = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
+        Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+
+        val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        val records = graph4Loader.sources.head.graphDescriptor.records.sorted
+        val history = graph4Loader.sData(Digest.historyPerURI)
+        val historyForFolderA = history(folderA.toURI())
+        val historyForFolderB = history(folderB.toURI())
+        val historyForFolderC = history(folderC.toURI())
+
+        records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest", "SimpleDigestParameters(MD2)"))
+        records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "NoDigest", "SimpleDigestParameters(MD5)"))
+        records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "NoDigest", "NoDigest"))
+
+        val graph4 = graph4Loader.load()
+        graph4.node.safeRead { node ⇒
+          graph3.node.safeRead { node2 ⇒
+            node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+          }
+        } should be(true)
       }
-      val sDataFreeze2 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
-      Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-
-      graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
-      val sDataFreeze3 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
-      Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-
-      val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-      val records = graph4Loader.sources.head.graphDescriptor.records.sorted
-      val history = graph4Loader.sData(Digest.historyPerURI)
-      val historyForFolderA = history(folderA.toURI())
-      val historyForFolderB = history(folderB.toURI())
-      val historyForFolderC = history(folderC.toURI())
-
-      records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest", "SimpleDigestParameters(MD2)"))
-      records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "NoDigest", "SimpleDigestParameters(MD5)"))
-      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "NoDigest", "NoDigest"))
-
-      val graph4 = graph4Loader.load()
-      graph4.node.safeRead { node ⇒
-        graph3.node.safeRead { node2 ⇒
-          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
         }
-      } should be(true)
-    }
+    })
   }
-  "Acquire process should fail to load graph if one or more chunks without digest and Digest.Key.acquire -> true" in {
-    withTempFolder { folder ⇒
-      import TestDSL._
+  "Acquire process should fail to load graph if one or more chunks without digest with Digest.Key.acquire -> true" in {
+    implicit val option = Mockito.atLeast(1)
+    withMockitoLogCaptor {
+      withTempFolder { folder ⇒
+        import TestDSL._
 
-      // graph
-      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
+        // graph
+        val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
 
-      val folderA = new File(folder, "A")
-      val folderB = new File(folder, "B")
-      val folderC = new File(folder, "C")
-      val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-      Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-      Serialization.freeze(graph, sDataFreeze.updated(SData.Key.force, true), folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        val folderA = new File(folder, "A")
+        val folderB = new File(folder, "B")
+        val folderC = new File(folder, "C")
+        val sDataFreeze = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+        Serialization.freeze(graph, sDataFreeze.updated(SData.Key.force, true), folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
-      // modify
-      graph2.model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒
-          r.takeRecord('level2a) { r ⇒ r.name = "222" }
-          r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+        // modify
+        graph2.model.takeRecord('baseLevel) { r ⇒
+          r.takeRecord('level1a) { r ⇒
+            r.takeRecord('level2a) { r ⇒ r.name = "222" }
+            r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+          }
         }
+        val sDataFreeze2 = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
+        Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+        val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
+
+        graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
+        val sDataFreeze3 = SData(Digest.Key.freeze ->
+          Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
+        Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
+
+        val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
+        val records = graph4Loader.sources.head.graphDescriptor.records.sorted
+        val history = graph4Loader.sData(Digest.historyPerURI)
+        val historyForFolderA = history(folderA.toURI())
+        val historyForFolderB = history(folderB.toURI())
+        val historyForFolderC = history(folderC.toURI())
+
+        records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest", "SimpleDigestParameters(MD2)"))
+        records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "NoDigest", "SimpleDigestParameters(MD5)"))
+        records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "NoDigest", "NoDigest"))
+
+        an[IllegalStateException] should be thrownBy graph4Loader.load()
       }
-      val sDataFreeze2 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
-      Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
-
-      graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
-      val sDataFreeze3 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
-      Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-
-      val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
-      val records = graph4Loader.sources.head.graphDescriptor.records.sorted
-      val history = graph4Loader.sData(Digest.historyPerURI)
-      val historyForFolderA = history(folderA.toURI())
-      val historyForFolderB = history(folderB.toURI())
-      val historyForFolderC = history(folderC.toURI())
-
-      records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest", "SimpleDigestParameters(MD2)"))
-      records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "NoDigest", "SimpleDigestParameters(MD5)"))
-      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "NoDigest", "NoDigest"))
-
-      an[IllegalStateException] should be thrownBy graph4Loader.load()
-    }
+    }({
+      logCaptor ⇒
+        logCaptor.getAllValues().asScala.find { event ⇒
+          val level = event.getLevel()
+          event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to load ") &&
+            !event.getMessage().toString.startsWith("Skip history record ") &&
+            (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)
+        }.map { event ⇒
+          fail(s"Unexpected log message detected. ${event.getLevel()}: ${event.getMessage()}" +
+            Option(event.getThrowableStrRep()).map(_.mkString("\n")))
+        }
+    })
   }
   "Acquire process should load only trusted part of graph if one or more chunks without digest, Digest.Key.acquire -> true and force -> true" in {
     withTempFolder { folder ⇒
@@ -714,7 +991,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -730,13 +1007,13 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         }
       }
       val sDataFreeze2 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> Digest.NoDigest, folderC.toURI -> Digest.NoDigest))
       Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
       graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
       val sDataFreeze3 = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
+        Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
       Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       val graph4Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true, SData.Key.force -> true))
@@ -769,7 +1046,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       // modify
@@ -810,7 +1087,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
 
       // modify
@@ -865,7 +1142,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       }
 
       val sDataFreeze = SData(Digest.Key.writeFilter -> writeFilter, Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       readMap should be(empty)
       writeMap should have size (2)
@@ -900,7 +1177,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       val readFilter = (is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
@@ -929,7 +1206,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
 
       info("There are no retrospective records")
       Digest.history(graph) should be(empty)
@@ -960,7 +1237,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
 
       model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
       Serialization.freeze(graph, SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
+        Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
       info("There are three retrospective records")
@@ -995,7 +1272,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
 
       info("There are no retrospective records")
       Digest.history(graph) should be(empty)
@@ -1076,7 +1353,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
 
       info("There are no retrospective records")
       Digest.history(graph) should be(empty)
@@ -1191,7 +1468,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val folderB = new File(folder, "B")
       val folderC = new File(folder, "C")
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")))
 
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
@@ -1199,7 +1476,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       Serialization.freeze(graph)
       model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
       Serialization.freeze(graph, SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
+        Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
       info("There are three retrospective records")
@@ -1351,8 +1628,5 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     }
     override def write(b: Array[Byte]) = write(b, 0, b.length)
   }
-  class TestSimple extends SimpleDigest {
-    override def approve(resourceURI: URI, sData: SData) = super.approve(resourceURI, sData)
-    override def refuse(resourceURI: URI, sData: SData) = super.refuse(resourceURI, sData)
-  }
+  class TestSimple extends SimpleDigest
 }

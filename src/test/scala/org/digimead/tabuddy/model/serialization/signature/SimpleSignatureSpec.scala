@@ -19,10 +19,11 @@
 package org.digimead.tabuddy.model.serialization.signature
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.{ BufferedInputStream, BufferedOutputStream, BufferedReader, File, FileInputStream, FileOutputStream, InputStreamReader, PrintStream }
+import java.io.{ BufferedInputStream, BufferedOutputStream, BufferedReader, File, FileInputStream, FileOutputStream, FileWriter, InputStreamReader, PrintStream, RandomAccessFile }
 import java.net.URI
 import java.security.{ KeyPairGenerator, PublicKey }
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
@@ -30,14 +31,16 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.serialization.digest.{ Digest, SimpleDigest }
+import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
+import org.digimead.tabuddy.model.serialization.SData
+import org.digimead.tabuddy.model.serialization.digest.Digest
+import org.digimead.tabuddy.model.serialization.digest.SimpleDigest
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
-import org.digimead.tabuddy.model.serialization.{ SData, Serialization, YAMLSerialization }
 import org.hamcrest.{ BaseMatcher, Description }
-import org.mockito.{ ArgumentCaptor, Matchers ⇒ MM, Mockito }
+import org.mockito.{ Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
-import scala.collection.immutable
+import scala.ref.SoftReference
 import sun.security.rsa.RSAPublicKeyImpl
 
 class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
@@ -207,6 +210,789 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       toRead should be(5)
     }
   }
+  "Signature should add default Digest arguments" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA.initialize(1024)
+      val pairRSA = keyGenRSA.genKeyPair()
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+      val modification = Timestamp.dump(graph.modified)
+      val folderA = new File(folder, "A")
+      val fileADigestType = new File(folderA, s"digest/${modification}/type")
+      val fileADigestData = new File(folderA, s"digest/${modification}/digest")
+      val fileASignatureType = new File(folderA, s"signature/${modification}/type")
+      val fileASignatureData = new File(folderA, s"signature/${modification}/signature")
+
+      Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(folderA.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()))),
+        folderA.getAbsoluteFile().toURI())
+      fileADigestType should be('exists)
+      fileADigestData should be('exists)
+      fileASignatureType should be('exists)
+      fileASignatureData should be('exists)
+    }
+  }
+  "Test Graph.Loader creation for graph with 1 source without signature" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val folderA = new File(folder, "A")
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      Serialization.freeze(graph, folderA.getAbsoluteFile().toURI())
+
+      val loader = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      loader.sData(Signature.historyPerURI).values.flatMap(_.values.map(_._1)) should be(List(Signature.NoSignature))
+    }
+  }
+  "Test Graph.Loader creation for graph with 1 source" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA.initialize(1024)
+      val pairRSA = keyGenRSA.genKeyPair()
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+      val modification = Timestamp.dump(graph.modified)
+      val folderA = new File(folder, "A")
+      val fileASignatureType = new File(folderA, s"signature/${modification}/type")
+      val fileASignatureData = new File(folderA, s"signature/${modification}/signature")
+
+      Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(folderA.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()))),
+        folderA.getAbsoluteFile().toURI())
+      fileASignatureType should be('exists)
+      fileASignatureData should be('exists)
+
+      info("test permissive good")
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderGood = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood = loaderGood.load()
+
+      info("test strict good")
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderGood2 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood2 = loaderGood2.load()
+
+      graphGood.node.safeRead { node ⇒
+        graphGood2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test permissive broken")
+
+      {
+        val file = new RandomAccessFile(fileASignatureData, "rws")
+        val text = new Array[Byte](fileASignatureData.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("broken_signature digest\n")
+        file.write(text)
+        file.close()
+      }
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphBad = loaderBad.load()
+
+      graphGood2.node.safeRead { node ⇒
+        graphBad.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test strict broken")
+      log.___glance("test strict broken")
+      Mockito.reset(testSignature)
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v2")
+      log.___glance("test strict broken v2")
+      val fw2 = new FileWriter(fileASignatureData)
+      fw2.write("broken")
+      fw2.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v3")
+      log.___glance("test strict broken v3")
+      fileASignatureData.delete()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v4")
+      log.___glance("test strict broken v4")
+      val fw3 = new FileWriter(fileASignatureType)
+      fw3.write("broken")
+      fw3.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad4 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad4.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+
+      info("test strict broken v5")
+      log.___glance("test strict broken v5")
+      fileASignatureType.delete()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad5 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad5.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+
+      loaderGood.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood2.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood.sources should be(loaderGood2.sources)
+      loaderGood.sources should be(loaderBad.sources)
+      loaderGood.sources should be(loaderBad4.sources)
+      loaderGood.sources should be(loaderBad5.sources)
+      loaderGood.modified should be(loaderGood2.modified)
+      loaderGood.modified should be(loaderBad.modified)
+      loaderGood.modified should be(loaderBad4.modified)
+      loaderGood.modified should be(loaderBad5.modified)
+      loaderGood.sData.keySet should be(loaderBad.sData.keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).keySet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet)
+    }
+  }
+  "Test Graph.Loader creation for graph with 2 sources (symmetric)" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA.initialize(1024)
+      val pairRSA = keyGenRSA.genKeyPair()
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+      val modification = Timestamp.dump(graph.modified)
+      val folderA = new File(folder, "A")
+      val fileASignatureType = new File(folderA, s"signature/${modification}/type")
+      val fileASignatureData = new File(folderA, s"signature/${modification}/signature")
+      val folderB = new File(folder, "B")
+      val fileBSignatureType = new File(folderB, s"signature/${modification}/type")
+      val fileBSignatureData = new File(folderB, s"signature/${modification}/signature")
+
+      Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(
+        folderA.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()),
+        folderB.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()))),
+        folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
+      fileASignatureType should be('exists)
+      fileASignatureData should be('exists)
+      fileBSignatureType should be('exists)
+      fileBSignatureData should be('exists)
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+
+      info("test permissive good")
+      Mockito.reset(testSignature)
+      val loaderGood = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood = loaderGood.load()
+
+      info("test strict good")
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderGood2 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      // getSignatureMap from SimpleSignature.readFilter (check that map is available)
+      // getSignatureMap from SimpleSignature.checkSignature
+      Mockito.verify(testSignature, Mockito.times(4)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood2 = loaderGood2.load()
+
+      graphGood.node.safeRead { node ⇒
+        graphGood2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test permissive broken")
+
+      {
+        val file = new RandomAccessFile(fileASignatureData, "rws")
+        val text = new Array[Byte](fileASignatureData.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("broken_signature digest\n")
+        file.write(text)
+        file.close()
+      }
+
+      {
+        val file = new RandomAccessFile(fileBSignatureData, "rws")
+        val text = new Array[Byte](fileBSignatureData.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("broken_signature digest\n")
+        file.write(text)
+        file.close()
+      }
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphBad = loaderBad.load()
+
+      graphGood2.node.safeRead { node ⇒
+        graphBad.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test strict broken")
+      log.___glance("test strict broken")
+      Mockito.reset(testSignature)
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v2")
+      log.___glance("test strict broken v2")
+      val fw2 = new FileWriter(fileASignatureData)
+      fw2.write("broken")
+      fw2.close()
+      val fw2X = new FileWriter(fileBSignatureData)
+      fw2X.write("broken")
+      fw2X.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v3")
+      log.___glance("test strict broken v3")
+      fileASignatureData.delete()
+      fileBSignatureData.delete()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v4")
+      log.___glance("test strict broken v4")
+      val fw3 = new FileWriter(fileASignatureType)
+      fw3.write("broken")
+      fw3.close()
+      val fw3X = new FileWriter(fileBSignatureType)
+      fw3X.write("broken")
+      fw3X.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad4 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad4.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+
+      info("test strict broken v5")
+      log.___glance("test strict broken v5")
+      fileASignatureType.delete()
+      fileBSignatureType.delete()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad5 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad5.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+
+      loaderGood.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood2.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood.sources should be(loaderGood2.sources)
+      loaderGood.sources should be(loaderBad.sources)
+      loaderGood.sources should be(loaderBad4.sources)
+      loaderGood.sources should be(loaderBad5.sources)
+      loaderGood.modified should be(loaderGood2.modified)
+      loaderGood.modified should be(loaderBad.modified)
+      loaderGood.modified should be(loaderBad4.modified)
+      loaderGood.modified should be(loaderBad5.modified)
+      loaderGood.sData.keySet should be(loaderBad.sData.keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).keySet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet)
+
+    }
+  }
+  "Test Graph.Loader creation for graph with 2 sources (asymmetric/A broken)" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA.initialize(1024)
+      val pairRSA = keyGenRSA.genKeyPair()
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+      val modification = Timestamp.dump(graph.modified)
+      val folderA = new File(folder, "A")
+      val fileASignatureType = new File(folderA, s"signature/${modification}/type")
+      val fileASignatureData = new File(folderA, s"signature/${modification}/signature")
+      val folderB = new File(folder, "B")
+      val fileBSignatureType = new File(folderB, s"signature/${modification}/type")
+      val fileBSignatureData = new File(folderB, s"signature/${modification}/signature")
+
+      Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(
+        folderA.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()),
+        folderB.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()))),
+        folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
+      fileASignatureType should be('exists)
+      fileASignatureData should be('exists)
+      fileBSignatureType should be('exists)
+      fileBSignatureData should be('exists)
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+
+      info("test permissive good")
+      Mockito.reset(testSignature)
+      val loaderGood = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood = loaderGood.load()
+
+      info("test strict good")
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderGood2 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      // getSignatureMap from SimpleSignature.readFilter (check that map is available)
+      // getSignatureMap from SimpleSignature.checkSignature
+      Mockito.verify(testSignature, Mockito.times(4)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood2 = loaderGood2.load()
+
+      graphGood.node.safeRead { node ⇒
+        graphGood2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test permissive broken")
+
+      {
+        val file = new RandomAccessFile(fileASignatureData, "rws")
+        val text = new Array[Byte](fileASignatureData.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("broken_signature digest\n")
+        file.write(text)
+        file.close()
+      }
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphBad = loaderBad.load()
+
+      graphGood2.node.safeRead { node ⇒
+        graphBad.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test strict broken")
+      log.___glance("test strict broken")
+      Mockito.reset(testSignature)
+      val loaderBadX = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v2")
+      log.___glance("test strict broken v2")
+      val fw2 = new FileWriter(fileASignatureData)
+      fw2.write("broken")
+      fw2.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad2 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v3")
+      log.___glance("test strict broken v3")
+      fileASignatureData.delete()
+
+      Mockito.reset(testSignature)
+      val loaderBad3 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v4")
+      log.___glance("test strict broken v4")
+      val fw3 = new FileWriter(fileASignatureType)
+      fw3.write("broken")
+      fw3.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad4 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad4.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+      loaderBad4.sData(Signature.historyPerURI)(folderB.toURI())(loaderBad4.modified)._1.mechanism should be(Signature.perIdentifier(SimpleSignature.Identifier))
+
+      info("test strict broken v5")
+      log.___glance("test strict broken v5")
+      fileASignatureType.delete()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad5 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad5.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+      loaderBad5.sData(Signature.historyPerURI)(folderB.toURI())(loaderBad5.modified)._1.mechanism should be(Signature.perIdentifier(SimpleSignature.Identifier))
+
+      loaderGood.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood2.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood.sources should be(loaderGood2.sources)
+      loaderGood.sources should be(loaderBad.sources)
+      loaderGood.sources should be(loaderBad4.sources)
+      loaderGood.sources should be(loaderBad5.sources)
+      loaderGood.modified should be(loaderGood2.modified)
+      loaderGood.modified should be(loaderBad.modified)
+      loaderGood.modified should be(loaderBad4.modified)
+      loaderGood.modified should be(loaderBad5.modified)
+      loaderGood.sData.keySet should be(loaderBad.sData.keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).keySet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet)
+    }
+  }
+  "Test Graph.Loader creation for graph with 2 sources (asymmetric/B broken)" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA.initialize(1024)
+      val pairRSA = keyGenRSA.genKeyPair()
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+      val modification = Timestamp.dump(graph.modified)
+      val folderA = new File(folder, "A")
+      val fileASignatureType = new File(folderA, s"signature/${modification}/type")
+      val fileASignatureData = new File(folderA, s"signature/${modification}/signature")
+      val folderB = new File(folder, "B")
+      val fileBSignatureType = new File(folderB, s"signature/${modification}/type")
+      val fileBSignatureData = new File(folderB, s"signature/${modification}/signature")
+
+      Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(
+        folderA.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()),
+        folderB.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()))),
+        folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
+      fileASignatureType should be('exists)
+      fileASignatureData should be('exists)
+      fileBSignatureType should be('exists)
+      fileBSignatureData should be('exists)
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+
+      info("test permissive good")
+      Mockito.reset(testSignature)
+      val loaderGood = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood = loaderGood.load()
+
+      info("test strict good")
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderGood2 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      // getSignatureMap from SimpleSignature.readFilter (check that map is available)
+      // getSignatureMap from SimpleSignature.checkSignature
+      Mockito.verify(testSignature, Mockito.times(4)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphGood2 = loaderGood2.load()
+
+      graphGood.node.safeRead { node ⇒
+        graphGood2.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test permissive broken")
+
+      {
+        val file = new RandomAccessFile(fileBSignatureData, "rws")
+        val text = new Array[Byte](fileBSignatureData.length().toInt)
+        file.readFully(text)
+        file.seek(0)
+        file.writeBytes("broken_signature digest\n")
+        file.write(text)
+        file.close()
+      }
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      val graphBad = loaderBad.load()
+
+      graphGood2.node.safeRead { node ⇒
+        graphBad.node.safeRead { node2 ⇒
+          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
+        }
+      } should be(true)
+
+      info("test strict broken")
+      log.___glance("test strict broken")
+      Mockito.reset(testSignature)
+      val loaderBadX = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v2")
+      log.___glance("test strict broken v2")
+      val fw2 = new FileWriter(fileBSignatureData)
+      fw2.write("broken")
+      fw2.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad2 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v3")
+      log.___glance("test strict broken v3")
+      fileBSignatureData.delete()
+
+      Mockito.reset(testSignature)
+      val loaderBad3 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+
+      info("test strict broken v4")
+      log.___glance("test strict broken v4")
+      val fw3 = new FileWriter(fileBSignatureType)
+      fw3.write("broken")
+      fw3.close()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad4 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad4.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad4.modified)._1.mechanism should be(Signature.perIdentifier(SimpleSignature.Identifier))
+      loaderBad4.sData(Signature.historyPerURI)(folderB.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+
+      info("test strict broken v5")
+      log.___glance("test strict broken v5")
+      fileBSignatureType.delete()
+
+      Mockito.reset(testSignature)
+      Serialization.acquireLoader(folderA.toURI())
+      Mockito.verifyNoMoreInteractions(testSignature)
+      Mockito.reset(testSignature)
+      val loaderBad5 = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { key ⇒ key.nonEmpty }))
+      Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      loaderBad5.sData(Signature.historyPerURI)(folderA.toURI())(loaderBad5.modified)._1.mechanism should be(Signature.perIdentifier(SimpleSignature.Identifier))
+      loaderBad5.sData(Signature.historyPerURI)(folderB.toURI())(loaderBad4.modified)._1 should be(Signature.NoSignature)
+
+      loaderGood.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood2.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
+      loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
+      loaderGood.sources should be(loaderGood2.sources)
+      loaderGood.sources should be(loaderBad.sources)
+      loaderGood.sources should be(loaderBad4.sources)
+      loaderGood.sources should be(loaderBad5.sources)
+      loaderGood.modified should be(loaderGood2.modified)
+      loaderGood.modified should be(loaderBad.modified)
+      loaderGood.modified should be(loaderBad4.modified)
+      loaderGood.modified should be(loaderBad5.modified)
+      loaderGood.sData.keySet should be(loaderBad.sData.keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).keySet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).keySet)
+      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet)
+    }
+  }
   "Signature should generated for every graph digest" in {
     withTempFolder { folder ⇒
       import TestDSL._
@@ -238,10 +1024,10 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       folderA should not be ('exists)
       folderB should not be ('exists)
       folderC should not be ('exists)
-      val sDataFreeze = SData(Signature.Key.freeze -> immutable.Map(folderA.toURI -> Signature.NoSignature,
+      val sDataFreeze = SData(Signature.Key.freeze -> Map(folderA.toURI -> Signature.NoSignature,
         folderB.toURI -> SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate()),
         folderC.toURI -> SimpleSignature(pairDSA.getPublic(), pairDSA.getPrivate())),
-        Digest.Key.freeze -> immutable.Map(folderA.toURI -> Digest.NoDigest,
+        Digest.Key.freeze -> Map(folderA.toURI -> Digest.NoDigest,
           folderB.toURI -> SimpleDigest("MD5"),
           folderC.toURI -> SimpleDigest("SHA-512")))
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -255,7 +1041,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       fileBSignatureTypeLines.take(5) should be(Seq("simple", "", "RSA", "", "-----BEGIN PUBLIC KEY-----"))
       fileBSignatureTypeLines.takeRight(5) should be(Seq("-----END PUBLIC KEY-----", "", "SHA1withRSA", "", "SunRsaSign"))
       fileBSignatureData should be('exists)
-      scala.io.Source.fromFile(fileBSignatureData).getLines.size should be(1)
+      scala.io.Source.fromFile(fileBSignatureData).getLines.size should be(2)
       folderC should be('exists)
       fileCSignatureType should be('exists)
       fileCSignatureType.length() should be(683)
@@ -263,7 +1049,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       fileCSignatureTypeLines.take(5) should be(Seq("simple", "", "DSA", "", "-----BEGIN PUBLIC KEY-----"))
       fileCSignatureTypeLines.takeRight(5) should be(Seq("-----END PUBLIC KEY-----", "", "SHA1withDSA", "", "SUN"))
       fileCSignatureData should be('exists)
-      scala.io.Source.fromFile(fileCSignatureData).getLines.size should be(1)
+      scala.io.Source.fromFile(fileCSignatureData).getLines.size should be(2)
 
       model.eSet('AAAKey, "AAA1").eSet('BBBKey, "BBB1").eRelative
       model.takeRecord('baseLevel1) { r ⇒ r.name = "123" }
@@ -279,32 +1065,36 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       fileCSignatureTypeX should be('exists)
       fileCSignatureTypeX.length() should be(683)
 
-      val signatureAcquire = (uri: URI, modified: Element.Timestamp, validation: Option[(PublicKey, Boolean)], sData: SData) ⇒
-        validation match {
-          case Some((publicKey, true)) if publicKey.getAlgorithm == "RSA" ⇒
-            if (publicKey == pairRSA.getPublic())
-              info("RSA validation passed for " + uri)
-            else {
-              info("RSA validation failed for " + uri)
-              throw new SecurityException
-            }
-          case Some((publicKey, true)) if publicKey.getAlgorithm == "DSA" ⇒
-            if (publicKey == pairDSA.getPublic())
-              info("DSA validation passed for " + uri)
-            else {
-              info("DSA validation failed for " + uri)
-              throw new SecurityException
-            }
-          case unexpected ⇒
-            info("Unexpected: " + unexpected)
-            throw new SecurityException
-        }
-
+      @volatile var signatureAcquireKeys = Seq.empty[PublicKey]
+      val signatureAcquire = (key: Option[PublicKey]) ⇒ {
+        signatureAcquireKeys = signatureAcquireKeys ++ key
+        key.nonEmpty
+      }
       an[IllegalArgumentException] should be thrownBy Serialization.acquire(folderB.getAbsoluteFile().toURI(),
         SData(Signature.Key.acquire -> signatureAcquire, Digest.Key.acquire -> false))
 
       val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(),
         SData(Signature.Key.acquire -> signatureAcquire))
+      /*
+       * -> acquireGraphLoader -> getSources
+       * B digest None readFilter graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * B digest Some checkSignature graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * C digest None readFilter graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * C digest Some checkSignature graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * -> acquireGraph
+       * 1st modification
+       * B digest None recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * 2nd modification
+       * B digest None recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       */
+      signatureAcquireKeys should have size (4) // pairDSA + pairRSA from acquireGraph
+      signatureAcquireKeys.toSet should be(Set(pairRSA.getPublic(), pairDSA.getPublic()))
 
       val keyGenRSA2 = KeyPairGenerator.getInstance("RSA")
       keyGenRSA.initialize(1024)
@@ -312,27 +1102,44 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       graph2.model.takeRecord('baseLevel2) { r ⇒ r.name = "234" }
       pairRSA2.getPublic() should not be (pairRSA.getPublic())
 
-      val sDataFreeze2 = SData(Signature.Key.freeze -> immutable.Map(folderA.toURI -> Signature.NoSignature,
+      val sDataFreeze2 = SData(Signature.Key.freeze -> Map(folderA.toURI -> Signature.NoSignature,
         folderB.toURI -> SimpleSignature(pairRSA2.getPublic(), pairRSA2.getPrivate()),
         folderC.toURI -> SimpleSignature(pairRSA2.getPublic(), pairRSA2.getPrivate())))
       Serialization.freeze(graph2, sDataFreeze2)
 
-      var keys = Seq.empty[(URI, PublicKey)]
-      val signatureAcquire2 = (uri: URI, modified: Element.Timestamp, validation: Option[(PublicKey, Boolean)], sData: SData) ⇒
-        validation match {
-          case Some((publicKey, true)) if publicKey.getAlgorithm == "RSA" ⇒
-            info("RSA validation passed for " + uri)
-            keys = keys :+ (sData(SData.Key.storageURI) -> publicKey)
-          case Some((publicKey, true)) if publicKey.getAlgorithm == "DSA" ⇒
-            info("DSA validation passed for " + uri)
-            keys = keys :+ (sData(SData.Key.storageURI) -> publicKey)
-          case unexpected ⇒
-            fail("Unexpected: " + unexpected)
-        }
+      var signatureAcquireKeys2 = Seq.empty[PublicKey]
+      val signatureAcquire2 = (key: Option[PublicKey]) ⇒ {
+        signatureAcquireKeys2 = signatureAcquireKeys2 ++ key
+        key.nonEmpty
+      }
       val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(),
         SData(Signature.Key.acquire -> signatureAcquire2, Digest.Key.acquire -> true))
-      keys.map { case (k, v) ⇒ (folder.toURI().relativize(k).toString().substring(0, 1), v) }.toList should be(List(("B", pairRSA2.getPublic()),
-        ("C", pairRSA2.getPublic()), ("B", pairRSA.getPublic()), ("B", pairRSA.getPublic())))
+      /*
+       * -> acquireGraphLoader -> getSources
+       * B digest None readFilter graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * B digest Some checkSignature graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * C digest None readFilter graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * C digest Some checkSignature graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
+       * -> acquireGraph
+       * with pairRSA2 (third modification)
+       * B digest None recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * with pairRSA (first and second modification)
+       * 1st modification
+       * B digest None recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * 2nd modification
+       * B digest None recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
+       *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
+       */
+      signatureAcquireKeys2 should have size (5)
+      signatureAcquireKeys2.toSet should be(Set(pairRSA.getPublic(), pairRSA2.getPublic()))
 
       graph3.node.safeRead { node ⇒
         graph2.node.safeRead { node2 ⇒
@@ -357,9 +1164,9 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       keyGenDSA1.initialize(1024)
       val pairDSA1 = keyGenDSA1.genKeyPair()
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")),
+        Map(folderA.toURI -> Digest.NoDigest, folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")),
         Signature.Key.freeze ->
-          immutable.Map(folderA.toURI -> Signature.NoSignature,
+          Map(folderA.toURI -> Signature.NoSignature,
             folderB.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate()),
             folderC.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate())))
 
@@ -383,7 +1190,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       keyGenDSA2.initialize(1024)
       val pairDSA2 = keyGenDSA2.genKeyPair()
       Serialization.freeze(graph, SData(Signature.Key.freeze ->
-        immutable.Map(folderA.toURI -> Signature.NoSignature,
+        Map(folderA.toURI -> Signature.NoSignature,
           folderB.toURI -> SimpleSignature(pairDSA2.getPublic(), pairDSA2.getPrivate()),
           folderC.toURI -> SimpleSignature(pairDSA2.getPublic(), pairDSA2.getPrivate()))))
       val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
@@ -402,7 +1209,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       keyGenRSA3.initialize(1024)
       val pairRSA3 = keyGenRSA3.genKeyPair()
       Serialization.freeze(graph, SData(Signature.Key.freeze ->
-        immutable.Map(folderA.toURI -> Signature.NoSignature,
+        Map(folderA.toURI -> Signature.NoSignature,
           folderB.toURI -> SimpleSignature(pairRSA3.getPublic(), pairRSA3.getPrivate()),
           folderC.toURI -> SimpleSignature(pairRSA3.getPublic(), pairRSA3.getPrivate()))))
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
@@ -440,7 +1247,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       } should be(Map("A/" -> None, "B/" -> Some(pairRSA3.getPublic()), "C/" -> Some(pairRSA3.getPublic())))
     }
   }
-  "Signature history should be projection of Graph.Retrospective: everything OK, but only signed loaded" taggedAs (TestDSL.Mark) in {
+  "Signature history should be projection of Graph.Retrospective: everything OK, but only signed loaded" in {
     withTempFolder { folder ⇒
       import TestDSL._
 
@@ -456,9 +1263,9 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       keyGenDSA1.initialize(1024)
       val pairDSA1 = keyGenDSA1.genKeyPair()
       val sDataFreeze = SData(Digest.Key.freeze ->
-        immutable.Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")),
+        Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("SHA-512")),
         Signature.Key.freeze ->
-          immutable.Map(folderA.toURI -> Signature.NoSignature,
+          Map(folderA.toURI -> Signature.NoSignature,
             folderB.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate()),
             folderC.toURI -> SimpleSignature(pairDSA1.getPublic(), pairDSA1.getPrivate())))
 
@@ -466,22 +1273,55 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Signature.history(graph) should be(empty)
 
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
-      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
-      val graphWith1Record = graphLoaderWith1Record.load()
 
       info("There is a single retrospective record")
+
+      val firstAcceptSignedLoader = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptSigned))
+      Mockito.reset(testTransport)
+      val firstAcceptSignedLoaderGraph = firstAcceptSignedLoader.load()
+      Mockito.verify(testTransport, Mockito.times(7)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      Mockito.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      Mockito.verify(testTransport, Mockito.times(9)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+
+      val graphLoaderWith1Record = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
+      val graphWith1Record = graphLoaderWith1Record.load()
       val s1l = Signature.history(graphLoaderWith1Record)
       val s1g = Signature.history(graph)
       s1l should be(s1g)
       s1l.size should be(1)
       s1l.head._2.size should be(3)
 
+      val firstAcceptAllLoader = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
+      Mockito.reset(testTransport)
+      val firstAcceptAllLoaderGraph = firstAcceptAllLoader.load()
+      Mockito.verify(testTransport, Mockito.times(9)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      Mockito.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+      Mockito.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+        def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
+        def describeTo(description: Description) {}
+      }), MM.any())
+
       model.takeRecord('baseLevel2) { r ⇒ r.name = "222" }
       val keyGenDSA2 = KeyPairGenerator.getInstance("DSA")
       keyGenDSA2.initialize(1024)
       val pairDSA2 = keyGenDSA2.genKeyPair()
       Serialization.freeze(graph, SData(Signature.Key.freeze ->
-        immutable.Map(folderA.toURI -> Signature.NoSignature,
+        Map(folderA.toURI -> Signature.NoSignature,
           folderB.toURI -> Signature.NoSignature,
           folderC.toURI -> SimpleSignature(pairDSA2.getPublic(), pairDSA2.getPrivate()))))
       val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptAll))
@@ -500,7 +1340,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       keyGenRSA3.initialize(1024)
       val pairRSA3 = keyGenRSA3.genKeyPair()
       Serialization.freeze(graph, SData(Signature.Key.freeze ->
-        immutable.Map(folderA.toURI -> Signature.NoSignature,
+        Map(folderA.toURI -> Signature.NoSignature,
           folderB.toURI -> SimpleSignature(pairRSA3.getPublic(), pairRSA3.getPrivate()),
           folderC.toURI -> Signature.NoSignature)))
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> Signature.acceptSigned))
@@ -542,30 +1382,70 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
           try Option(b.publicKey) catch { case e: Throwable ⇒ None })
       } should be(Map("A/" -> None, "B/" -> Some(pairRSA3.getPublic()), "C/" -> None))
 
+      val graphLoaderNone = Serialization.acquireLoader(folderA.toURI(),
+        SData(Signature.Key.acquire -> ((_: Option[PublicKey]) ⇒ false)))
+      graphLoaderNone.sData(Digest.Key.acquire) should be(true)
+
       val graphLoaderAll = Serialization.acquireLoader(folderA.toURI(),
         SData(Signature.Key.acquire -> Signature.acceptAll))
       graphLoaderAll.sData(Digest.Key.acquire) should be(true)
-      val graphLoaderSigned = Serialization.acquireLoader(folderA.toURI(),
-        SData(Signature.Key.acquire -> Signature.acceptSigned))
-      graphLoaderSigned.sData(Digest.Key.acquire) should be(true)
-      val graphLoaderNone = Serialization.acquireLoader(folderA.toURI(),
-        SData(Signature.Key.acquire ->
-          ((uri: URI, _: Element.Timestamp, v: Option[(PublicKey, Boolean)], _: SData) ⇒ throw new SecurityException)))
-      graphLoaderNone.sData(Digest.Key.acquire) should be(true)
-
+      val sHAll = Signature.history(graphLoaderAll)
+      val sKeysAll = sHAll.keys.toSeq.sorted
+      sHAll(sKeysAll(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "DSA", "C/" -> "DSA"))
+      sHAll(sKeysAll(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "DSA"))
+      sHAll(sKeysAll(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "RSA", "C/" -> ""))
+      sHAll should have size (3)
+      val dHAll = Digest.history(graphLoaderAll)
+      val dKeysAll = sHAll.keys.toSeq.sorted
+      dHAll(dKeysAll(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD2", "B/" -> "MD5", "C/" -> "SHA-512"))
+      dHAll(dKeysAll(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD2", "B/" -> "MD5", "C/" -> "SHA-512"))
+      dHAll(dKeysAll(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD2", "B/" -> "MD5", "C/" -> "SHA-512"))
+      dHAll should have size (3)
       Mockito.reset(testTransport)
-      val inOrderAll = Mockito.inOrder(testTransport)
-      log.___glance("AAAAAAALLLLLLLLLLLLLLLLLLLL")
+      /*   // 1. restore retrospective.
+       *   Serialization -> acquireGraph
+       * 1 .../retrospective/145747327E5ms.1C7618E3Cns-resources.yaml
+       *   Serialization -> acquireGraph
+       * 2 .../retrospective/14574730AB3ms.9E5E5B0ns-record.yaml
+       * 3 .../retrospective/145747326F9ms.1B951D849ns-record.yaml
+       * 4 .../retrospective/145747327E5ms.1C7618E3Cns-record.yaml
+       *   // 2. setup projections.
+       * 5 .../data/box%2058F071D85E644124-A7C8824733C50F53-14574730A9Cms.8904272ns/box%20descriptor.yaml
+       * 6 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel1%20%7BC27EA75E%7D/node%20descriptor-14574730AB3ms.9E5E5B0ns.yaml
+       *   // 3. add children.
+       *   Serialization -> acquireGraphLoader -> acquireNode
+       * 7 .../data/e%20john1%20%7B0609C486%7D/box%209AF11A6B8D174336-B8E78A0582F45E1C-14574730AABms.97836A1ns/box%20descriptor.yaml
+       * 8 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel1%20%7BC27EA75E%7D/e%20level1a%20%7B0428D0D4%7D/node%20descriptor-14574730AB3ms.9E5E5B0ns.yaml
+       * 9 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel1%20%7BC27EA75E%7D/box%20CF28D5545ABD42D0-900AC5294DB25D81-14574730AB0ms.9BE57FFns/box%20descriptor.yaml
+       * 10 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel1%20%7BC27EA75E%7D/e%20level1a%20%7B0428D0D4%7D/e%20level2a%20%7B0428D0F3%7D/node%20descriptor-14574730AB3ms.9E5E5B0ns.yaml
+       * 11 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel1%20%7BC27EA75E%7D/e%20level1a%20%7B0428D0D4%7D/box%205FA1ED20CA25435F-AED0C78653D48AE5-14574730AB3ms.9E5E5B0ns/box%20descriptor.yaml
+       * 12 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel2%20%7BC27EA75F%7D/node%20descriptor-145747326F9ms.1B951D849ns.yaml
+       * 13 .../data/e%20john1%20%7B0609C486%7D/box%20FA95B6F1CCDF4B64-AB8F745CD3423213-145747326F9ms.1B951D849ns/box%20descriptor.yaml
+       * 14 .../data/e%20john1%20%7B0609C486%7D/e%20baseLevel3%20%7BC27EA760%7D/node%20descriptor-145747327E5ms.1C7618E3Cns.yaml
+       * 15 .../data/e%20john1%20%7B0609C486%7D/box%20ABC64E8EFBFD471F-A3D9C2CF89F6CE4A-145747327E5ms.1C7618E3Cns/box%20descriptor.yaml
+       */
       val graphAll = graphLoaderAll.load()
-      inOrderAll.verify(testTransport, Mockito.times(15)).read(MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(15)).read(MM.argThat(new BaseMatcher {
         def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
         def describeTo(description: Description) {}
       }), MM.any())
-      inOrderAll.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
         def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
         def describeTo(description: Description) {}
       }), MM.any())
-      inOrderAll.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
         def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
         def describeTo(description: Description) {}
       }), MM.any())
@@ -575,19 +1455,44 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
         }
       } should be(true)
 
+      val graphLoaderSigned = Serialization.acquireLoader(folderA.toURI(),
+        SData(Signature.Key.acquire -> Signature.acceptSigned))
+      graphLoaderSigned.sData(Digest.Key.acquire) should be(true)
+      val sHSigned = Signature.history(graphLoaderSigned)
+      val sKeysSigned = sHSigned.keys.toSeq.sorted
+      sHSigned(sKeysSigned(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "DSA", "C/" -> "DSA"))
+      sHSigned(sKeysSigned(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "", "C/" -> "DSA"))
+      sHSigned(sKeysSigned(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "", "B/" -> "RSA", "C/" -> ""))
+      sHSigned should have size (3)
+      val dHSigned = Digest.history(graphLoaderSigned)
+      val dKeysSigned = sHSigned.keys.toSeq.sorted
+      dHSigned(dKeysSigned(0)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD2", "B/" -> "MD5", "C/" -> "SHA-512"))
+      dHSigned(dKeysSigned(1)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD2", "B/" -> "MD5", "C/" -> "SHA-512"))
+      dHSigned(dKeysSigned(2)).map {
+        case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
+      } should be(Map("A/" -> "MD2", "B/" -> "MD5", "C/" -> "SHA-512"))
+      dHSigned should have size (3)
       Mockito.reset(testTransport)
-      val inOrderSigned = Mockito.inOrder(testTransport)
-      log.___glance("SIGNNNNED")
       val graphSigned = graphLoaderSigned.load()
-      inOrderSigned.verify(testTransport, Mockito.times(11)).read(MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(12)).read(MM.argThat(new BaseMatcher {
         def matches(uri: Any): Boolean = uri.toString().startsWith(folderA.toURI().toString())
         def describeTo(description: Description) {}
       }), MM.any())
-      inOrderSigned.verify(testTransport, Mockito.times(1)).read(MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(7)).read(MM.argThat(new BaseMatcher {
         def matches(uri: Any): Boolean = uri.toString().startsWith(folderB.toURI().toString())
         def describeTo(description: Description) {}
       }), MM.any())
-      inOrderSigned.verify(testTransport, Mockito.times(0)).read(MM.argThat(new BaseMatcher {
+      Mockito.verify(testTransport, Mockito.times(12)).read(MM.argThat(new BaseMatcher {
         def matches(uri: Any): Boolean = uri.toString().startsWith(folderC.toURI().toString())
         def describeTo(description: Description) {}
       }), MM.any())
@@ -640,5 +1545,15 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
     //addFileAppender()
   }
 
-  class TestSimple extends SimpleSignature
+  class TestSimple extends SimpleSignature {
+    override def getSignatureMap(context: AtomicReference[SoftReference[AnyRef]],
+      modified: Element.Timestamp, transport: Transport,
+      publicKey: PublicKey, sAlgorithm: String, sProvider: Option[String],
+      sData: SData): Map[URI, Array[Byte]] =
+      super.getSignatureMap(context, modified, transport, publicKey, sAlgorithm, sProvider, sData)
+    override def checkSignature(publicKey: PublicKey, sAlgorithm: String, sProvider: Option[String],
+      verifier: java.security.Signature, context: AtomicReference[SoftReference[AnyRef]],
+      modified: Element.Timestamp, uri: URI, transport: Transport, sData: SData) =
+      super.checkSignature(publicKey, sAlgorithm, sProvider, verifier, context, modified, uri, transport, sData)
+  }
 }
