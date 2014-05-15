@@ -438,6 +438,8 @@ object Digest extends Loggable {
   case object NoDigest extends Mechanism.Parameters {
     /** Digest algorithm name. */
     val algorithm = ""
+    /** Digest parameters as sequence of strings. */
+    val arguments: Seq[String] = Seq.empty
     /** Mechanism instance. */
     val mechanism: Mechanism = null
   }

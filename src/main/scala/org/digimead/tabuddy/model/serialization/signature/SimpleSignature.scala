@@ -41,13 +41,20 @@ class SimpleSignature extends Mechanism with Loggable {
 
   /** Get simple mechanism parameters. */
   def apply(algorithmName: String, args: String*): Mechanism.Parameters = args match {
-    case Seq(publicKey, sAlgorithm, sProvider) ⇒
+    case Seq(publicKeyArg, sAlgorithmArg, sProviderArg) ⇒
       // acquire parameters
-      SimpleSignatureParameters(loadPublicKey(algorithmName, publicKey), None, Option(sAlgorithm), Option(sProvider))
-    case Seq(publicKey, privateKey, sAlgorithm, sProvider) ⇒
+      val publicKey = loadPublicKey(algorithmName, publicKeyArg)
+      val privateKey = None
+      val sAlgorithm = if (sAlgorithmArg == "") None else Option(sAlgorithmArg)
+      val sProvider = if (sProviderArg == "") None else Option(sProviderArg)
+      SimpleSignatureParameters(publicKey, privateKey, sAlgorithm, sProvider)
+    case Seq(publicKeyArg, privateKeyArg, sAlgorithmArg, sProviderArg) ⇒
       // freeze parameters
-      SimpleSignatureParameters(loadPublicKey(algorithmName, publicKey),
-        Some(loadPrivateKey(algorithmName, privateKey)), Option(sAlgorithm), Option(sProvider))
+      val publicKey = loadPublicKey(algorithmName, publicKeyArg)
+      val privateKey = if (privateKeyArg == "") None else Some(loadPrivateKey(algorithmName, privateKeyArg))
+      val sAlgorithm = if (sAlgorithmArg == "") None else Option(sAlgorithmArg)
+      val sProvider = if (sProviderArg == "") None else Option(sProviderArg)
+      SimpleSignatureParameters(publicKey, privateKey, sAlgorithm, sProvider)
     case Nil ⇒
       throw new IllegalArgumentException("A cryptographic key is not defined.")
     case _ ⇒
@@ -344,8 +351,11 @@ class SimpleSignature extends Mechanism with Loggable {
       throw new IllegalArgumentException(s"Public key algorithm ${publicKey.getAlgorithm()} and private key algorithm ${privateKey.getAlgorithm()} are different."))
     /** Signature algorithm name. */
     val algorithm = publicKey.getAlgorithm()
+    /** Signature parameters as sequence of strings. */
+    val arguments: Seq[String] =
+      Seq(mechanism.savePublicKey(publicKey), privateKey.map(mechanism.savePrivateKey).getOrElse(""), sAlgorithm.getOrElse(""), sProvider.getOrElse(""))
     /** SimpleSignature mechanism instance. */
-    val mechanism = SimpleSignature.this
+    lazy val mechanism = SimpleSignature.this
 
     override def toString() = privateKey match {
       case Some(privateKey) ⇒

@@ -73,6 +73,8 @@ object Mechanism {
   trait Parameters {
     /** Digest algorithm name. */
     def algorithm: String
+    /** Digest parameters as sequence of strings. */
+    def arguments: Seq[String]
     /** Mechanism instance. */
     def mechanism: Mechanism
   }

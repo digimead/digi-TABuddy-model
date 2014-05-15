@@ -204,6 +204,9 @@ class SimpleDigest extends Mechanism with Loggable {
    * SimpleDigest parameters.
    */
   case class SimpleDigestParameters(val algorithm: String) extends Mechanism.Parameters {
+    /** Digest parameters as sequence of strings. */
+    val arguments: Seq[String] = Seq.empty
+    /** Mechanism instance. */
     val mechanism = SimpleDigest.this
   }
 }

@@ -234,6 +234,14 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       fileASignatureData should be('exists)
     }
   }
+  "SimpleSignature should (de)serialize mechanism parameters" in {
+    val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+    keyGenRSA.initialize(1024)
+    val pairRSA = keyGenRSA.genKeyPair()
+    val orig = SimpleSignature(pairRSA.getPublic(), pairRSA.getPrivate())
+    val copy = Signature.perIdentifier(orig.mechanism.identifier)(orig.algorithm, orig.arguments: _*)
+    copy should be(orig)
+  }
   "Test Graph.Loader creation for graph with 1 source without signature" in {
     withTempFolder { folder ⇒
       import TestDSL._

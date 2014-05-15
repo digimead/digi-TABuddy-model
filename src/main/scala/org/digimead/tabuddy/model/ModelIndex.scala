@@ -29,14 +29,6 @@ import org.digimead.tabuddy.model.graph.Node
 
 trait ModelIndex {
   this: Model.Like with Loggable =>
-  //type HashMapPerOrigin = mutable.HashMap[Symbol, WeakReference[Element]] with mutable.SynchronizedMap[Symbol, WeakReference[Element]]
-  //type HashMapPerAxis = mutable.HashMap[Coordinate, HashMapPerOrigin] with mutable.SynchronizedMap[Coordinate, HashMapPerOrigin]
-  //type HashMapPerId = mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
-  /**
-   * Nested HashMap of all elements
-   * Id(Symbol) -> Axis(Coordinate) -> Origin(Symbol) = Generic
-   */
-  //@transient protected lazy val index: HashMapPerId = new mutable.HashMap[UUID, HashMapPerAxis] with mutable.SynchronizedMap[UUID, HashMapPerAxis]
 
   /** Get element for unique id at the specific coordinate. */
   def e(nodeId: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =

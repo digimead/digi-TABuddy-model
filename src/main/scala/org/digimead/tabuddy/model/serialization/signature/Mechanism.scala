@@ -74,6 +74,8 @@ object Mechanism {
   trait Parameters {
     /** Signature algorithm name. */
     def algorithm: String
+    /** Signature parameters as sequence of strings. */
+    def arguments: Seq[String]
     /** Mechanism instance. */
     def mechanism: Mechanism
     /** Get public key for the current parameter. */

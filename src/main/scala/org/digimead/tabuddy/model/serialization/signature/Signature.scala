@@ -388,6 +388,8 @@ object Signature extends Loggable {
   case object NoSignature extends Mechanism.Parameters {
     /** Signature algorithm name. */
     val algorithm: String = ""
+    /** Signature parameters as sequence of strings. */
+    val arguments: Seq[String] = Seq.empty
     /** Mechanism instance. */
     val mechanism: Mechanism = null
 
@@ -467,7 +469,7 @@ object Signature extends Loggable {
               None
           }
       }.flatten.toSeq
-      assert(mechanisms.distinct.size == mechanisms.size, "signature mechanisms contain duplicated entities in " + mechanisms)
+      assert(mechanisms.distinct.size == mechanisms.size, "Signature mechanisms contain duplicated entities in " + mechanisms)
       immutable.HashMap(mechanisms.map(m ⇒ m.identifier -> m): _*)
     }
     /** Signature file name with signature type. */

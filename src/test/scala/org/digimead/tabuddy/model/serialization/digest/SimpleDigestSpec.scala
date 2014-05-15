@@ -234,6 +234,11 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       }
     }(logTest)
   }
+  "SimpleDigest should (de)serialize mechanism parameters" in {
+    val orig = SimpleDigest("MD5")
+    val copy = Digest.perIdentifier(orig.mechanism.identifier)(orig.algorithm, orig.arguments: _*)
+    copy should be(orig)
+  }
   "Test Graph.Loader creation for graph with 1 source" in {
     implicit val option = Mockito.atLeast(1)
     withMockitoLogCaptor {
