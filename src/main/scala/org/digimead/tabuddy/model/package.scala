@@ -24,6 +24,7 @@ package object model {
   lazy val default = org.digimead.tabuddy.model.dsl.default ~
     org.digimead.tabuddy.model.serialization.default ~
     org.digimead.tabuddy.model.serialization.yaml.default ~
-    org.digimead.tabuddy.model.serialization.digest.default
+    org.digimead.tabuddy.model.serialization.digest.default ~
+    org.digimead.tabuddy.model.serialization.signature.default
   DependencyInjection.setPersistentInjectable("org.digimead.tabuddy.model.element.Reference$DI$")
 }

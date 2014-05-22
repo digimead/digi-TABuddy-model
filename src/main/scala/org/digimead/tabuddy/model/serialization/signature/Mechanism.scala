@@ -54,7 +54,7 @@ trait Mechanism {
 
 object Mechanism {
   /**
-   * Identifier that is associated with signature mechanism.
+   * Identifier that is associated with the signature mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
     val name: String
