@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization
 
-import java.io.IOException
+import java.io.{ FileNotFoundException, IOException }
 import java.net.URI
 import java.security.PublicKey
 import java.util.UUID
@@ -58,8 +58,8 @@ class Serialization extends Serialization.Interface with Loggable {
     var graph = Option.empty[Graph[Model.Like]]
     for (source ← sources if graph.isEmpty)
       if (source.storageURI.isAbsolute()) {
+        log.debug(s"Acquire graph ${source.modelDescriptor.id} meta information from ${source.storageURI}.")
         val sDataForStorage = sData.updated(SData.Key.storageURI, source.storageURI)
-        log.debug(s"Acquire graph ${source.modelDescriptor.id} from ${sDataForStorage(SData.Key.storageURI)}.")
         val basis = loader.createGraph()
         graphEarlyAccess(basis)
         basis.node.safeWrite { targetNode ⇒
@@ -87,6 +87,8 @@ class Serialization extends Serialization.Interface with Loggable {
               entry
             }.seq: _*)
             basis.retrospective = Graph.Retrospective(history, recordResources.origins, recordResources.storages)
+            // Get data.
+            log.debug(s"Acquire graph ${source.modelDescriptor.id} data from ${source.storageURI}.")
             // 2. setup projections.
             val elementBoxes = source.modelDescriptor.elements.map {
               case (elementUniqueId, elementModificationTimestamp) ⇒
@@ -100,7 +102,7 @@ class Serialization extends Serialization.Interface with Loggable {
               throw new IllegalStateException("Root element not found.")
             val projectionBoxes: Seq[(Coordinate, ElementBox[Model.Like])] = elementBoxes.map(e ⇒ e.coordinate -> e)
             targetNode.updateState(modified = null, projectionBoxes = immutable.HashMap(projectionBoxes: _*)) // modification is already assigned
-            // Graph is valid at this point
+            // Graph is valid at this point.
             // 3. add children.
             val children = source.modelDescriptor.children.flatMap {
               case (childId, childModificationTimestamp) ⇒
@@ -117,9 +119,10 @@ class Serialization extends Serialization.Interface with Loggable {
             sDataForStorage.get(SData.Key.afterAcquire).map(_(basis, source.transport, sDataForStorage))
             graph = Some(basis)
           } catch {
-            case e: SecurityException ⇒ log.debug(e.getMessage)
+            case e: FileNotFoundException ⇒ log.info(s"Unable to acquire information from ${source.storageURI}: ${e.getMessage()}")
             case e: IllegalStateException if e.getMessage() == "NodeAcquireException" ⇒ throw e.getCause()
-            case e: Throwable ⇒ log.error(s"Unable to load graph ${source.modelDescriptor.id} ${loader.modified}: " + e.getMessage(), e)
+            case e: SecurityException ⇒ log.info(s"Unable to acquire information from ${source.storageURI}: ${e.getMessage()}")
+            case e: Throwable ⇒ log.error(s"Unable to acquire information from ${source.storageURI}: ${e.getMessage()}", e)
           }
         }
       } else {
