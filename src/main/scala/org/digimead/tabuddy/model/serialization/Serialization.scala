@@ -88,7 +88,7 @@ class Serialization extends Serialization.Interface with Loggable {
             }.seq: _*)
             basis.retrospective = Graph.Retrospective(history, recordResources.origins, recordResources.storages)
             // Get data.
-            log.debug(s"Acquire graph ${source.modelDescriptor.id} data from ${source.storageURI}.")
+            log.debug(s"Acquire graph ${source.modelDescriptor.id} content.")
             // 2. setup projections.
             val elementBoxes = source.modelDescriptor.elements.map {
               case (elementUniqueId, elementModificationTimestamp) ⇒
