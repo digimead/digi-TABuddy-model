@@ -20,6 +20,7 @@ package org.digimead.tabuddy.model.serialization
 
 import com.escalatesoft.subcut.inject.NewBindingModule
 import java.io.File
+import java.net.URI
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
@@ -41,8 +42,8 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
   }
 
   describe("An ExplicitStorages") {
-    /** Save graph to explicit and original storages. Save merged values with serialized data. */
-    it("should support an ExplicitStorages.Append") {
+    /** Save graph to external and original storages. Save merged values with serialized data. */
+    it("should support 'append' operation") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -67,6 +68,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         // retrospective record
         // retrospective resources
         Serialization.freeze(graph, folderA.getAbsoluteFile().toURI())
+        graph.storages should be(List(folderA.getAbsoluteFile().toURI()))
         Mockito.verify(testTransport, Mockito.times(6)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
 
         Mockito.reset(testTransport)
@@ -75,6 +77,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         // graph descriptor
         Serialization.freeze(graph, folderA.getAbsoluteFile().toURI())
         Mockito.verify(testTransport, Mockito.times(1)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
+        graph.storages should be(List(folderA.getAbsoluteFile().toURI()))
         graph.retrospective.storages should have size (1)
 
         info("Add new storage to stored graph.")
@@ -82,7 +85,8 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         Mockito.reset(testTransport)
         Mockito.verifyZeroInteractions(testTransport)
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
-          Serialization.ExplicitStorages(Seq(folderB.getAbsoluteFile().toURI()), Serialization.ExplicitStorages.ModeAppend)))
+          Serialization.Storages((graph.storages :+ folderB.getAbsoluteFile().toURI()).
+            map(Serialization.Storages.Simple))))
         Mockito.verify(testTransport, Mockito.times(7)).write(MM.anyObject(), MM.anyObject[Array[Byte]](), MM.anyObject())
         graph.retrospective.storages should have size (2)
         new File(folderA, "descriptor.yaml") should be('exists)
@@ -95,7 +99,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
       }
     }
     /** Save graph to explicit storages. Save original values with serialized data. */
-    it("should support an ExplicitStorages.Ignore") {
+    it("should support 'ignore' operation") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -111,7 +115,8 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderC, "descriptor.yaml") should not be ('exists)
 
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
-          Serialization.ExplicitStorages(Seq(folderB.getAbsoluteFile().toURI()), Serialization.ExplicitStorages.ModeIgnore)))
+          Serialization.Storages(graph.storages.map(Serialization.Storages.Simple) :+
+            Serialization.Storages.Real(folderB.getAbsoluteFile.toURI))))
         graph.storages should have size (0)
         new File(folderA, "descriptor.yaml") should not be ('exists)
         new File(folderB, "descriptor.yaml") should be('exists)
@@ -136,7 +141,8 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         graph3.retrospective should be(graph2.retrospective)
 
         Serialization.freeze(graph2, SData(SData.Key.explicitStorages ->
-          Serialization.ExplicitStorages(Seq(folderC.getAbsoluteFile().toURI()), Serialization.ExplicitStorages.ModeIgnore)))
+          Serialization.Storages(graph.storages.map(Serialization.Storages.Simple) :+
+            Serialization.Storages.Real(folderC.getAbsoluteFile.toURI))))
         graph2.storages.toSet should contain only (folderA.getAbsoluteFile().toURI())
         new File(folderA, "descriptor.yaml") should be('exists)
         new File(folderB, "descriptor.yaml") should be('exists)
@@ -147,7 +153,7 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
       }
     }
     /** Save graph to original storages. Save explicit values with serialized data. */
-    it("should provide ExplicitStorages.Replace mode") {
+    it("should support 'replace' operation") {
       withTempFolder { folder ⇒
         import TestDSL._
 
@@ -167,18 +173,65 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderB, "descriptor.yaml") should not be ('exists)
         new File(folderC, "descriptor.yaml") should not be ('exists)
         graph.storages.toSet should contain only (folderA.getAbsoluteFile().toURI())
-
-        Serialization.freeze(graph, SData(SData.Key.explicitStorages -> Serialization.ExplicitStorages(Seq(folderB.getAbsoluteFile().toURI(),
-          folderC.getAbsoluteFile().toURI()), Serialization.ExplicitStorages.ModeReplace)))
+        Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(graph.storages.map(Serialization.Storages.Simple) :+
+            Serialization.Storages.Complex(folderB.getAbsoluteFile().toURI(),
+              folderC.getAbsoluteFile().toURI()))))
         new File(folderA, "descriptor.yaml") should be('exists)
         new File(folderB, "descriptor.yaml") should not be ('exists)
+        new File(folderC, "descriptor.yaml") should be('exists)
         graph.retrospective.history should have size (1)
         graph.storages.size should be(2)
-        val want = Seq(folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI()).map(_.toString().replaceAll("""/$""", "")).toSet
+        val want = Seq(folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI()).map(_.toString().replaceAll("""/$""", "")).toSet
         graph.storages.map(_.toString().replaceAll("""/$""", "")).toSet should be(want)
+
+        val graphX = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val modelX = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+        val folderX = new File(folder, "X")
+        val folderY = new File(folder, "Y")
+        val folderZ = new File(folder, "Z")
+        Serialization.freeze(graphX, folderX.toURI())
+        graphX.retrospective.history should have size (1)
+        Serialization.freeze(graphX, folderY.toURI())
+        graphX.retrospective.history should have size (1)
+        Serialization.freeze(graphX, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(Serialization.Storages.Complex(new URI("test:/public/"),
+            folderZ.getAbsoluteFile().toURI()))))
+        new File(folderX, "descriptor.yaml") should be('exists)
+        new File(folderY, "descriptor.yaml") should be('exists)
+        new File(folderZ, "descriptor.yaml") should be('exists)
+        graphX.retrospective.history should have size (1)
+        graphX.storages.map(_.toString().replaceAll("""/$""", "")).toSet should be(Set("test:/public"))
+
+        val graphY = Serialization.acquire(folderZ.getAbsoluteFile().toURI())
+        graphY.retrospective.history should have size (1)
+        graphY.storages should be(Seq(new URI("test:/public/")))
+      }
+    }
+    it("should detect duplicated entries") {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+        val folderA = new File(folder, "A")
+        Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(Serialization.Storages.Simple(folderA.getAbsoluteFile().toURI()),
+            Serialization.Storages.Simple(folderA.getAbsoluteFile().toURI()))))
+        an[IllegalArgumentException] should be thrownBy Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(Serialization.Storages.Simple(folderA.getAbsoluteFile().toURI()),
+            Serialization.Storages.Public(folderA.getAbsoluteFile().toURI()))))
+        an[IllegalArgumentException] should be thrownBy Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(Serialization.Storages.Simple(folderA.getAbsoluteFile().toURI()),
+            Serialization.Storages.Real(folderA.getAbsoluteFile().toURI()))))
+        an[IllegalArgumentException] should be thrownBy Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(Serialization.Storages.Simple(folderA.getAbsoluteFile().toURI()),
+            Serialization.Storages.Complex(folderA.getAbsoluteFile().toURI(), folderA.getAbsoluteFile().toURI()))))
       }
     }
   }
 
-  override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
+  override def beforeAll(configMap: org.scalatest.ConfigMap) {
+    adjustLoggingBeforeAll(configMap)
+    //addFileAppender()
+  }
 }

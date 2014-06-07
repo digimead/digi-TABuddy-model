@@ -316,7 +316,7 @@ class Digest extends Loggable {
             case None ⇒ Nil
           }
           val explicitStorages = sData.get(SData.Key.explicitStorages) match {
-            case Some(explicitStorages: Serialization.ExplicitStorages) ⇒ explicitStorages.storages
+            case Some(storages: Serialization.Storages) ⇒ storages.seq.map(_.real).flatten
             case None ⇒ Nil
           }
           val previousParameters = for {
@@ -336,7 +336,7 @@ class Digest extends Loggable {
               storageURI -> Digest.NoDigest
           }
           val defaultParameters = for {
-            storageURI ← explicitStorages.filterNot(skipKnownStorages.contains)
+            storageURI ← explicitStorages.filterNot(s ⇒ skipKnownStorages.contains(s) || previousParameters.exists(_._1 == s))
           } yield storageURI -> Digest.default
           val digestParametersMap = Map((previousParameters ++ defaultParameters).toSeq: _*)
           if (digestParametersMap.nonEmpty) {

@@ -64,8 +64,9 @@ class Signature extends Loggable {
       val parametersMap = rawParametersMap.map { case (uri, parameters) ⇒ Serialization.inner.addTrailingSlash(uri) -> parameters }
       val definedStorages = parametersMap.keySet
       val newParameters = sData.get(SData.Key.explicitStorages) match {
-        case Some(explicitStorages: Serialization.ExplicitStorages) ⇒
-          explicitStorages.storages.filterNot(definedStorages.contains).map(storageURI ⇒ storageURI -> Signature.default)
+        case Some(storages: Serialization.Storages) ⇒
+          storages.seq.map(_.real).flatten.
+            filterNot(definedStorages.contains).map(storageURI ⇒ storageURI -> Signature.default)
         case None ⇒
           Nil
       }
@@ -344,11 +345,6 @@ object Signature extends Loggable {
   lazy val acceptAll = (_: Option[PublicKey]) ⇒ true
   /** Accept any signed. */
   lazy val acceptSigned = (key: Option[PublicKey]) ⇒ key.nonEmpty
-
-  /** Get digest container name. */
-  def containerName = DI.containerName
-  /** Get default signature parameters. */
-  def default = DI.default
   /**
    * Composite container that merges all available signature parameters per storage URI.
    * For example:
@@ -363,6 +359,11 @@ object Signature extends Loggable {
    *   There is hash map with signatures as an example of such type information.
    */
   val historyPerURI = SData.key[Map[URI, Signature.History]]("signature")
+
+  /** Get digest container name. */
+  def containerName = DI.containerName
+  /** Get default signature parameters. */
+  def default = DI.default
   /** Get signature implementation. */
   def inner = DI.implementation
   /** Map of all available signature implementations. */

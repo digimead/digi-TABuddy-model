@@ -42,7 +42,8 @@ class BuiltinSerializationSpec extends FunSpec with Matchers with StorageHelper 
         import TestDSL._
 
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-        val append = Serialization.ExplicitStorages(Seq(folder.getAbsoluteFile().toURI), Serialization.ExplicitStorages.ModeAppend)
+        val append = Serialization.Storages((graph.storages :+ folder.getAbsoluteFile().toURI).
+          map(Serialization.Storages.Simple))
         an[IllegalArgumentException] should be thrownBy Serialization.freeze(graph, SData(SData.Key.explicitStorages -> append), folder.getAbsoluteFile().toURI)
         Serialization.freeze(graph, SData(SData.Key.explicitStorages -> append))
         Serialization.freeze(graph, folder.getAbsoluteFile().toURI)

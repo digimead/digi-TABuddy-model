@@ -974,6 +974,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         logCaptor.getAllValues().asScala.find { event ⇒
           val level = event.getLevel()
           event.getMessage() != null &&
+            !event.getMessage().toString.startsWith("Unable to acquire information from file") &&
             !event.getMessage().toString.startsWith("Unable to load ") &&
             !event.getMessage().toString.startsWith("Skip history record ") &&
             (level == Level.WARN || level == Level.ERROR || level == Level.FATAL)

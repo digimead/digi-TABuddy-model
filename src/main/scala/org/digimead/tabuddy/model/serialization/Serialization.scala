@@ -72,6 +72,7 @@ class Serialization extends Serialization.Interface with Loggable {
             val recordResourcesURI = source.transport.append(source.storageURI, Serialization.retrospective, recordResourcesName)
             val recordResources = recordResourcesFromYAML(source.transport.read(encode(recordResourcesURI, sDataForStorage), sDataForStorage))
             val history = Map(source.graphDescriptor.records.filter(_ <= loader.modified).par.flatMap { modified ⇒
+              log.debug(s"Load history record ${yaml.Timestamp.dump(modified)} (${modified}).")
               var entry: Option[(Element.Timestamp, Graph.Retrospective.Indexes)] = None
               for (source ← source +: sources.filterNot(_ == source) if entry.isEmpty) try {
                 val recordName = Serialization.recordName(modified)
@@ -80,10 +81,17 @@ class Serialization extends Serialization.Interface with Loggable {
                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
                 entry = Some(modified -> Graph.Retrospective.Indexes(record.originIndex, record.storageIndexes))
               } catch {
-                case e: SecurityException ⇒ log.warn(s"Unable to load history record ${modified}: " + e.getMessage)
+                case e: SecurityException ⇒
+                  log.warn(s"Unable to load history record ${modified}: " + e.getMessage)
+                case e: IOException ⇒
+                  log.warn(s"Unable to load history record ${modified}: " + e.getMessage)
               }
-              if (entry.isEmpty)
-                log.warn(s"Skip history record ${modified}")
+              if (entry.isEmpty) {
+                if (sDataForStorage.get(SData.Key.force) == Some(true))
+                  log.warn(s"Skip history record ${modified}")
+                else
+                  throw new IllegalStateException(s"History record ${modified} is not available.")
+              }
               entry
             }.seq: _*)
             basis.retrospective = Graph.Retrospective(history, recordResources.origins, recordResources.storages)
@@ -183,19 +191,15 @@ class Serialization extends Serialization.Interface with Loggable {
     val graphStorages = graph.storages
     try {
       log.debug(s"Freeze ${graph}.")
-      val (realStorages, formalStorages) = sData.get(SData.Key.explicitStorages) match {
-        case Some(Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeAppend)) ⇒
-          // Save graph to explicit and original storages. Save original(formal) values with serialized data.
-          val storages = (graphStorages ++ seq).map(Serialization.normalizeURI).distinct.map(addTrailingSlash)
-          (storages, storages)
-        case Some(Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeIgnore)) ⇒
-          // Save graph to explicit storages. Save original(formal) values with serialized data.
-          (seq.map(Serialization.normalizeURI).distinct.map(addTrailingSlash),
-            graphStorages.map(Serialization.normalizeURI).distinct.map(addTrailingSlash))
-        case Some(Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeReplace)) ⇒
-          // Save graph to original storages. Save explicit(formal) values with serialized data.
-          (graphStorages.map(Serialization.normalizeURI).distinct.map(addTrailingSlash),
-            seq.map(Serialization.normalizeURI).distinct.map(addTrailingSlash))
+      val (publicStorages, realStorages) = sData.get(SData.Key.explicitStorages) match {
+        case Some(storages: Serialization.Storages) ⇒
+          val public = storages.seq.flatMap(_.public)
+          if (public.distinct.size != public.size)
+            throw new IllegalStateException("ExplicitStorages contain duplicated public values.")
+          val real = storages.seq.flatMap(_.real)
+          if (real.distinct.size != real.size)
+            throw new IllegalStateException("ExplicitStorages contain duplicated real values.")
+          (public, real)
         case None ⇒
           val storages = graphStorages.map(Serialization.normalizeURI).distinct.map(addTrailingSlash)
           (storages, storages)
@@ -216,32 +220,34 @@ class Serialization extends Serialization.Interface with Loggable {
                   // 0. Invoke user onStart callback if required.
                   sDataForStorage.get(SData.Key.beforeFreeze).map(_(modelˈ.graph, transport, sDataForStorage))
                   // 1. Add new record to history.
-                  if (!graphRetrospective.history.isDefinedAt(modelˈ.modified) || {
+                  val overwriteLastHistoryRecord = graphRetrospective.history.isDefinedAt(modelˈ.modified) && {
                     // There are new storages.
                     val storages = graphRetrospective.getStorages(modelˈ.modified)
-                    formalStorages.exists(s ⇒ !storages.contains(s))
-                  }) {
+                    publicStorages.exists(s ⇒ !storages.contains(s))
+                  }
+                  if (!graphRetrospective.history.isDefinedAt(modelˈ.modified) || overwriteLastHistoryRecord) {
                     val origins = (graphRetrospective.origins :+ graph.origin).distinct
-                    val storages = (graphRetrospective.storages ++ formalStorages).distinct
-                    val record = Graph.Retrospective.Indexes(origins.indexOf(graph.origin), formalStorages.map(s ⇒ storages.indexOf(s)).toSeq)
+                    val storages = (graphRetrospective.storages ++ publicStorages).distinct
+                    val record = Graph.Retrospective.Indexes(origins.indexOf(graph.origin), publicStorages.map(s ⇒ storages.indexOf(s)).toSeq)
                     if (record.originIndex < 0)
                       throw new IllegalStateException(s"Unable to find index for origin ${graph.origin} in ${origins.mkString(",")}.")
                     if (record.storageIndexes.exists(_ < 0))
-                      throw new IllegalStateException(s"Unable to find index for storages ${formalStorages.mkString(",")} in ${storages.mkString(",")}.")
+                      throw new IllegalStateException(s"Unable to find index for storages ${publicStorages.mkString(",")} in ${storages.mkString(",")}.")
                     graph.retrospective = Graph.Retrospective(graphRetrospective.history + (modelˈ.modified -> record), origins, storages)
+                    true
                   }
                   // 2. Freeze graph descriptor.
                   val graphURI = transport.getGraphURI(sDataForStorage)
                   // Overwrite always
                   transport.write(encode(graphURI, sDataForStorage), graphDescriptorToYAML(modelˈ,
-                    formalStorages.map(Serialization.normalizeURI).distinct), sDataForStorage)
+                    publicStorages.map(Serialization.normalizeURI).distinct), sDataForStorage)
                   transport.writeTimestamp(graphURI, sDataForStorage)
                   // 3. Freeze all graph nodes.
                   freezeNode(modelˈ, transport, Seq(), sDataForStorage)
                   // 4. Freeze all graph records if required.
-                  graph.retrospective.history.foreach {
-                    case (modified, Graph.Retrospective.Indexes(originIndex, storageIndexes)) ⇒
-                      val recordName = Serialization.recordName(modified)
+                  graph.retrospective.history.get(modelˈ.modified) match {
+                    case Some(Graph.Retrospective.Indexes(originIndex, storageIndexes)) ⇒
+                      val recordName = Serialization.recordName(modelˈ.modified)
                       val recordURI = transport.append(storageURI, Serialization.retrospective, recordName)
                       if (!transport.exists(encode(recordURI, sDataForStorage), sDataForStorage) ||
                         sDataForStorage.get(SData.Key.force) == Some(true)) {
@@ -249,6 +255,8 @@ class Serialization extends Serialization.Interface with Loggable {
                           recordToYAML(originIndex, storageIndexes), sDataForStorage)
                         transport.writeTimestamp(recordURI, sDataForStorage)
                       }
+                    case None ⇒
+                      throw new IllegalStateException("Unable to find history index for the latest modification " + modelˈ.modified)
                   }
                   val recordResourcesName = Serialization.recordResourcesName(modelˈ.modified)
                   val recordResourcesURI = transport.append(storageURI, Serialization.retrospective, recordResourcesName)
@@ -288,12 +296,13 @@ class Serialization extends Serialization.Interface with Loggable {
   /** Internal method that loads node with the specific id for the specific parent. */
   protected def acquireNode(id: Symbol, modified: Element.Timestamp,
     ancestors: Seq[Node.ThreadUnsafe[_ <: Element]], sData: SData): Option[Node[_ <: Element]] = try {
-    log.debug(s"Acquire node ${id}.")
+    log.debug(s"Acquire node ${id}, modification ${yaml.Timestamp.dump(modified)}.")
     val sources = sData(SData.Key.sources)
     var nodeDescriptor = Option.empty[Serialization.Descriptor.Node[_ <: Element]]
     for (source ← sources if nodeDescriptor.isEmpty)
       if (source.storageURI.isAbsolute()) {
         try {
+          log.debug(s"Acquire node ${id} content from ${source.storageURI}.")
           val sDataForStorage = sData.updated(SData.Key.storageURI, source.storageURI)
           Serialization.perScheme.get(source.storageURI.getScheme()) match {
             case Some(transport) ⇒
@@ -351,11 +360,12 @@ class Serialization extends Serialization.Interface with Loggable {
       // 1st stage: setup projections
       val elementBoxes = nodeDescriptor.elements.map {
         case (elementUniqueId, elementModificationTimestamp) ⇒
-          log.debug(s"Acquire element box ${elementUniqueId}.")
+          log.debug(s"Acquire element box ${elementUniqueId} for node ${nodeDescriptor.id}, modification ${yaml.Timestamp.dump(elementModificationTimestamp)}.")
           var elementBox = Option.empty[ElementBox[Element]]
           for (source ← sources if elementBox.isEmpty)
             if (source.storageURI.isAbsolute()) {
               try {
+                log.debug(s"Acquire element box ${elementUniqueId} content from ${source.storageURI}.")
                 val sDataForStorage = sData.updated(SData.Key.storageURI, source.storageURI)
                 val elementBoxURI = source.transport.getElementBoxURI(ancestors, elementUniqueId, elementModificationTimestamp, sDataForStorage)
                 val elementBoxDescriptor = elementBoxDescriptorFromYaml(source.transport.read(encode(elementBoxURI, sDataForStorage), sDataForStorage))
@@ -471,7 +481,7 @@ class Serialization extends Serialization.Interface with Loggable {
         sData.get().get(SData.Key.initializeSourceSData).foreach(initialize ⇒ sData.set(initialize(modificationForLoad, transport, sData.get)))
         // 3. get storages that are used to store required modification.
         val origin = recordResources.origins(record.originIndex)
-        val storages = (record.storageIndexes.map(recordResources.storages).toSet + storageURI).toSeq.map(addTrailingSlash)
+        val storages = (recordResources.storages.toSet + storageURI).toSeq.map(addTrailingSlash)
         // 4. initialize sData
         storages.foreach {
           case storageURI if storageURI.isAbsolute() ⇒ try {
@@ -498,12 +508,18 @@ class Serialization extends Serialization.Interface with Loggable {
             case storageURI if storageURI.isAbsolute() ⇒ try {
               Serialization.perScheme.get(storageURI.getScheme()) match {
                 case Some(transport) ⇒
-                  // Load data with correct digest or without digests at all.
-                  val sDataForStorage =
+                  val sDataForStorageWithSoftDigest =
+                    // Load data with a correct digest or without digests at all.
                     if (sData.get.isDefinedAt(Digest.Key.acquire))
                       sData.get.updated(SData.Key.storageURI, storageURI).updated(Digest.Key.acquire, false)
                     else
                       sData.get.updated(SData.Key.storageURI, storageURI)
+                  val sDataForStorage =
+                    // Accept only data with a correct signature or without signatures at all.
+                    if (sDataForStorageWithSoftDigest.isDefinedAt(Signature.Key.acquire))
+                      sDataForStorageWithSoftDigest.updated(Signature.Key.acquire, Signature.acceptSigned)
+                    else
+                      sDataForStorageWithSoftDigest
                   val graphURI = transport.getGraphURI(sDataForStorage)
                   val graphDescriptor = graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
                   if (graphDescriptor.origin == null)
@@ -689,10 +705,12 @@ object Serialization extends Loggable {
       case seq ⇒
         if (freezeTReady.isDefinedAt(SData.Key.explicitStorages))
           throw new IllegalArgumentException(s"Unable to add ${additionalStorageURI.mkString(",")}. There is already " + sData(SData.Key.explicitStorages))
-        val append = Serialization.ExplicitStorages(seq, Serialization.ExplicitStorages.ModeAppend)
-        freezeTReady.updated(SData.Key.explicitStorages, append)
+        // Append seq to graph.storages
+        val union = graph.storages.map(storage ⇒ Storages.Simple(storage)) ++
+          seq.map(storage ⇒ Storages.Simple(storage))
+        freezeTReady.updated(SData.Key.explicitStorages, Serialization.Storages(union))
     }
-    val explicitStoragesReady = ExplicitStorages.init(storageReady)
+    val explicitStoragesReady = Storages.init(storageReady)
     // Order is important ->
     val signatureReady = Signature.initFreeze(explicitStoragesReady)
     val digestReady = Digest.initFreeze(signatureReady)
@@ -854,28 +872,6 @@ object Serialization extends Loggable {
     }
   }
   /**
-   * Explicit serialization storages
-   */
-  case class ExplicitStorages(val storages: Seq[URI], mode: ExplicitStorages.Mode)
-  object ExplicitStorages {
-    /** Initialize SData with ExplicitStorages. */
-    def init(sData: SData): SData = sData.get(SData.Key.explicitStorages) match {
-      case Some(explicitStorages) ⇒
-        sData.updated(SData.Key.explicitStorages,
-          explicitStorages.copy(storages = explicitStorages.storages.map(inner.addTrailingSlash)))
-      case None ⇒
-        sData
-    }
-
-    sealed trait Mode
-    /** Save graph to explicit and original storages. Save merged values with serialized data. */
-    case object ModeAppend extends Mode
-    /** Save graph to explicit storages. Save original values with serialized data. */
-    case object ModeIgnore extends Mode
-    /** Save graph to original storages. Save explicit values with serialized data. */
-    case object ModeReplace extends Mode
-  }
-  /**
    * Serialization identifier that is associated with serialization mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
@@ -951,6 +947,83 @@ object Serialization extends Loggable {
       sources.head.modelDescriptor.unique, sources.head.modelDescriptor.modified)(modelTypeManifest)
 
     override def toString() = s"Loader(${sources.head.graphDescriptor})"
+  }
+  /**
+   * Serialization storages.
+   *
+   * @param storages sequence of tuples that is composed from public and real part.
+   */
+  case class Storages(val seq: Seq[Storages.Entry])
+  object Storages {
+    implicit def uri2Simple(storage: URI): Simple = Simple(storage)
+
+    /** Append new enties to graph storages. */
+    def append(graph: Graph[_ <: Model.Like], simpleStorages: URI*): Storages =
+      new Storages((graph.storages ++ simpleStorages).map(Simple))
+    /** Create Storages from a single entry. */
+    def apply(entry: Storages.Entry): Storages = new Storages(Seq(entry))
+    /** Create Storages from multiple entries. */
+    def apply(entry: Storages.Entry, seq: Storages.Entry*): Storages = new Storages(entry +: seq)
+    /** Ignore exists storages and freeze graph to real storages. */
+    def ignore(graph: Graph[_ <: Model.Like], realStorages: URI*): Storages =
+      new Storages(graph.storages.map(Public) ++ realStorages.map(Real))
+
+    /** Initialize SData with ExplicitStorages. */
+    def init(sData: SData): SData = sData.get(SData.Key.explicitStorages) match {
+      case Some(storages) ⇒
+        val updated = storages.seq.map {
+          case Complex(public, real) ⇒ Complex(inner.addTrailingSlash(public), inner.addTrailingSlash(real))
+          case Public(public) ⇒ Public(inner.addTrailingSlash(public))
+          case Real(real) ⇒ Real(inner.addTrailingSlash(real))
+          case Simple(storage) ⇒ Simple(inner.addTrailingSlash(storage))
+        }.distinct
+        val publicEntries = updated.flatMap(_.public)
+        publicEntries.iterator.scanLeft(Set[URI]())((set, a) ⇒ set + a).zip(publicEntries.iterator).
+          foreach { case (set, entry) ⇒ if (set contains entry) throw new IllegalArgumentException("There are duplicated entries with public storage " + entry) }
+        val realEntities = updated.flatMap(_.real)
+        realEntities.iterator.scanLeft(Set[URI]())((set, a) ⇒ set + a).zip(realEntities.iterator).
+          foreach { case (set, entry) ⇒ if (set contains entry) throw new IllegalArgumentException("There are duplicated entries with real storage " + entry) }
+        sData.updated(SData.Key.explicitStorages, Storages(updated))
+      case None ⇒
+        sData
+    }
+
+    /** Explicit storage entry. */
+    sealed trait Entry {
+      /** Public part that is saved to graph meta information and is available for anyone. */
+      val public: Option[URI]
+      /** Real part that is used to freeze graph. */
+      val real: Option[URI]
+    }
+
+    /** Complex storage entry. */
+    case class Complex(p: URI, r: URI) extends Entry {
+      /** Public part that is saved to graph meta information and is available for anyone. */
+      val public: Option[URI] = Some(p)
+      /** Real part that is used to freeze graph. */
+      val real: Option[URI] = Some(r)
+    }
+    /** Public storage entry. */
+    case class Public(p: URI) extends Entry {
+      /** Public part that is saved to graph meta information and is available for anyone. */
+      val public: Option[URI] = Some(p)
+      /** Real part that is used to freeze graph. */
+      val real: Option[URI] = None
+    }
+    /** Real storage entry. */
+    case class Real(r: URI) extends Entry {
+      /** Public part that is saved to graph meta information and is available for anyone. */
+      val public: Option[URI] = None
+      /** Real part that is used to freeze graph. */
+      val real: Option[URI] = Some(r)
+    }
+    /** Simple storage entry. */
+    case class Simple(s: URI) extends Entry {
+      /** Public part that is saved to graph meta information and is available for anyone. */
+      val public: Option[URI] = Some(s)
+      /** Real part that is used to freeze graph. */
+      val real: Option[URI] = Some(s)
+    }
   }
   /**
    * Dependency injection routines

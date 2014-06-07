@@ -282,8 +282,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       val graphGood = loaderGood.load()
 
       info("test strict good")
@@ -321,19 +321,12 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Serialization.acquireLoader(folderA.toURI())
       Mockito.verifyNoMoreInteractions(testSignature)
       Mockito.reset(testSignature)
-      val loaderBad = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(1)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(1)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      val graphBad = loaderBad.load()
-
-      graphGood2.node.safeRead { node ⇒
-        graphBad.node.safeRead { node2 ⇒
-          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
-        }
-      } should be(true)
 
       info("test strict broken")
       log.___glance("test strict broken")
@@ -413,20 +406,14 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
 
       loaderGood.sData.get(SimpleSignature.printStream) should be(None)
       loaderGood2.sData.get(SimpleSignature.printStream) should be(None)
-      loaderBad.sData.get(SimpleSignature.printStream) should be(None)
       loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
       loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
       loaderGood.sources should be(loaderGood2.sources)
-      loaderGood.sources should be(loaderBad.sources)
       loaderGood.sources should be(loaderBad4.sources)
       loaderGood.sources should be(loaderBad5.sources)
       loaderGood.modified should be(loaderGood2.modified)
-      loaderGood.modified should be(loaderBad.modified)
       loaderGood.modified should be(loaderBad4.modified)
       loaderGood.modified should be(loaderBad5.modified)
-      loaderGood.sData.keySet should be(loaderBad.sData.keySet)
-      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).keySet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).keySet)
-      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet)
     }
   }
   "Test Graph.Loader creation for graph with 2 sources (symmetric)" in {
@@ -465,8 +452,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(4)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       val graphGood = loaderGood.load()
 
       info("test strict good")
@@ -516,19 +503,12 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Serialization.acquireLoader(folderA.toURI())
       Mockito.verifyNoMoreInteractions(testSignature)
       Mockito.reset(testSignature)
-      val loaderBad = Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
+      an[IllegalStateException] should be thrownBy Serialization.acquireLoader(folderA.toURI(), SData(Signature.Key.acquire -> { _ ⇒ true }))
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      val graphBad = loaderBad.load()
-
-      graphGood2.node.safeRead { node ⇒
-        graphBad.node.safeRead { node2 ⇒
-          node.iteratorRecursive.corresponds(node2.iteratorRecursive) { (a, b) ⇒ a.ne(b) && a.modified == b.modified && a.elementType == b.elementType }
-        }
-      } should be(true)
 
       info("test strict broken")
       log.___glance("test strict broken")
@@ -616,21 +596,14 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
 
       loaderGood.sData.get(SimpleSignature.printStream) should be(None)
       loaderGood2.sData.get(SimpleSignature.printStream) should be(None)
-      loaderBad.sData.get(SimpleSignature.printStream) should be(None)
       loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
       loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
       loaderGood.sources should be(loaderGood2.sources)
-      loaderGood.sources should be(loaderBad.sources)
       loaderGood.sources should be(loaderBad4.sources)
       loaderGood.sources should be(loaderBad5.sources)
       loaderGood.modified should be(loaderGood2.modified)
-      loaderGood.modified should be(loaderBad.modified)
       loaderGood.modified should be(loaderBad4.modified)
       loaderGood.modified should be(loaderBad5.modified)
-      loaderGood.sData.keySet should be(loaderBad.sData.keySet)
-      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).keySet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).keySet)
-      loaderGood.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet should be(loaderBad.sData(Signature.historyPerURI)(folderA.toURI()).values.map(_._1).toSet)
-
     }
   }
   "Test Graph.Loader creation for graph with 2 sources (asymmetric/A broken)" in {
@@ -669,8 +642,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(4)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       val graphGood = loaderGood.load()
 
       info("test strict good")
@@ -714,8 +687,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       val graphBad = loaderBad.load()
 
       graphGood2.node.safeRead { node ⇒
@@ -805,7 +778,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
       loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
       loaderGood.sources should be(loaderGood2.sources)
-      loaderGood.sources should be(loaderBad.sources)
+      loaderGood.sources.filterNot(_.storageURI.toString.endsWith("/A/")) should be(loaderBad.sources)
       loaderGood.sources should be(loaderBad4.sources)
       loaderGood.sources should be(loaderBad5.sources)
       loaderGood.modified should be(loaderGood2.modified)
@@ -853,8 +826,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(4)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(2)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       val graphGood = loaderGood.load()
 
       info("test strict good")
@@ -898,8 +871,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       Mockito.verify(testSignature, Mockito.times(1)).initAcquire(MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).apply(MM.anyObject(), MM.anyObject())
       Mockito.verify(testSignature, Mockito.times(2)).readFilter(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
-      Mockito.verify(testSignature, Mockito.times(0)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(3)).getSignatureMap(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
+      Mockito.verify(testSignature, Mockito.times(1)).checkSignature(MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject(), MM.anyObject())
       val graphBad = loaderBad.load()
 
       graphGood2.node.safeRead { node ⇒
@@ -989,7 +962,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       loaderBad4.sData.get(SimpleSignature.printStream) should be(None)
       loaderBad5.sData.get(SimpleSignature.printStream) should be(None)
       loaderGood.sources should be(loaderGood2.sources)
-      loaderGood.sources should be(loaderBad.sources)
+      loaderGood.sources.filterNot(_.storageURI.toString.endsWith("/B/")) should be(loaderBad.sources)
       loaderGood.sources should be(loaderBad4.sources)
       loaderGood.sources should be(loaderBad5.sources)
       loaderGood.modified should be(loaderGood2.modified)
@@ -1085,10 +1058,6 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
         SData(Signature.Key.acquire -> signatureAcquire))
       /*
        * -> acquireGraphLoader -> getSources
-       * B digest None readFilter graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
-       * B digest Some checkSignature graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
-       * C digest None readFilter graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
-       * C digest Some checkSignature graphDescriptorFromYaml(transport.read(encode(graphURI, sDataForStorage), sDataForStorage))
        * -> acquireGraph
        * 1st modification
        * B digest None recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
@@ -1101,8 +1070,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
        * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
        *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
        */
-      signatureAcquireKeys should have size (4) // pairDSA + pairRSA from acquireGraph
-      signatureAcquireKeys.toSet should be(Set(pairRSA.getPublic(), pairDSA.getPublic()))
+      signatureAcquireKeys should have size (2) // pairRSA from acquireGraph
+      signatureAcquireKeys.toSet should be(Set(pairRSA.getPublic()))
 
       val keyGenRSA2 = KeyPairGenerator.getInstance("RSA")
       keyGenRSA.initialize(1024)
@@ -1146,7 +1115,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
        * B digest Some recordFromYAML(source.transport.read(encode(recordURI, sDataForStorage),
        *                   sDataForStorage.updated(SData.Key.storageURI, source.storageURI)))
        */
-      signatureAcquireKeys2 should have size (5)
+      signatureAcquireKeys2 should have size (3)
       signatureAcquireKeys2.toSet should be(Set(pairRSA.getPublic(), pairRSA2.getPublic()))
 
       graph3.node.safeRead { node ⇒

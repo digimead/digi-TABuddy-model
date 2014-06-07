@@ -120,7 +120,7 @@ object SData {
     /** Encode/decode URI path parts. */
     val convertURI = SData.key[((String, SData) ⇒ String, (String, SData) ⇒ String)]("convertURI")
     /** Explicit storages. */
-    val explicitStorages = SData.key[Serialization.ExplicitStorages]("storages")
+    val explicitStorages = SData.key[Serialization.Storages]("explicitStorages")
     /** Skip broken nodes on load/overwrite everything. */
     val force = SData.key[Boolean]("force")
     /** Freeze transformation f(x) ⇒ xˈ. */
