@@ -143,9 +143,6 @@ class Local extends Transport with Loggable {
     } :+ elementBoxDirectoryName).mkString(File.separator)
     val graphDirectory = new File(base, dataDirectoryName)
     val elementDirectory = new File(graphDirectory, relativePart)
-    if (!elementDirectory.exists() && create)
-      if (!elementDirectory.mkdirs())
-        throw new IOException(s"Unable to create ${elementDirectory}.")
     elementDirectory
   }
   /** Get or create node directory. */
@@ -154,9 +151,6 @@ class Local extends Transport with Loggable {
       map(name ⇒ nodeNameTemplate.format(name, name.hashCode())).mkString(File.separator)
     val graphDirectory = new File(base, dataDirectoryName)
     val nodeDirectory = new File(graphDirectory, relativePart)
-    if (!nodeDirectory.exists() && create)
-      if (!nodeDirectory.mkdirs())
-        throw new IOException(s"Unable to create ${nodeDirectory}.")
     nodeDirectory
   }
 }

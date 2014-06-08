@@ -312,6 +312,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       decoded should be(testURI)
 
       Serialization.freeze(graph, sData, folder.getAbsoluteFile().toURI())
+      visitPath(folder, f ⇒ f.getName() should startWith("Test_"))
       val pathsWrite = sData(SData.key[mutable.ArrayBuffer[URI]]("write")).map(folder.getAbsoluteFile().toURI().relativize(_).getPath())
       pathsWrite.forall(_.startsWith("Test_")) should be(true)
 
