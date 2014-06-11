@@ -19,16 +19,10 @@
 package org.digimead.tabuddy.model.serialization
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.FileInputStream
-import java.io.OutputStream
-import java.io.{ File, FileNotFoundException, InputStream }
+import java.io.{ ByteArrayOutputStream, File, FileInputStream, FileNotFoundException, FilterOutputStream, InputStream, IOException, OutputStream }
 import java.net.URI
-import java.security.DigestInputStream
-import java.security.DigestOutputStream
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Formatter
-import java.util.UUID
+import java.security.{ DigestInputStream, DigestOutputStream, MessageDigest, SecureRandom }
+import java.util.{ Formatter, UUID }
 import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
@@ -349,7 +343,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       } should be(true)
     }
   }
-  "Serialization data should support 'encodeFilter' and 'decodeFilter' options" in {
+  "Serialization data should support 'writeFilter' and 'readFilter' options" in {
     withTempFolder { folder ⇒
       import TestDSL._
 
@@ -361,30 +355,40 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
       kg.init(new SecureRandom())
       val key = kg.generateKey()
 
+      val map = new mutable.HashMap[URI, (Array[Byte], MessageDigest)] with mutable.SynchronizedMap[URI, (Array[Byte], MessageDigest)]
       val sDataWrite = SData(SData.Key.writeFilter -> ((os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
         val c = Cipher.getInstance("DES/CFB8/NoPadding")
         c.init(Cipher.ENCRYPT_MODE, key)
         val md5 = MessageDigest.getInstance("MD5")
+        // Cipher -> Digest -> file
         val stream = new CipherOutputStream(new DigestOutputStream(os, md5), c)
-        sData(SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest")).set(c.getIV(), md5)
+        map(uri) = (c.getIV(), md5)
         stream
       }),
-        SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest") -> new ThreadLocal[(Array[Byte], MessageDigest)](), // thread local MessageDigest algorithm
         SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash") -> new mutable.HashMap[URI, (Array[Byte], String)] with mutable.SynchronizedMap[URI, (Array[Byte], String)],
-        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ {
-          val threadLocal = sData(SData.key[ThreadLocal[(Array[Byte], MessageDigest)]]("digest"))
-          Option(threadLocal.get).foreach {
-            case (iv, digest) ⇒
-              val formatter = new Formatter()
-              digest.digest().foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))
-              sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash")) += uri -> (iv, formatter.toString())
-              digest.reset()
-          }
-          threadLocal.set(null)
+        SData.Key.afterWrite -> ((uri: URI, _: Array[Byte], transport: Transport, sData: SData) ⇒ map.get(uri).foreach {
+          case (iv, digest) ⇒
+            val formatter = new Formatter()
+            val hash = digest.digest()
+            hash.foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))
+            sData(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash")) += uri -> (iv, formatter.toString())
+            digest.reset()
+
+            {
+              val buffer = new Array[Byte](4096)
+              val fis = new FileInputStream(new File(uri))
+              val result = new ByteArrayOutputStream
+              try Stream.continually(fis.read(buffer)).takeWhile(_ != -1).foreach(result.write(buffer, 0, _))
+              finally { try { fis.close() } catch { case e: IOException ⇒ } }
+              val md5 = MessageDigest.getInstance("MD5")
+              assert(java.util.Arrays.equals(md5.digest(result.toByteArray()), hash), uri + " modified")
+            }
+
         }))
       Serialization.freeze(graph, sDataWrite, folder.getAbsoluteFile().toURI())
       val hashes = sDataWrite(SData.key[mutable.Map[URI, (Array[Byte], String)]]("hash"))
       hashes.size should be(6)
+
       hashes.foreach {
         case (uri, (iv, hash)) ⇒
           val md5 = MessageDigest.getInstance("MD5")
@@ -393,6 +397,8 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
           while (dis.read() != -1) {}
           val formatter = new Formatter()
           md5.digest().foreach(b ⇒ formatter.format("%02x", b: java.lang.Byte))
+          if (formatter.toString() != hash)
+            fail(io.Source.fromFile(new File(uri))(io.Codec.ISO8859.charSet).getLines().mkString("\n"))
           formatter.toString() should be(hash)
       }
 
@@ -428,11 +434,28 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
     }
   }
 
+  /**
+   * Test FilterOutputStream
+   */
+  class TestOutputStream(val map: mutable.HashMap[File, Array[Byte]], val file: File, val outputStream: OutputStream) extends FilterOutputStream(outputStream) {
+    val os = new ByteArrayOutputStream
+    override def write(b: Int) = ???
+    override def write(b: Array[Byte], off: Int, len: Int) = {
+      os.write(b, off, len)
+      outputStream.write(b, off, len)
+    }
+    override def write(b: Array[Byte]) = write(b, 0, b.length)
+    override def close() {
+      map(file) = os.toByteArray()
+      super.close()
+    }
+  }
+
   override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 
   object StringXORer {
-    def encode(s: String, key: String) = base64Encode(xorWithKey(s.getBytes(), key.getBytes()))
-    def decode(s: String, key: String) = new String(xorWithKey(base64Decode(s), key.getBytes()))
+    def encode(s: String, key: String) = base64Encode(xorWithKey(s.getBytes(io.Codec.UTF8.charSet), key.getBytes(io.Codec.UTF8.charSet)))
+    def decode(s: String, key: String) = new String(xorWithKey(base64Decode(s), key.getBytes(io.Codec.UTF8.charSet)))
     def xorWithKey(a: Array[Byte], key: Array[Byte]): Array[Byte] = {
       val out = new Array[Byte](a.length)
       for (i ← 0 until a.length)

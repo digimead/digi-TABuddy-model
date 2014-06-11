@@ -19,7 +19,8 @@
 package org.digimead.tabuddy.model.serialization
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.File
+import java.io.{ File, FilterInputStream, FilterOutputStream, InputStream, OutputStream }
+import java.net.URI
 import java.security.{ KeyPairGenerator, PublicKey }
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
@@ -32,9 +33,9 @@ import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.serialization.digest.{ Digest, SimpleDigest }
 import org.digimead.tabuddy.model.serialization.signature.{ Signature, SimpleSignature }
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
-import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.mockito.Mockito
 import org.scalatest.{ FunSpec, Matchers }
+import scala.io.Codec.charset2codec
 
 class SerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val testTransport = Mockito.spy(new Local)
@@ -669,10 +670,135 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         //copy(folderE, new File(tmp, folderE.getName()))
       }
     }
+    it("should have proper container and content encryption") {
+      withTempFolder { folder ⇒
+        import TestDSL._
+
+        val folderA = new File(folder, "A")
+        folderA.mkdirs()
+        val folderB = new File(folder, "B")
+        folderB.mkdirs()
+        val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+
+        val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+        keyGenRSA.initialize(1024)
+        val Alice = keyGenRSA.genKeyPair()
+
+        val writeFilter = (os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+          if (sData(SData.Key.storageURI) == folderA.toURI()) new TestOutputStream(os) else os
+        }
+
+        graph.model.takeRecord('rA) { _.name = "1" }
+        Serialization.freeze(graph, SData(
+          SData.Key.writeFilter -> writeFilter,
+          SData.Key.convertURI ->
+            (((name: String, sData: SData) ⇒ if (sData(SData.Key.storageURI) == folderA.toURI()) "Test_" + name else name,
+              (name: String, sData: SData) ⇒ if (sData(SData.Key.storageURI) == folderA.toURI()) name.replaceAll("""^Test_""", "") else name)),
+          Signature.Key.freeze ->
+            Map(
+              folderA.toURI -> SimpleSignature(Alice.getPublic(), Alice.getPrivate()),
+              folderB.toURI -> SimpleSignature(Alice.getPublic(), Alice.getPrivate()))),
+          folderA.toURI, folderB.toURI())
+
+        visitPath(folderA, f ⇒ f.getName() should startWith("Test_"))
+        visitPath(folderB, f ⇒ f.getName() should not startWith ("Test_"))
+        var originalFiles = Seq[File]()
+        visitPath(folderB, file ⇒ originalFiles = originalFiles :+ file)
+        val originalSize = originalFiles.size
+        var convertedFiles = Seq[File]()
+        visitPath(folderA, file ⇒ convertedFiles = convertedFiles :+ file)
+        val convertedSize = convertedFiles.size
+        originalSize should be(convertedSize)
+        originalFiles.sorted.corresponds(convertedFiles.sorted) { (a, b) ⇒
+          if (a.isDirectory())
+            ("Test_" + a.getName) == b.getName()
+          else if (a.getName().endsWith(".timestamp")) {
+            // Timestamp markers are unencrypted
+            val sa = io.Source.fromFile(a)(io.Codec.ISO8859.charSet)
+            val aData = sa.map(_.toByte).toArray
+            sa.close()
+            val sb = io.Source.fromFile(b)(io.Codec.ISO8859.charSet)
+            val bData = sb.map(_.toByte).toArray
+            sb.close()
+            java.util.Arrays.equals(aData, bData) &&
+              ("Test_" + a.getName) == b.getName()
+          } else {
+            val sa = io.Source.fromFile(a)(io.Codec.ISO8859.charSet)
+            val aDataOrig = sa.map(_.toByte).toArray
+            val aData = xorWithKey(aDataOrig, Array(xorN))
+            sa.close()
+            val sb = io.Source.fromFile(b)(io.Codec.ISO8859.charSet)
+            val bData = sb.map(_.toByte).toArray
+            sb.close()
+
+            if (a.getName == "digest") {
+              val digestA = new String(aDataOrig)
+              val digestB = new String(xorWithKey(bData, Array(xorN))).replaceAll("""Test_""", "")
+              if (digestA != digestB) {
+                println(new String(aDataOrig, io.Codec.UTF8.charSet))
+                println(new String(xorWithKey(bData, Array(xorN)), io.Codec.UTF8.charSet))
+                fail("A != B for " + a)
+              }
+              digestA == digestB &&
+                ("Test_" + a.getName) == b.getName()
+            } else if (a.getName == "signature") {
+              ("Test_" + a.getName) == b.getName()
+            } else {
+              if (!java.util.Arrays.equals(aData, bData))
+                fail(s"${a.getName()}\n\nA ORIG:\n\n${new String(aDataOrig, io.Codec.UTF8.charSet)}\n\nA:\n\n${new String(aData, io.Codec.UTF8.charSet)}\n\nvs\n\n${new String(bData, io.Codec.UTF8.charSet)}")
+              java.util.Arrays.equals(aData, bData) &&
+                ("Test_" + a.getName) == b.getName()
+            }
+          }
+        } should be(true)
+
+        deleteFolder(folderB)
+
+        val readFilter = (is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ {
+          if (sData(SData.Key.storageURI) == folderA.toURI()) new TestInputStream(is) else is
+        }
+
+        val graph2 = Serialization.acquire(folderA.toURI, SData(
+          SData.Key.readFilter -> readFilter,
+          SData.Key.convertURI ->
+            (((name: String, sData: SData) ⇒ if (sData(SData.Key.storageURI) == folderA.toURI()) "Test_" + name else name,
+              (name: String, sData: SData) ⇒ if (sData(SData.Key.storageURI) == folderA.toURI()) name.replaceAll("""^Test_""", "") else name)),
+          Signature.Key.acquire -> Signature.acceptSigned))
+      }
+    }
   }
 
   override def beforeAll(configMap: org.scalatest.ConfigMap) {
     adjustLoggingBeforeAll(configMap)
-    //addFileAppender()
+    addFileAppender()
+  }
+  val xorN = 123.toByte
+  /** XOR data. */
+  def xorWithKey(a: Array[Byte], key: Array[Byte]): Array[Byte] = {
+    val out = new Array[Byte](a.length)
+    for (i ← 0 until a.length)
+      out(i) = (a(i) ^ key(i % key.length)).toByte
+    out
+  }
+
+  /**
+   * Test FilterInputStream
+   */
+  class TestInputStream(val inputStream: InputStream) extends FilterInputStream(inputStream) {
+    override def read() = ???
+    override def read(b: Array[Byte], off: Int, len: Int) = {
+      val result = inputStream.read(b, off, len)
+      System.arraycopy(xorWithKey(b.drop(off).take(len), Array(xorN)), 0, b, off, len)
+      result
+    }
+    override def read(b: Array[Byte]) = read(b, 0, b.length)
+  }
+  /**
+   * Test FilterOutputStream
+   */
+  class TestOutputStream(val outputStream: OutputStream) extends FilterOutputStream(outputStream) {
+    override def write(b: Int) = ???
+    override def write(b: Array[Byte], off: Int, len: Int) = outputStream.write(xorWithKey(b.drop(off).take(len), Array(xorN)))
+    override def write(b: Array[Byte]) = write(b, 0, b.length)
   }
 }

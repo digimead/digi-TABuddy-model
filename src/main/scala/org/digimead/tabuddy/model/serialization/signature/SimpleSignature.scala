@@ -73,7 +73,15 @@ class SimpleSignature extends Mechanism with Loggable {
         val signatureTypeURI = Signature.signatureURI(storageURI, transport, graph.modified, Signature.typeName)
         if (!transport.exists(Serialization.inner.encode(signatureTypeURI, sData), sData) ||
           sData.get(SData.Key.force) == Some(true)) {
-          val os = transport.openWrite(Serialization.inner.encode(signatureTypeURI, sData), sData, true)
+          val os = sData.get(SData.Key.writeFilter) match {
+            case Some(filter) ⇒
+              val os = transport.openWrite(Serialization.inner.encode(signatureTypeURI, sData), sData, true)
+              filter(os, signatureTypeURI, transport,
+                // Prevent calculation of digest and signature for 'signatureTypeURI' file.
+                sData - Digest.Key.freeze - Signature.Key.freeze)
+            case None ⇒
+              transport.openWrite(Serialization.inner.encode(signatureTypeURI, sData), sData, true)
+          }
           val pos = new PrintStream(new BufferedOutputStream(os))
           try {
             pos.println(SimpleSignature.Identifier.name)
@@ -158,8 +166,16 @@ class SimpleSignature extends Mechanism with Loggable {
           if (!transport.exists(Serialization.inner.encode(signatureDataURI, sData), sData) ||
             sData.get(SData.Key.force) == Some(true)) {
             log.debug(s"Open container with signatures for ${modified} at ${signatureDataURI}")
-            val stream = transport.openWrite(Serialization.inner.encode(signatureDataURI, sData), sData, true)
-            val allEntitiesSignatureStream = new Signature.SignatureOutputStream(new BufferedOutputStream(stream),
+            val os = sData.get(SData.Key.writeFilter) match {
+              case Some(filter) ⇒
+                val os = transport.openWrite(Serialization.inner.encode(signatureDataURI, sData), sData, true)
+                filter(os, signatureDataURI, transport,
+                  // Prevent calculation of digest and signature for 'signatureDataURI' file.
+                  sData - Digest.Key.freeze - Signature.Key.freeze)
+              case None ⇒
+                transport.openWrite(Serialization.inner.encode(signatureDataURI, sData), sData, true)
+            }
+            val allEntitiesSignatureStream = new Signature.SignatureOutputStream(new BufferedOutputStream(os),
               SimpleSignature.getInstance(privateKey, sAlgorithm, sProvider), _ ⇒ {})
             val printStream = new PrintStream(allEntitiesSignatureStream)
             streamContainer.set((printStream, allEntitiesSignatureStream))
@@ -277,8 +293,16 @@ class SimpleSignature extends Mechanism with Loggable {
     try {
       log.debug(s"Load signature data from storage ${storageURI}")
       val builder = Map.newBuilder[URI, Array[Byte]]
-      val digestSumURI = Signature.signatureURI(storageURI, transport, modified, Signature.containerName)
-      val digestStream = transport.openRead(Serialization.inner.encode(digestSumURI, sData), sData)
+      val signatureDataURI = Signature.signatureURI(storageURI, transport, modified, Signature.containerName)
+      val is = sData.get(SData.Key.readFilter) match {
+        case Some(filter) ⇒
+          val is = transport.openRead(Serialization.inner.encode(signatureDataURI, sData), sData)
+          filter(is, signatureDataURI, transport,
+            // Prevent validation of digest and signature for 'signatureDataURI' file.
+            sData - Digest.Key.acquire - Signature.Key.acquire)
+        case None ⇒
+          transport.openRead(Serialization.inner.encode(signatureDataURI, sData), sData)
+      }
       val verifier = sProvider match {
         case Some(provider) ⇒
           java.security.Signature.getInstance(sAlgorithm, provider)
@@ -286,14 +310,14 @@ class SimpleSignature extends Mechanism with Loggable {
           java.security.Signature.getInstance(sAlgorithm)
       }
       verifier.initVerify(publicKey)
-      val reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(digestStream)))
+      val reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(is)))
       var validated = false
       try {
         var line = reader.readLine()
         while (line != null) {
           val hash = line.takeWhile(_ != ' ')
           if (line.length() > hash.length()) {
-            verifier.update(line.getBytes() ++ "\n".getBytes())
+            verifier.update((line + "\n").getBytes(io.Codec.UTF8.charSet))
             val uri = new URI(line.drop(hash.length() + 1))
             builder += uri -> Serialization.hexStringToByteArray(hash)
             line = reader.readLine()

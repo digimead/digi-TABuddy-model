@@ -299,7 +299,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         val text = new Array[Byte](fileToModify.length().toInt)
         file.readFully(text)
         file.seek(0)
-        file.write(new String(text).replaceAll("created: .*ns", "created: 10000000000ms.10000000ns").getBytes())
+        file.write(new String(text, io.Codec.UTF8.charSet).replaceAll("created: .*ns", "created: 10000000000ms.10000000ns").getBytes(io.Codec.UTF8.charSet))
         file.close()
 
         val graphWithDigestLoader1 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI())
@@ -354,7 +354,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         val text = new Array[Byte](fileToModify.length().toInt)
         file.readFully(text)
         file.seek(0)
-        file.write(new String(text).replaceAll("created: .*ns", "created: 10000000000ms.10000000ns").getBytes())
+        file.write(new String(text, io.Codec.UTF8.charSet).replaceAll("created: .*ns", "created: 10000000000ms.10000000ns").getBytes(io.Codec.UTF8.charSet))
         file.close()
 
         val graphWithDigestLoader1 = Serialization.acquireLoader(folderA.getAbsoluteFile().toURI())
@@ -1592,6 +1592,42 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       } should be(Map("A/" -> "", "B/" -> "", "C/" -> ""))
     }
   }
+  "Digest should support 'writeFilter' and 'readFilter' options" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      graph.model.takeRecord('rA) { _.name = "1" }
+
+      val writeFilter = (os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ new TestOutputStream2(os)
+
+      Serialization.freeze(graph, SData(SData.Key.writeFilter -> writeFilter, Digest.Key.freeze ->
+        Map(folder.toURI -> SimpleDigest("SHA-512"))), folder.toURI)
+
+      an[Throwable] should be thrownBy Serialization.acquire(folder.toURI)
+
+      val readFilter = (is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ new TestInputStream2(is)
+      val graph2 = Serialization.acquire(folder.toURI, SData(SData.Key.readFilter -> readFilter, Digest.Key.acquire -> true))
+
+      graph.node.safeRead { node ⇒
+        graph2.node.safeRead { node2 ⇒
+          node2.iteratorRecursive.toVector should be(node.iteratorRecursive.toVector)
+        }
+      }
+    }
+  }
+
+  val xorN = 123.toByte
+  /** XOR data. */
+  def xorWithKey(a: Array[Byte], key: Array[Byte]): Array[Byte] = {
+    val out = new Array[Byte](a.length)
+    for (i ← 0 until a.length)
+      out(i) = (a(i) ^ key(i % key.length)).toByte
+    out
+  }
 
   override def beforeAll(configMap: org.scalatest.ConfigMap) {
     adjustLoggingBeforeAll(configMap)
@@ -1635,4 +1671,24 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     override def write(b: Array[Byte]) = write(b, 0, b.length)
   }
   class TestSimple extends SimpleDigest
+  /**
+   * Test FilterInputStream
+   */
+  class TestInputStream2(val inputStream: InputStream) extends FilterInputStream(inputStream) {
+    override def read() = ???
+    override def read(b: Array[Byte], off: Int, len: Int) = {
+      val result = inputStream.read(b, off, len)
+      System.arraycopy(xorWithKey(b.drop(off).take(len), Array(xorN)), 0, b, off, len)
+      result
+    }
+    override def read(b: Array[Byte]) = read(b, 0, b.length)
+  }
+  /**
+   * Test FilterOutputStream
+   */
+  class TestOutputStream2(val outputStream: OutputStream) extends FilterOutputStream(outputStream) {
+    override def write(b: Int) = ???
+    override def write(b: Array[Byte], off: Int, len: Int) = outputStream.write(xorWithKey(b.drop(off).take(len), Array(xorN)))
+    override def write(b: Array[Byte]) = write(b, 0, b.length)
+  }
 }

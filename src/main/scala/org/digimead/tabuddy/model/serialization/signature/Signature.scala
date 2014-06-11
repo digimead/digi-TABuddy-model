@@ -134,13 +134,21 @@ class Signature extends Loggable {
     // Read type info.
     val mechanismTypeURI = Signature.signatureURI(storageURI, transport, modified, Signature.typeName)
     val lines = try {
-      val typeStream = transport.openRead(Serialization.inner.encode(mechanismTypeURI, sData), sData)
-      try scala.io.Source.fromInputStream(typeStream).getLines.toList
+      val is = sData.get(SData.Key.readFilter) match {
+        case Some(filter) ⇒
+          val is = transport.openRead(Serialization.inner.encode(mechanismTypeURI, sData), sData)
+          filter(is, mechanismTypeURI, transport,
+            // Prevent validation of digest and signature for 'mechanismTypeURI' file.
+            sData - Digest.Key.acquire - Signature.Key.acquire)
+        case None ⇒
+          transport.openRead(Serialization.inner.encode(mechanismTypeURI, sData), sData)
+      }
+      try scala.io.Source.fromInputStream(is).getLines.toList
       catch {
         case e: Throwable ⇒
           log.debug(s"Unable to read ${mechanismTypeURI}: " + e.getMessage())
           Seq()
-      } finally try typeStream.close() catch {
+      } finally try is.close() catch {
         case e: SecurityException ⇒ throw e
         case e: Throwable ⇒ log.error("Unable to load signature information: " + e.getMessage, e)
       }
@@ -297,7 +305,7 @@ class Signature extends Loggable {
               throw new SecurityException(s"Unable to find modification timestamp for signature validation.")
           }
         } else
-          is
+          userFilter.map(_(is, uri, transport, sData)) getOrElse is
     }
   }
   /**
@@ -326,11 +334,16 @@ class Signature extends Loggable {
       def apply(os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream = {
         if (uri.isAbsolute())
           throw new IllegalArgumentException(s"Unable to calculate digest for absolute URI ${uri}")
-        sData(Signature.Key.freeze).get(sData(SData.Key.storageURI)) match {
-          case Some(parameter) if parameter.mechanism != null ⇒
-            val stream = parameter.mechanism.writeFilter(parameter, os, uri, transport, sData)
-            userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
-          case _ ⇒
+        sData.get(Signature.Key.freeze) match {
+          case Some(freezeMap) ⇒
+            freezeMap.get(sData(SData.Key.storageURI)) match {
+              case Some(parameter) if parameter.mechanism != null ⇒
+                val stream = parameter.mechanism.writeFilter(parameter, os, uri, transport, sData)
+                userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
+              case _ ⇒
+                userFilter.map(_(os, uri, transport, sData)) getOrElse os
+            }
+          case None ⇒
             userFilter.map(_(os, uri, transport, sData)) getOrElse os
         }
       }

@@ -18,15 +18,14 @@
 
 package org.digimead.tabuddy.model.serialization.transport
 
-import java.io.{ BufferedInputStream, BufferedOutputStream, File, FileInputStream, FileOutputStream, IOException, InputStream, OutputStream }
+import java.io.{ BufferedInputStream, BufferedOutputStream, ByteArrayOutputStream, File, FileInputStream, FileOutputStream, IOException, InputStream, OutputStream }
 import java.net.URI
 import java.util.UUID
 import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
+import org.digimead.tabuddy.model.graph.Node
+import org.digimead.tabuddy.model.serialization.{ SData, YAMLSerialization }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
-import org.digimead.tabuddy.model.serialization.{ Serialization, SData, YAMLSerialization }
 
 /**
  * Local transport.
@@ -101,12 +100,15 @@ class Local extends Transport with Loggable {
     val bis = new BufferedInputStream(new FileInputStream(new File(uri)))
     val array = sData.get(SData.Key.readFilter) match {
       case Some(filter) ⇒
+        val buffer = new Array[Byte](4096)
         val fis = filter(bis, uri, this, sData)
-        try { Stream.continually(fis.read).takeWhile(_ != -1).map(_.toByte).toArray }
-        finally { try { fis.close() } catch { case e: IOException ⇒ } }
+        val result = new ByteArrayOutputStream
+        try Stream.continually(fis.read(buffer)).takeWhile(_ != -1).foreach(result.write(buffer, 0, _))
+        finally { try fis.close() catch { case e: IOException ⇒ } }
+        result.toByteArray()
       case None ⇒
         try { Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray }
-        finally { try { bis.close() } catch { case e: IOException ⇒ } }
+        finally { try bis.close() catch { case e: IOException ⇒ } }
     }
     sData.get(SData.Key.afterRead).map(_(uri, array, this, sData))
     array
@@ -124,11 +126,11 @@ class Local extends Transport with Loggable {
     sData.get(SData.Key.writeFilter) match {
       case Some(filter) ⇒
         val fos = filter(bos, uri, this, sData)
-        try { fos.write(content) }
-        finally { try { fos.close() } catch { case e: IOException ⇒ } }
+        try fos.write(content)
+        finally { try fos.close() catch { case e: IOException ⇒ } }
       case None ⇒
         try { bos.write(content) }
-        finally { try { bos.close() } catch { case e: IOException ⇒ } }
+        finally { try bos.close() catch { case e: IOException ⇒ } }
     }
     sData.get(SData.Key.afterWrite).map(_(uri, content, this, sData))
   }

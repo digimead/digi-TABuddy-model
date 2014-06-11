@@ -72,6 +72,7 @@ trait Transport {
   /** Read resource. */
   def read(uri: URI, sData: SData): Array[Byte]
   /** Read resource timestamp. */
+  // Content of timestamp markers is unencrypted. This is balance of security level vs comfort and useability level.
   def readTimestamp(encodedResourceURI: URI, sData: SData): Element.Timestamp = {
     val decodedResourceURI = Serialization.inner.decode(encodedResourceURI, sData)
     val timestampURI = new URI(decodedResourceURI.getScheme(), decodedResourceURI.getUserInfo(),
@@ -89,6 +90,7 @@ trait Transport {
   /** Write resource. */
   def write(uri: URI, content: Array[Byte], sData: SData)
   /** Write resource timestamp. */
+  // Content of timestamp markers is unencrypted. This is balance of security level vs comfort and useability level.
   def writeTimestamp(decodedResourceURI: URI, sData: SData) {
     val timestampURI = new URI(decodedResourceURI.getScheme(), decodedResourceURI.getUserInfo(),
       decodedResourceURI.getHost(), decodedResourceURI.getPort(),

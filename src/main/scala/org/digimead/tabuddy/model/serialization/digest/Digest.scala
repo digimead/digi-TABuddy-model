@@ -26,6 +26,7 @@ import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.serialization.signature.Signature
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
@@ -122,13 +123,21 @@ class Digest extends Loggable {
     // Read type info.
     val mechanismTypeURI = Digest.digestURI(storageURI, transport, modified, Digest.typeName)
     val lines = try {
-      val typeStream = transport.openRead(Serialization.inner.encode(mechanismTypeURI, sData), sData)
-      try scala.io.Source.fromInputStream(typeStream).getLines.toList
+      val is = sData.get(SData.Key.readFilter) match {
+        case Some(filter) ⇒
+          val is = transport.openRead(Serialization.inner.encode(mechanismTypeURI, sData), sData)
+          filter(is, mechanismTypeURI, transport,
+            // Prevent validation of digest and signature for 'mechanismTypeURI' file.
+            sData - Digest.Key.acquire - Signature.Key.acquire)
+        case None ⇒
+          transport.openRead(Serialization.inner.encode(mechanismTypeURI, sData), sData)
+      }
+      try scala.io.Source.fromInputStream(is).getLines.toList
       catch {
         case e: Throwable ⇒
           log.debug(s"Unable to read ${mechanismTypeURI}: " + e.getMessage())
           Seq()
-      } finally try typeStream.close() catch {
+      } finally try is.close() catch {
         case e: SecurityException ⇒ throw e
         case e: Throwable ⇒ log.error("Unable to load digest information: " + e.getMessage, e)
       }
@@ -196,8 +205,9 @@ class Digest extends Loggable {
                 case Some(history) ⇒
                   history.get(modified) match {
                     case Some((parameters, context)) if parameters.mechanism != null ⇒
-                      val stream = parameters.mechanism.readFilter(parameters, context, modified, is, uri, transport, sData)
-                      userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
+                      // Process user filter before digest calculation.
+                      val userStream = userFilter.map(_(is, uri, transport, sData)) getOrElse is
+                      parameters.mechanism.readFilter(parameters, context, modified, userStream, uri, transport, sData)
                     case _ ⇒
                       if (sData(Digest.Key.acquire))
                         throw new SecurityException(s"Digest is not available for ${modified} " + uri)
@@ -212,7 +222,7 @@ class Digest extends Loggable {
               throw new SecurityException(s"Unable to find modification timestamp for digest validation.")
           }
         } else
-          is
+          userFilter.map(_(is, uri, transport, sData)) getOrElse is
     }
     /**
      * Hook that propagates Digest.historyPerURI with retrospective data.
@@ -295,11 +305,17 @@ class Digest extends Loggable {
       extends Function4[OutputStream, URI, Transport, SData, OutputStream] {
       /** Apply MessageDigest instance to OutputStream. */
       def apply(os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
-        sData(Digest.Key.freeze).get(sData(SData.Key.storageURI)) match {
-          case Some(parameter) if parameter.mechanism != null ⇒
-            val stream = parameter.mechanism.writeFilter(parameter, os, uri, transport, sData)
-            userFilter.map(_(stream, uri, transport, sData)) getOrElse stream
-          case _ ⇒
+        sData.get(Digest.Key.freeze) match {
+          case Some(freezeMap) ⇒
+            freezeMap.get(sData(SData.Key.storageURI)) match {
+              case Some(parameter) if parameter.mechanism != null ⇒
+                // Process user filter after digest calculation.
+                val userStream = userFilter.map(_(os, uri, transport, sData)) getOrElse os
+                parameter.mechanism.writeFilter(parameter, userStream, uri, transport, sData)
+              case _ ⇒
+                userFilter.map(_(os, uri, transport, sData)) getOrElse os
+            }
+          case None ⇒
             userFilter.map(_(os, uri, transport, sData)) getOrElse os
         }
     }

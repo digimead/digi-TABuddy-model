@@ -19,7 +19,7 @@
 package org.digimead.tabuddy.model.serialization.signature
 
 import com.escalatesoft.subcut.inject.NewBindingModule
-import java.io.{ BufferedInputStream, BufferedOutputStream, BufferedReader, File, FileInputStream, FileOutputStream, FileWriter, InputStreamReader, PrintStream, RandomAccessFile }
+import java.io.{ BufferedInputStream, BufferedOutputStream, BufferedReader, File, FileInputStream, FileOutputStream, FileWriter, FilterInputStream, FilterOutputStream, InputStream, InputStreamReader, OutputStream, PrintStream, RandomAccessFile }
 import java.net.URI
 import java.security.{ KeyPairGenerator, PublicKey }
 import java.util.UUID
@@ -31,10 +31,8 @@ import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
-import org.digimead.tabuddy.model.serialization.SData
-import org.digimead.tabuddy.model.serialization.digest.Digest
-import org.digimead.tabuddy.model.serialization.digest.SimpleDigest
+import org.digimead.tabuddy.model.serialization.{ SData, Serialization, YAMLSerialization }
+import org.digimead.tabuddy.model.serialization.digest.{ Digest, SimpleDigest }
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.hamcrest.{ BaseMatcher, Description }
@@ -1516,6 +1514,46 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       assert(true)
     }
   }
+  "Signature should support 'writeFilter' and 'readFilter' options" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val keyGenRSA = KeyPairGenerator.getInstance("RSA")
+      keyGenRSA.initialize(1024)
+      val Alice = keyGenRSA.genKeyPair()
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
+      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      graph.model.takeRecord('rA) { _.name = "1" }
+
+      val writeFilter = (os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ new TestOutputStream(os)
+
+      Serialization.freeze(graph, SData(SData.Key.writeFilter -> writeFilter, Signature.Key.freeze -> Map(
+        folder.toURI -> SimpleSignature(Alice.getPublic(), Alice.getPrivate()))), folder.toURI)
+
+      an[Throwable] should be thrownBy Serialization.acquire(folder.toURI)
+
+      val readFilter = (is: InputStream, uri: URI, transport: Transport, sData: SData) ⇒ new TestInputStream(is)
+      val graph2 = Serialization.acquire(folder.toURI, SData(SData.Key.readFilter -> readFilter, Signature.Key.acquire -> Signature.acceptSigned))
+
+      graph.node.safeRead { node ⇒
+        graph2.node.safeRead { node2 ⇒
+          node2.iteratorRecursive.toVector should be(node.iteratorRecursive.toVector)
+        }
+      }
+    }
+  }
+
+  val xorN = 123.toByte
+  /** XOR data. */
+  def xorWithKey(a: Array[Byte], key: Array[Byte]): Array[Byte] = {
+    val out = new Array[Byte](a.length)
+    for (i ← 0 until a.length)
+      out(i) = (a(i) ^ key(i % key.length)).toByte
+    out
+  }
 
   override def beforeAll(configMap: org.scalatest.ConfigMap) {
     adjustLoggingBeforeAll(configMap)
@@ -1532,5 +1570,25 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       verifier: java.security.Signature, context: AtomicReference[SoftReference[AnyRef]],
       modified: Element.Timestamp, uri: URI, transport: Transport, sData: SData) =
       super.checkSignature(publicKey, sAlgorithm, sProvider, verifier, context, modified, uri, transport, sData)
+  }
+  /**
+   * Test FilterInputStream
+   */
+  class TestInputStream(val inputStream: InputStream) extends FilterInputStream(inputStream) {
+    override def read() = ???
+    override def read(b: Array[Byte], off: Int, len: Int) = {
+      val result = inputStream.read(b, off, len)
+      System.arraycopy(xorWithKey(b.drop(off).take(len), Array(xorN)), 0, b, off, len)
+      result
+    }
+    override def read(b: Array[Byte]) = read(b, 0, b.length)
+  }
+  /**
+   * Test FilterOutputStream
+   */
+  class TestOutputStream(val outputStream: OutputStream) extends FilterOutputStream(outputStream) {
+    override def write(b: Int) = ???
+    override def write(b: Array[Byte], off: Int, len: Int) = outputStream.write(xorWithKey(b.drop(off).take(len), Array(xorN)))
+    override def write(b: Array[Byte]) = write(b, 0, b.length)
   }
 }

@@ -26,6 +26,7 @@ import org.digimead.digi.lib.log.api.Loggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.serialization.signature.Signature
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
 import scala.collection.{ immutable, mutable }
@@ -57,10 +58,18 @@ class SimpleDigest extends Mechanism with Loggable {
         val storageURI = sData(SData.Key.storageURI)
         log.debug(s"Save digest ${algorithmName} data to ${storageURI}")
         // Write type info.
-        val digestTypeURI = Digest.digestURI(storageURI, transport, graph.modified, Digest.typeName)
-        if (!transport.exists(Serialization.inner.encode(digestTypeURI, sData), sData) ||
+        val mechanismTypeURI = Digest.digestURI(storageURI, transport, graph.modified, Digest.typeName)
+        if (!transport.exists(Serialization.inner.encode(mechanismTypeURI, sData), sData) ||
           sData.get(SData.Key.force) == Some(true)) {
-          val os = transport.openWrite(Serialization.inner.encode(digestTypeURI, sData), sData, true)
+          val os = sData.get(SData.Key.writeFilter) match {
+            case Some(filter) ⇒
+              val os = transport.openWrite(Serialization.inner.encode(mechanismTypeURI, sData), sData, true)
+              filter(os, mechanismTypeURI, transport,
+                // Prevent calculation of digest and signature for 'mechanismTypeURI' file.
+                sData - Digest.Key.freeze - Signature.Key.freeze)
+            case None ⇒
+              transport.openWrite(Serialization.inner.encode(mechanismTypeURI, sData), sData, true)
+          }
           val pos = new PrintStream(new BufferedOutputStream(os))
           try {
             pos.println(SimpleDigest.Identifier.name)
@@ -144,15 +153,23 @@ class SimpleDigest extends Mechanism with Loggable {
     val storageURI = sData(SData.Key.storageURI)
     log.debug(s"Load digest data from storage ${storageURI}")
     val builder = Map.newBuilder[URI, Array[Byte]]
-    val digestSumURI = Digest.digestURI(storageURI, transport, modified, Digest.containerName)
-    val digestStream = transport.openRead(Serialization.inner.encode(digestSumURI, sData), sData)
+    val digestDataURI = Digest.digestURI(storageURI, transport, modified, Digest.containerName)
+    val is = sData.get(SData.Key.readFilter) match {
+      case Some(filter) ⇒
+        val is = transport.openRead(Serialization.inner.encode(digestDataURI, sData), sData)
+        filter(is, digestDataURI, transport,
+          // Prevent validation of digest and signature for 'digestDataURI' file.
+          sData - Digest.Key.acquire - Signature.Key.acquire)
+      case None ⇒
+        transport.openRead(Serialization.inner.encode(digestDataURI, sData), sData)
+    }
     val reader = sData.get(Digest.Key.readFilter) match {
       case Some(filter) ⇒
-        new BufferedReader(new InputStreamReader(filter(new BufferedInputStream(digestStream),
-          Digest.digestURI(storageURI, transport, modified).relativize(digestSumURI),
+        new BufferedReader(new InputStreamReader(filter(new BufferedInputStream(is),
+          Digest.digestURI(storageURI, transport, modified).relativize(digestDataURI),
           transport, sData.updated(SData.Key.modified, modified))))
       case None ⇒
-        new BufferedReader(new InputStreamReader(new BufferedInputStream(digestStream)))
+        new BufferedReader(new InputStreamReader(new BufferedInputStream(is)))
     }
     try {
       var line = reader.readLine()
@@ -180,14 +197,22 @@ class SimpleDigest extends Mechanism with Loggable {
         if (!transport.exists(Serialization.inner.encode(digestDataURI, sData), sData) ||
           sData.get(SData.Key.force) == Some(true)) {
           log.debug(s"Open container with digests for ${modified} at ${digestDataURI}")
-          val stream = transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
+          val os = sData.get(SData.Key.writeFilter) match {
+            case Some(filter) ⇒
+              val os = transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
+              filter(os, digestDataURI, transport,
+                // Prevent calculation of digest and signature for 'digestDataURI' file.
+                sData - Digest.Key.freeze - Signature.Key.freeze)
+            case None ⇒
+              transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
+          }
           val printStream = sData.get(Digest.Key.writeFilter) match {
             case Some(filter) ⇒
-              new PrintStream(filter(new BufferedOutputStream(stream),
+              new PrintStream(filter(new BufferedOutputStream(os),
                 Digest.digestURI(storageURI, transport, modified).relativize(digestDataURI),
                 transport, sData.updated(SData.Key.modified, modified)))
             case None ⇒
-              new PrintStream(new BufferedOutputStream(stream))
+              new PrintStream(new BufferedOutputStream(os))
           }
           streamContainer.set(printStream)
           printStream
