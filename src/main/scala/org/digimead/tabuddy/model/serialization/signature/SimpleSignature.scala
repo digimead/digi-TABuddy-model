@@ -76,13 +76,14 @@ class SimpleSignature extends Mechanism with Loggable {
           val os = sData.get(SData.Key.writeFilter) match {
             case Some(filter) ⇒
               val os = transport.openWrite(Serialization.inner.encode(signatureTypeURI, sData), sData, true)
-              filter(os, signatureTypeURI, transport,
+              filter(new BufferedOutputStream(os), signatureTypeURI, transport,
                 // Prevent calculation of digest and signature for 'signatureTypeURI' file.
                 sData - Digest.Key.freeze - Signature.Key.freeze)
             case None ⇒
-              transport.openWrite(Serialization.inner.encode(signatureTypeURI, sData), sData, true)
+              val os = transport.openWrite(Serialization.inner.encode(signatureTypeURI, sData), sData, true)
+              new BufferedOutputStream(os)
           }
-          val pos = new PrintStream(new BufferedOutputStream(os))
+          val pos = new PrintStream(os)
           try {
             pos.println(SimpleSignature.Identifier.name)
             pos.println()
@@ -123,32 +124,41 @@ class SimpleSignature extends Mechanism with Loggable {
   /** Just invoked after read beginning. */
   def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = parameters match {
-    case SimpleSignatureParameters(publicKey, _, Some(sAlgorithm), sProvider) ⇒
-      if (sData(Signature.Key.acquire)(None)) {
-        val storageURI = sData(SData.Key.storageURI)
-        Signature.approve(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
-        // Signature isn't required for this URI. Return the original stream.
-        is
-      } else {
-        // check map
-        val map = getSignatureMap(context, modified, transport, publicKey, sAlgorithm, sProvider, sData)
-        if (map.isDefinedAt(uri)) {
-          val verifier = sProvider match {
-            case Some(provider) ⇒
-              java.security.Signature.getInstance(sAlgorithm, provider)
-            case None ⇒
-              java.security.Signature.getInstance(sAlgorithm)
-          }
-          verifier.initVerify(publicKey)
-          new Signature.SignatureInputStream(is, verifier, verifier ⇒
-            checkSignature(publicKey, sAlgorithm, sProvider, verifier, context, modified, uri, transport, sData))
-        } else {
-          val storageURI = sData(SData.Key.storageURI)
-          Signature.refuse(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
-          // There is no signature for this URI. Return the original stream.
+    case SimpleSignatureParameters(publicKey, _, Some(sAlgorithm), sProvider) ⇒ {
+      val storageURI = sData(SData.Key.storageURI)
+      try {
+        if (sData(Signature.Key.acquire)(None)) {
+          Signature.approve(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
+          // Signature isn't required for this URI. Return the original stream.
           is
+        } else {
+          // check map
+          val map = getSignatureMap(context, modified, transport, publicKey, sAlgorithm, sProvider, sData)
+          if (map.isDefinedAt(uri)) {
+            val verifier = sProvider match {
+              case Some(provider) ⇒
+                java.security.Signature.getInstance(sAlgorithm, provider)
+              case None ⇒
+                java.security.Signature.getInstance(sAlgorithm)
+            }
+            verifier.initVerify(publicKey)
+            new Signature.SignatureInputStream(is, verifier, verifier ⇒
+              checkSignature(publicKey, sAlgorithm, sProvider, verifier, context, modified, uri, transport, sData))
+          } else {
+            val storageURI = sData(SData.Key.storageURI)
+            Signature.refuse(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
+            // There is no signature for this URI. Return the original stream.
+            is
+          }
         }
+      } catch {
+        case e: SecurityException ⇒
+          throw e
+        case e: Throwable ⇒
+          log.error("Unable to validate digest: " + e.getMessage(), e)
+          Signature.refuse(Digest.digestURI(storageURI, transport, modified).resolve(uri), sData)
       }
+    }
     case unexpected ⇒
       throw new IllegalArgumentException("Unexpected parameters " + unexpected)
   }
@@ -169,13 +179,14 @@ class SimpleSignature extends Mechanism with Loggable {
             val os = sData.get(SData.Key.writeFilter) match {
               case Some(filter) ⇒
                 val os = transport.openWrite(Serialization.inner.encode(signatureDataURI, sData), sData, true)
-                filter(os, signatureDataURI, transport,
+                filter(new BufferedOutputStream(os), signatureDataURI, transport,
                   // Prevent calculation of digest and signature for 'signatureDataURI' file.
                   sData - Digest.Key.freeze - Signature.Key.freeze)
               case None ⇒
-                transport.openWrite(Serialization.inner.encode(signatureDataURI, sData), sData, true)
+                val os = transport.openWrite(Serialization.inner.encode(signatureDataURI, sData), sData, true)
+                new BufferedOutputStream(os)
             }
-            val allEntitiesSignatureStream = new Signature.SignatureOutputStream(new BufferedOutputStream(os),
+            val allEntitiesSignatureStream = new Signature.SignatureOutputStream(os,
               SimpleSignature.getInstance(privateKey, sAlgorithm, sProvider), _ ⇒ {})
             val printStream = new PrintStream(allEntitiesSignatureStream)
             streamContainer.set((printStream, allEntitiesSignatureStream))

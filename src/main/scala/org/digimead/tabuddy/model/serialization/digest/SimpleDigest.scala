@@ -64,13 +64,14 @@ class SimpleDigest extends Mechanism with Loggable {
           val os = sData.get(SData.Key.writeFilter) match {
             case Some(filter) ⇒
               val os = transport.openWrite(Serialization.inner.encode(mechanismTypeURI, sData), sData, true)
-              filter(os, mechanismTypeURI, transport,
+              filter(new BufferedOutputStream(os), mechanismTypeURI, transport,
                 // Prevent calculation of digest and signature for 'mechanismTypeURI' file.
                 sData - Digest.Key.freeze - Signature.Key.freeze)
             case None ⇒
-              transport.openWrite(Serialization.inner.encode(mechanismTypeURI, sData), sData, true)
+              val os = transport.openWrite(Serialization.inner.encode(mechanismTypeURI, sData), sData, true)
+              new BufferedOutputStream(os)
           }
-          val pos = new PrintStream(new BufferedOutputStream(os))
+          val pos = new PrintStream(os)
           try {
             pos.println(SimpleDigest.Identifier.name)
             pos.println()
@@ -110,7 +111,14 @@ class SimpleDigest extends Mechanism with Loggable {
       case SimpleDigestParameters(algorithmName) ⇒
         val verifier = MessageDigest.getInstance(algorithmName)
         new Digest.DigestInputStream(is, verifier, verifier ⇒
-          validateDigest(verifier, context, modified, uri, transport, sData))
+          try validateDigest(verifier, context, modified, uri, transport, sData)
+          catch {
+            case e: SecurityException ⇒
+              throw e
+            case e: Throwable ⇒
+              log.error("Error occurred while validating digest: " + e.getMessage(), e)
+              Digest.refuse(uri, sData)
+          })
       case unexpected ⇒
         throw new IllegalArgumentException("Unexpected parameters " + unexpected)
     }
@@ -200,19 +208,20 @@ class SimpleDigest extends Mechanism with Loggable {
           val os = sData.get(SData.Key.writeFilter) match {
             case Some(filter) ⇒
               val os = transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
-              filter(os, digestDataURI, transport,
+              filter(new BufferedOutputStream(os), digestDataURI, transport,
                 // Prevent calculation of digest and signature for 'digestDataURI' file.
                 sData - Digest.Key.freeze - Signature.Key.freeze)
             case None ⇒
-              transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
+              val os = transport.openWrite(Serialization.inner.encode(digestDataURI, sData), sData, true)
+              new BufferedOutputStream(os)
           }
           val printStream = sData.get(Digest.Key.writeFilter) match {
             case Some(filter) ⇒
-              new PrintStream(filter(new BufferedOutputStream(os),
+              new PrintStream(filter(os,
                 Digest.digestURI(storageURI, transport, modified).relativize(digestDataURI),
                 transport, sData.updated(SData.Key.modified, modified)))
             case None ⇒
-              new PrintStream(new BufferedOutputStream(os))
+              new PrintStream(os)
           }
           streamContainer.set(printStream)
           printStream

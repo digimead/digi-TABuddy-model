@@ -1319,7 +1319,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val h2gx = Digest.history(graph)
       h2lx should be(h2gx)
       h2lx.size should be(2)
-      h2lx.head._2.size should be(3)
+      h2lx.toSeq.sortBy(_._1).last._2.size should be(3)
       val h2keysx = h2lx.keys.toSeq
       h2lx(h2keysx.head) should not be (h2lx(h2keysx.last))
 
@@ -1400,7 +1400,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val h2gx = Digest.history(graph)
       h2lx should be(h2gx)
       h2lx.size should be(2)
-      h2lx.head._2.size should be(3)
+      h2lx.toSeq.sortBy(_._1).last._2.size should be(3)
       val h2keysx = h2lx.keys.toSeq
       h2lx(h2keysx.head) should not be (h2lx(h2keysx.last))
 
