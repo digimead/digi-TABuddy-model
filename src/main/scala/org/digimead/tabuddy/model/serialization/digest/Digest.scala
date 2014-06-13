@@ -464,7 +464,7 @@ object Digest extends Loggable {
    */
   private object DI extends DependencyInjection.PersistentInjectable {
     /** Default digest algorithm. */
-    lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse SimpleDigest("SHA-512")
+    lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse SimpleDigest("SHA-1")
     /** Digest container name. */
     lazy val containerName = injectOptional[String]("Digest.ContainerName") getOrElse "digest"
     /** Digest implementation. */
