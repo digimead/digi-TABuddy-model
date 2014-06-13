@@ -80,6 +80,13 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         graphLatest.storages should have size (1)
         graphLatest.storages.toSet should be(Set(folderShared.toURI))
         graphLatest.modified should be(bTS)
+
+        val history = Serialization.acquireLoader(folderPrivate.toURI).history
+        history should have size (2)
+        val records = history.keys.toSeq.sorted
+        records.head should be < (records.last)
+        history(records.head) should have size (2)
+        history(records.last) should have size (1)
       }
     }
     // X.acquireLoader(..., SData(Digest.Key.acquire -> initiate Digest.historyPerURI initialization
@@ -100,7 +107,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val loader1 = Serialization.acquireLoader(folderA.toURI, SData(Digest.Key.acquire -> false))
         val records1 = loader1.sources.head.graphDescriptor.records.sorted
         val history1 = loader1.sData(Digest.historyPerURI)(folderA.toURI())
-        records1.map(r ⇒ history1(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)"))
+        records1.map(r ⇒ history1(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-1)"))
 
         info("freeze modification 2 of graph to folderA")
         graph.model.eSet('Key, "2")
@@ -109,7 +116,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val loader2 = Serialization.acquireLoader(folderA.toURI, SData(Digest.Key.acquire -> false))
         val records2 = loader2.sources.head.graphDescriptor.records.sorted
         val history2 = loader2.sData(Digest.historyPerURI)(folderA.toURI())
-        records2.map(r ⇒ history2(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "SimpleDigestParameters(MD5)"))
+        records2.map(r ⇒ history2(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-1)", "SimpleDigestParameters(MD5)"))
         loader2.load()
         val digestA = new File(new File(Digest.digestURI(folderA.toURI, Serialization.perScheme("file"), graph.modified)), Digest.containerName)
         digestA should be('exists)
@@ -120,7 +127,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val loader2b = Serialization.acquireLoader(folderB.toURI, SData(Digest.Key.acquire -> false))
         val records2b = loader2b.sources.head.graphDescriptor.records.sorted
         val history2b = loader2b.sData(Digest.historyPerURI)(folderB.toURI())
-        records2b.map(r ⇒ history2b(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2b.map(r ⇒ history2b(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2b.load()
         digestA.length() should be(digestASize)
 
@@ -130,7 +137,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val loader2c = Serialization.acquireLoader(folderC.toURI, SData(Digest.Key.acquire -> false))
         val records2c = loader2c.sources.head.graphDescriptor.records.sorted
         val history2c = loader2c.sData(Digest.historyPerURI)(folderC.toURI())
-        records2c.map(r ⇒ history2c(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2c.map(r ⇒ history2c(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2c.load()
         digestA.length() should be(digestASize)
 
@@ -142,7 +149,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val loader2d = Serialization.acquireLoader(folderD.toURI, SData(Digest.Key.acquire -> false))
         val records2d = loader2d.sources.head.graphDescriptor.records.sorted
         val history2d = loader2d.sData(Digest.historyPerURI)(folderD.toURI())
-        records2d.map(r ⇒ history2d(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2d.map(r ⇒ history2d(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2d.load()
 
         //val tmp = new File("/tmp/data")
@@ -184,7 +191,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val records1 = loader1.sources.head.graphDescriptor.records.sorted
         val dHistory1 = loader1.sData(Digest.historyPerURI)(folderA.toURI())
         val sHistory1 = Signature.history(loader1)
-        records1.map(r ⇒ dHistory1(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)"))
+        records1.map(r ⇒ dHistory1(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-1)"))
         sHistory1(records1(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
         } should be(Map("A/" -> "RSA"))
@@ -196,7 +203,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val records2 = loader2.sources.head.graphDescriptor.records.sorted
         val dHistory2 = loader2.sData(Digest.historyPerURI)(folderA.toURI())
         val sHistory2 = Signature.history(loader2)
-        records2.map(r ⇒ dHistory2(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-512)", "SimpleDigestParameters(SHA-512)"))
+        records2.map(r ⇒ dHistory2(r)._1.toString()).toList should be(List("SimpleDigestParameters(SHA-1)", "SimpleDigestParameters(SHA-1)"))
         loader2.load()
         sHistory2(records2(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
@@ -215,7 +222,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val records2b = loader2b.sources.head.graphDescriptor.records.sorted
         val dHistory2b = loader2b.sData(Digest.historyPerURI)(folderB.toURI())
         val sHistory2b = Signature.history(loader2b)
-        records2b.map(r ⇒ dHistory2b(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2b.map(r ⇒ dHistory2b(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2b.load()
         sHistory2b(records2b(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
@@ -234,7 +241,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val records2c = loader2c.sources.head.graphDescriptor.records.sorted
         val dHistory2c = loader2c.sData(Digest.historyPerURI)(folderC.toURI())
         val sHistory2c = Signature.history(loader2c)
-        records2c.map(r ⇒ dHistory2c(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2c.map(r ⇒ dHistory2c(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2c.load()
         sHistory2c(records2c(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
@@ -256,7 +263,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val records2d = loader2d.sources.head.graphDescriptor.records.sorted
         val dHistory2d = loader2d.sData(Digest.historyPerURI)(folderD.toURI())
         val sHistory2d = Signature.history(loader2d)
-        records2d.map(r ⇒ dHistory2d(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2d.map(r ⇒ dHistory2d(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2d.load()
         sHistory2d(records2d(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
@@ -293,7 +300,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val records2e = loader2e.sources.head.graphDescriptor.records.sorted
         val dHistory2e = loader2e.sData(Digest.historyPerURI)(folderE.toURI())
         val sHistory2e = Signature.history(loader2e)
-        records2e.map(r ⇒ dHistory2e(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+        records2e.map(r ⇒ dHistory2e(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
         loader2e.load()
         sHistory2e(records2e(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
@@ -307,10 +314,10 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val dHistory2eComplete = Digest.history(loader2e)
         dHistory2eComplete(records2e(0)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
-        } should be(Map("A/" -> "SHA-512", "B/" -> "", "C/" -> "", "E/" -> ""))
+        } should be(Map("A/" -> "SHA-1", "B/" -> "", "C/" -> "", "E/" -> ""))
         dHistory2eComplete(records2e(1)).map {
           case (a, b) ⇒ (folder.toURI.relativize(a).toString(), b.algorithm)
-        } should be(Map("A/" -> "SHA-512", "B/" -> "SHA-512", "C/" -> "SHA-512", "E/" -> "SHA-512"))
+        } should be(Map("A/" -> "SHA-1", "B/" -> "SHA-1", "C/" -> "SHA-1", "E/" -> "SHA-1"))
       }
     }
     it("should have proper signatures for nested sources") {

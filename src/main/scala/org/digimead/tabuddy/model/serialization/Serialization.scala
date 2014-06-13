@@ -935,6 +935,16 @@ object Serialization extends Loggable {
     /** Create graph. */
     def createGraph() = new Graph[Model.Like](sources.head.graphDescriptor.created,
       createModelNode, sources.head.graphDescriptor.origin)(modelTypeManifest)
+    /** Get modification history. */
+    def history = sources.foldLeft(Map.empty[Element.Timestamp, Set[URI]]) {
+      case (records, source) ⇒
+        source.graphDescriptor.records.foldLeft(records) { (records, record) ⇒
+          records.get(record) match {
+            case Some(locations) ⇒ records.updated(record, (locations + source.storageURI))
+            case None ⇒ records.updated(record, Set(source.storageURI))
+          }
+        }
+    }
     /** Load graph with this graph loader. */
     def load(sources: Seq[Source[_ <: Model.Like, _ <: Element]] = sources.sortBy(-_.weigth), graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit = (graph) ⇒ {}): Graph[_ <: Model.Like] =
       Serialization.inner.acquireGraph(this, graphEarlyAccess,

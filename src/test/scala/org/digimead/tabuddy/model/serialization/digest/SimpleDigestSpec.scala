@@ -1110,7 +1110,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
 
       records.map(r ⇒ historyForFolderA(r)._1.toString()).toList should be(List("NoDigest", "NoDigest"))
       records.map(r ⇒ historyForFolderB(r)._1.toString()).toList should be(List("SimpleDigestParameters(MD5)", "SimpleDigestParameters(MD5)"))
-      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-512)"))
+      records.map(r ⇒ historyForFolderC(r)._1.toString()).toList should be(List("NoDigest", "SimpleDigestParameters(SHA-1)"))
       val graph2 = graph2Loader.load()
       graph.node.safeRead { node ⇒
         graph2.node.safeRead { node2 ⇒
