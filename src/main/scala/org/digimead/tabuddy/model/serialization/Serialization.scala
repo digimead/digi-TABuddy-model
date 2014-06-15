@@ -910,12 +910,12 @@ object Serialization extends Loggable {
         relative.getPath().split("/").map(f(_, sData)).mkString("/"),
         relative.getQuery(), relative.getFragment()))
     }
-    /** Decode URI with decodeName. */
+    /** Decode URI with convertURI. */
     def decode(uri: URI, sData: SData): URI = sData.get(SData.Key.convertURI) match {
       case Some((encodeFn, decodeFn)) ⇒ convert(sData(SData.Key.storageURI), uri, decodeFn, sData)
       case None ⇒ uri
     }
-    /** Encode URI with encodeName. */
+    /** Encode URI with convertURI. */
     def encode(uri: URI, sData: SData): URI = sData.get(SData.Key.convertURI) match {
       case Some((encodeFn, decodeFn)) ⇒ convert(sData(SData.Key.storageURI), uri, encodeFn, sData)
       case None ⇒ uri

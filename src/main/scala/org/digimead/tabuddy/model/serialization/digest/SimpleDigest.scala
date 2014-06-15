@@ -49,12 +49,12 @@ class SimpleDigest extends Mechanism with Loggable {
   def apply(algorithmName: String, args: String*): Mechanism.Parameters = {
     if (args.nonEmpty)
       throw new IllegalArgumentException("Unknown parameters: " + args.mkString(", "))
-    SimpleDigestParameters(algorithmName)
+    SimpleDigest.Parameters(algorithmName)
   }
   /** Just invoked before freeze completion. */
   def afterFreeze(parameters: Mechanism.Parameters, graph: Graph[_ <: Model.Like], transport: Transport, sData: SData) =
     parameters match {
-      case SimpleDigestParameters(algorithmName) ⇒
+      case SimpleDigest.Parameters(algorithmName) ⇒
         val storageURI = sData(SData.Key.storageURI)
         log.debug(s"Save digest ${algorithmName} data to ${storageURI}")
         // Write type info.
@@ -99,7 +99,7 @@ class SimpleDigest extends Mechanism with Loggable {
   def initAcquire(sData: SData): SData = sData
   /** Initialize SData for freeze process. */
   def initFreeze(sData: SData): SData = sData.get(Digest.Key.freeze) match {
-    case Some(parameters) if parameters.exists { case (uri, parameters) ⇒ parameters.isInstanceOf[SimpleDigestParameters] } ⇒
+    case Some(parameters) if parameters.exists { case (uri, parameters) ⇒ parameters.isInstanceOf[SimpleDigest.Parameters] } ⇒
       sData.updated(SimpleDigest.printStream, new AtomicReference[PrintStream]())
     case _ ⇒
       sData
@@ -108,7 +108,7 @@ class SimpleDigest extends Mechanism with Loggable {
   def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream =
     parameters match {
-      case SimpleDigestParameters(algorithmName) ⇒
+      case SimpleDigest.Parameters(algorithmName) ⇒
         val verifier = MessageDigest.getInstance(algorithmName)
         new Digest.DigestInputStream(is, verifier, verifier ⇒
           try validateDigest(verifier, context, modified, uri, transport, sData)
@@ -125,7 +125,7 @@ class SimpleDigest extends Mechanism with Loggable {
   /** Just invoked after write beginning. */
   def writeFilter(parameters: Mechanism.Parameters, os: OutputStream, uri: URI, transport: Transport, sData: SData): OutputStream =
     parameters match {
-      case SimpleDigestParameters(algorithmName) ⇒
+      case SimpleDigest.Parameters(algorithmName) ⇒
         val digest = MessageDigest.getInstance(algorithmName)
         new Digest.DigestOutputStream(os, digest, digest ⇒
           writeDigest(digest, uri, transport, sData))
@@ -234,15 +234,6 @@ class SimpleDigest extends Mechanism with Loggable {
       printStream.println(Serialization.byteArrayToHexString(digest.digest()) + " " + storageURI.relativize(uri))
     })
   }
-  /**
-   * SimpleDigest parameters.
-   */
-  case class SimpleDigestParameters(val algorithm: String) extends Mechanism.Parameters {
-    /** Digest parameters as sequence of strings. */
-    val arguments: Seq[String] = Seq.empty
-    /** Mechanism instance. */
-    val mechanism = SimpleDigest.this
-  }
 }
 
 object SimpleDigest {
@@ -259,4 +250,15 @@ object SimpleDigest {
    * SimpleDigest mechanism identifier.
    */
   object Identifier extends Mechanism.Identifier { val name = "simple" }
+  /**
+   * SimpleDigest parameters.
+   */
+  case class Parameters(val algorithm: String) extends Mechanism.Parameters {
+    /** Digest parameters as sequence of strings. */
+    val arguments: Seq[String] = Seq.empty
+    /** Mechanism instance. */
+    val mechanism = Digest.perIdentifier(Identifier).asInstanceOf[SimpleDigest]
+
+    override def toString() = s"SimpleDigestParameters(${algorithm})"
+  }
 }

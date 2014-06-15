@@ -47,14 +47,14 @@ class SimpleSignature extends Mechanism with Loggable {
       val privateKey = None
       val sAlgorithm = if (sAlgorithmArg == "") None else Option(sAlgorithmArg)
       val sProvider = if (sProviderArg == "") None else Option(sProviderArg)
-      SimpleSignatureParameters(publicKey, privateKey, sAlgorithm, sProvider)
+      SimpleSignature.Parameters(publicKey, privateKey, sAlgorithm, sProvider)
     case Seq(publicKeyArg, privateKeyArg, sAlgorithmArg, sProviderArg) ⇒
       // freeze parameters
       val publicKey = loadPublicKey(algorithmName, publicKeyArg)
       val privateKey = if (privateKeyArg == "") None else Some(loadPrivateKey(algorithmName, privateKeyArg))
       val sAlgorithm = if (sAlgorithmArg == "") None else Option(sAlgorithmArg)
       val sProvider = if (sProviderArg == "") None else Option(sProviderArg)
-      SimpleSignatureParameters(publicKey, privateKey, sAlgorithm, sProvider)
+      SimpleSignature.Parameters(publicKey, privateKey, sAlgorithm, sProvider)
     case Nil ⇒
       throw new IllegalArgumentException("A cryptographic key is not defined.")
     case _ ⇒
@@ -63,7 +63,7 @@ class SimpleSignature extends Mechanism with Loggable {
   /** Just invoked before freeze completion. */
   def afterFreeze(parameters: Mechanism.Parameters, graph: Graph[_ <: Model.Like], transport: Transport, sData: SData) =
     parameters match {
-      case SimpleSignatureParameters(publicKey, Some(privateKey), algorithm, provider) ⇒
+      case SimpleSignature.Parameters(publicKey, Some(privateKey), algorithm, provider) ⇒
         val storageURI = sData(SData.Key.storageURI)
         val algorithmName = publicKey.getAlgorithm()
         val signatureInstance = SimpleSignature.getInstance(privateKey, algorithm, provider)
@@ -124,7 +124,7 @@ class SimpleSignature extends Mechanism with Loggable {
   /** Just invoked after read beginning. */
   def readFilter(parameters: Mechanism.Parameters, context: AtomicReference[SoftReference[AnyRef]],
     modified: Element.Timestamp, is: InputStream, uri: URI, transport: Transport, sData: SData): InputStream = parameters match {
-    case SimpleSignatureParameters(publicKey, _, Some(sAlgorithm), sProvider) ⇒ {
+    case SimpleSignature.Parameters(publicKey, _, Some(sAlgorithm), sProvider) ⇒ {
       val storageURI = sData(SData.Key.storageURI)
       try {
         if (sData(Signature.Key.acquire)(None)) {
@@ -165,7 +165,7 @@ class SimpleSignature extends Mechanism with Loggable {
   /** Just invoked after write beginning. */
   def writeFilter(parameters: Mechanism.Parameters, os: OutputStream, uri: URI,
     transport: Transport, sData: SData): OutputStream = parameters match {
-    case SimpleSignatureParameters(publicKey, privateKeyOption, sAlgorithm, sProvider) ⇒
+    case SimpleSignature.Parameters(publicKey, privateKeyOption, sAlgorithm, sProvider) ⇒
       val privateKey = privateKeyOption getOrElse { throw new IllegalStateException("Unable to sign without private key.") }
       // Initialize SimpleSignature.printStream if needed (only once).
       sData.get(SimpleSignature.printStream).foreach(streamContainer ⇒ streamContainer.synchronized {
@@ -372,33 +372,6 @@ class SimpleSignature extends Mechanism with Loggable {
       }
     })
 
-  /**
-   * SimpleSignature parameters.
-   *
-   * @param publicKey public key
-   * @param privateKey private key
-   * @param sAlgorithm signature instance algorithm
-   * @param sProvider signature instance provider
-   */
-  case class SimpleSignatureParameters(val publicKey: PublicKey, privateKey: Option[PrivateKey],
-    val sAlgorithm: Option[String], sProvider: Option[String]) extends Mechanism.Parameters {
-    privateKey.foreach(privateKey ⇒ if (publicKey.getAlgorithm() != privateKey.getAlgorithm())
-      throw new IllegalArgumentException(s"Public key algorithm ${publicKey.getAlgorithm()} and private key algorithm ${privateKey.getAlgorithm()} are different."))
-    /** Signature algorithm name. */
-    val algorithm = publicKey.getAlgorithm()
-    /** Signature parameters as sequence of strings. */
-    val arguments: Seq[String] =
-      Seq(mechanism.savePublicKey(publicKey), privateKey.map(mechanism.savePrivateKey).getOrElse(""), sAlgorithm.getOrElse(""), sProvider.getOrElse(""))
-    /** SimpleSignature mechanism instance. */
-    lazy val mechanism = SimpleSignature.this
-
-    override def toString() = privateKey match {
-      case Some(privateKey) ⇒
-        s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey.getAlgorithm()} key, private ${publicKey.getAlgorithm()} key, ${sAlgorithm}, ${sProvider})"
-      case None ⇒
-        s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey.getAlgorithm()} key, ${sAlgorithm}, ${sProvider})"
-    }
-  }
 }
 
 object SimpleSignature extends Loggable {
@@ -489,6 +462,34 @@ object SimpleSignature extends Loggable {
    * Factory for signature object that implements the specified signature algorithm.
    */
   trait Factory extends Function3[PrivateKey, Option[String], Option[String], java.security.Signature]
+  /**
+   * SimpleSignature parameters.
+   *
+   * @param publicKey public key
+   * @param privateKey private key
+   * @param sAlgorithm signature instance algorithm
+   * @param sProvider signature instance provider
+   */
+  case class Parameters(val publicKey: PublicKey, privateKey: Option[PrivateKey],
+    val sAlgorithm: Option[String], sProvider: Option[String]) extends Mechanism.Parameters {
+    privateKey.foreach(privateKey ⇒ if (publicKey.getAlgorithm() != privateKey.getAlgorithm())
+      throw new IllegalArgumentException(s"Public key algorithm ${publicKey.getAlgorithm()} and private key algorithm ${privateKey.getAlgorithm()} are different."))
+    /** Signature algorithm name. */
+    val algorithm = publicKey.getAlgorithm()
+    /** Signature parameters as sequence of strings. */
+    val arguments: Seq[String] =
+      Seq(mechanism.savePublicKey(publicKey), privateKey.map(mechanism.savePrivateKey).getOrElse(""), sAlgorithm.getOrElse(""), sProvider.getOrElse(""))
+    /** SimpleSignature mechanism instance. */
+    lazy val mechanism = Signature.perIdentifier(Identifier).asInstanceOf[SimpleSignature]
+
+    override def toString() = privateKey match {
+      case Some(privateKey) ⇒
+        s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey.getAlgorithm()} key, private ${publicKey.getAlgorithm()} key, ${sAlgorithm}, ${sProvider})"
+      case None ⇒
+        s"SimpleSignatureParameters(public ${publicKey.getFormat()} ${publicKey.getAlgorithm()} key, ${sAlgorithm}, ${sProvider})"
+    }
+  }
+
   /**
    * Dependency injection routines.
    */

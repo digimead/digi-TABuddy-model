@@ -79,7 +79,7 @@ trait Transport {
       decodedResourceURI.getHost(), decodedResourceURI.getPort(),
       decodedResourceURI.getPath() + "." + timestampExtension, decodedResourceURI.getQuery(),
       decodedResourceURI.getFragment())
-    val timestampStream = openRead(Serialization.inner.encode(Serialization.inner.decode(timestampURI, sData), sData), sData)
+    val timestampStream = openRead(Serialization.inner.encode(timestampURI, sData), sData)
     val is = new DataInputStream(timestampStream)
     try Element.timestamp(is.readLong(), is.readLong())
     finally try is.close() catch {

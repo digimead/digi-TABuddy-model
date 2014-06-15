@@ -115,6 +115,10 @@ class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with
         new File(folderC, "descriptor.yaml") should not be ('exists)
 
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
+          Serialization.Storages(Serialization.Storages.Real(folderB.getAbsoluteFile.toURI))))
+        graph.retrospective.history.size should be(1)
+
+        Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
           Serialization.Storages(graph.storages.map(Serialization.Storages.Simple) :+
             Serialization.Storages.Real(folderB.getAbsoluteFile.toURI))))
         graph.storages should have size (0)
