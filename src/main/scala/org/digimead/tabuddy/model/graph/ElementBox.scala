@@ -93,7 +93,7 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   /**
    * Save element.
    *
-   * @param storageURI explicit storage URI
+   * @param sData serialization data with parameters
    */
   def save(sData: SData)
 
@@ -271,9 +271,14 @@ object ElementBox extends Loggable {
     // get modified timestamp or get unmodified timestamp or get unmodified if not loaded
     override def modified: Element.Timestamp = modifiedCache.map(_.modified) orElse
       unmodifiedCache.map(_.modified) getOrElse unmodified
+    /**
+     * Save element.
+     *
+     * @param sData serialization data with parameters
+     */
     def save(sData: SData) =
       synchronized {
-        Serialization.perIdentifier.get(serialization) match {
+        Serialization.perIdentifier.get(sData.get(SData.Key.explicitSerializationType) getOrElse serialization) match {
           case Some(mechanism) ⇒
             save(e, mechanism, sData)
           case None ⇒

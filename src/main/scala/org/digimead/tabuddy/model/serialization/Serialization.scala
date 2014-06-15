@@ -404,13 +404,13 @@ class Serialization extends Serialization.Interface with Loggable {
   protected def elementBoxDescriptorFromYaml(descriptor: Array[Byte]): Serialization.Descriptor.Element[_ <: Element] = YAMLSerialization.wrapper(
     yaml.YAML.block.loadAs(new String(descriptor, io.Codec.UTF8.charSet), classOf[Serialization.Descriptor.Element[_ <: Element]]), descriptor)
   /** Create YAML element box descriptor. */
-  protected def elementBoxDescriptorToYAML(elementBox: ElementBox[_ <: Element]): Array[Byte] = {
+  protected def elementBoxDescriptorToYAML(elementBox: ElementBox[_ <: Element], sData: SData): Array[Byte] = {
     val descriptorMap = new java.util.TreeMap[String, AnyRef]()
     descriptorMap.put("coordinate", elementBox.coordinate)
     descriptorMap.put("class", elementBox.node.elementType.runtimeClass.getName)
     descriptorMap.put("element_unique_id", elementBox.elementUniqueId)
     descriptorMap.put("modified", elementBox.modified)
-    descriptorMap.put("serialization_identifier", elementBox.serialization.extension)
+    descriptorMap.put("serialization_identifier", sData.get(SData.Key.explicitSerializationType).map(_.extension) getOrElse elementBox.serialization.extension)
     YAMLSerialization.wrapper(yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet), descriptorMap)
   }
   /** Internal method that saves the element content. */
@@ -421,7 +421,7 @@ class Serialization extends Serialization.Interface with Loggable {
     val elementBoxURI = transport.getElementBoxURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
     if (transport.exists(encode(elementBoxURI, sData), sData) && sData.get(SData.Key.force) != Some(true))
       return
-    transport.write(encode(elementBoxURI, sData), elementBoxDescriptorToYAML(elementBox), sData)
+    transport.write(encode(elementBoxURI, sData), elementBoxDescriptorToYAML(elementBox, sData), sData)
     transport.writeTimestamp(elementBoxURI, sData)
     if (elementBox.getModified.map(_ ne elementBox.e) == Some(true))
       throw new IllegalStateException("Element and modified element are different.")

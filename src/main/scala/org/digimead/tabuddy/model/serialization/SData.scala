@@ -119,6 +119,8 @@ object SData {
     val beforeWrite = SData.key[(URI, Array[Byte], Transport, SData) ⇒ _]("beforeWrite")
     /** Encode/decode URI path parts. */
     val convertURI = SData.key[((String, SData) ⇒ String, (String, SData) ⇒ String)]("convertURI")
+    /** Explicit type of a serialization mechanism for an element box data. */
+    val explicitSerializationType = SData.key[Serialization.Identifier]("explicitSerializationType")
     /** Explicit storages. */
     val explicitStorages = SData.key[Serialization.Storages]("explicitStorages")
     /** Skip broken nodes on load/overwrite everything. */

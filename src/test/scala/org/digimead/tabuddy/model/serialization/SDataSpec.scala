@@ -22,8 +22,8 @@ import com.escalatesoft.subcut.inject.NewBindingModule
 import java.io.{ ByteArrayOutputStream, File, FileInputStream, FileNotFoundException, FilterOutputStream, InputStream, IOException, OutputStream }
 import java.net.URI
 import java.security.{ DigestInputStream, DigestOutputStream, MessageDigest, SecureRandom }
-import java.util.{ Formatter, UUID }
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.{ Formatter, UUID }
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
 import javax.crypto.CipherOutputStream
@@ -38,6 +38,7 @@ import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.graph.{ ElementBox, Graph, Node }
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
+import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 import org.hamcrest.{ BaseMatcher, Description }
 import org.mockito.{ Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
@@ -137,6 +138,33 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
         }
         def describeTo(description: Description) {}
       }))
+    }
+  }
+  "Serialization data should support 'explicitSerializationType' option" in {
+    withTempFolder { folder ⇒
+      import TestDSL._
+
+      val folderA = new File(folder, "A")
+      val folderB = new File(folder, "B")
+      val folderC = new File(folder, "C")
+
+      // graph
+      val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val model = graph.model.eSet('AAAKey, "AAA")
+      val elementBoxDirectoryName = "box %X-%X-%s".format(model.eBox.elementUniqueId.getMostSignificantBits(),
+        model.eBox.elementUniqueId.getLeastSignificantBits(), Timestamp.dump(model.eBox.modified))
+
+      Serialization.freeze(graph, folderA.toURI)
+      new File(folderA, s"data/${elementBoxDirectoryName}/element.bcode") should be('file)
+
+      Serialization.freeze(graph, SData(SData.Key.explicitSerializationType -> YAMLSerialization.Identifier), folderB.toURI)
+      new File(folderB, s"data/${elementBoxDirectoryName}/element.yaml") should be('file)
+
+      val graph2 = Serialization.acquire(folderB.toURI())
+      graph2.model.eBox.serialization should be(YAMLSerialization.Identifier)
+
+      val graph3 = Serialization.acquire(folderA.toURI())
+      graph3.model.eBox.serialization should be(BuiltinSerialization.Identifier)
     }
   }
   "Serialization data should support 'force' option" in {
