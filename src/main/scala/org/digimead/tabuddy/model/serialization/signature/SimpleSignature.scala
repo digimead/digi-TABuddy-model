@@ -33,7 +33,6 @@ import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
 import scala.collection.immutable
 import scala.ref.SoftReference
-import sun.misc.{ BASE64Decoder, BASE64Encoder }
 
 class SimpleSignature extends Mechanism with Loggable {
   /** Identifier of the digest. */
@@ -212,7 +211,7 @@ class SimpleSignature extends Mechanism with Loggable {
     if (end < 0)
       throw new IllegalStateException("Unable to find the ending of the private key.")
     val keyLines = privateKey.substring(begin, end + 1).split("\n").drop(1).dropRight(1)
-    val encoded = new BASE64Decoder().decodeBuffer(keyLines.mkString("\n"))
+    val encoded = Serialization.Base64.decode(keyLines.mkString("\n"))
     val keySpec = new PKCS8EncodedKeySpec(encoded)
     val kf = KeyFactory.getInstance(algorithm)
     kf.generatePrivate(keySpec)
@@ -227,7 +226,7 @@ class SimpleSignature extends Mechanism with Loggable {
     if (end < 0)
       throw new IllegalStateException("Unable to find the ending of the public key.")
     val keyLines = publicKey.substring(begin, end + 1).split("\n").drop(1).dropRight(1)
-    val encoded = new BASE64Decoder().decodeBuffer(keyLines.mkString("\n"))
+    val encoded = Serialization.Base64.decode(keyLines.mkString("\n"))
     val keySpec = new X509EncodedKeySpec(encoded)
     val kf = KeyFactory.getInstance(algorithm)
     kf.generatePublic(keySpec)
@@ -238,7 +237,7 @@ class SimpleSignature extends Mechanism with Loggable {
     val sb = new StringBuilder()
     val pkcs8EncodedKeySpec = new PKCS8EncodedKeySpec(privateKey.getEncoded())
     sb.append(SimpleSignature.privateBegin + "\n")
-    sb.append(new BASE64Encoder().encode(pkcs8EncodedKeySpec.getEncoded()))
+    sb.append(Serialization.Base64.encode(pkcs8EncodedKeySpec.getEncoded()))
     sb.append("\n" + SimpleSignature.privateEnd)
     sb.toString
   }
@@ -248,7 +247,7 @@ class SimpleSignature extends Mechanism with Loggable {
     val sb = new StringBuilder()
     val x509EncodedKeySpec = new X509EncodedKeySpec(publicKey.getEncoded())
     sb.append(SimpleSignature.publicBegin + "\n")
-    sb.append(new BASE64Encoder().encode(x509EncodedKeySpec.getEncoded()))
+    sb.append(Serialization.Base64.encode(x509EncodedKeySpec.getEncoded()))
     sb.append("\n" + SimpleSignature.publicEnd)
     sb.toString
   }

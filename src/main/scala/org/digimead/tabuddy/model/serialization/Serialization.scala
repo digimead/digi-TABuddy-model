@@ -746,6 +746,154 @@ object Serialization extends Loggable {
   def recordResourcesName(modified: Element.Timestamp) = DI.recordResources.format(yaml.Timestamp.dump(modified))
 
   /**
+   * Base64 implementation.
+   *
+   * This class is based on Mikael Grev code which is published under the BSD license.
+   */
+  object Base64 {
+    val CA = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray
+    val IA = {
+      val array = new Array[Int](256)
+      java.util.Arrays.fill(array, -1)
+      var iS = CA.length
+      for (i ← 0 until iS) {
+        array(CA(i)) = i
+        array('=') = 0
+      }
+      array
+    }
+
+    /** Decodes a BASE64 encoded byte array.*/
+    def decode(sArr: String): Array[Byte] = decode(sArr.toCharArray())
+    /**
+     * Decodes a BASE64 encoded byte array. All illegal characters will be ignored and can handle both arrays with
+     * and without line separators.
+     * @param sArr The source array. Length 0 will return an empty array. <code>null</code> will throw an exception.
+     * @return The decoded array of bytes. May be of length 0. Will be <code>null</code> if the legal characters
+     * (including '=') isn't divideable by 4. (I.e. definitely corrupted).
+     */
+    def decode(sArr: Array[Char]): Array[Byte] = {
+      // Check special case
+      val sLen = sArr.length
+
+      // Count illegal characters (including '\r', '\n') to know what size the returned array will be,
+      // so we don't have to reallocate & copy it later.
+      var sepCnt = 0 // Number of separator characters. (Actually illegal characters, but that's a bonus...)
+      for (i ← 0 until sLen) // If input is "pure" (I.e. no line separators or illegal chars) base64 this loop can be commented out.
+        if (IA(sArr(i) & 0xff) < 0)
+          sepCnt += 1
+
+      // Check so that legal chars (including '=') are evenly divideable by 4 as specified in RFC 2045.
+      if ((sLen - sepCnt) % 4 != 0)
+        return null
+
+      var pad = 0
+      var i = sLen - 1
+      while (sArr(i) == '=' && i > 0) {
+        pad += 1
+        i -= 1
+      }
+
+      val len = ((sLen - sepCnt) * 6 >> 3) - pad
+
+      val dArr = new Array[Byte](len) // Preallocate byte[] of exact length
+
+      var s = 0
+      var d = 0
+      while (d < len) {
+        // Assemble three bytes into an int from four "valid" characters.
+        var i = 0
+        var j = 0
+        while (j < 4) { // j only increased if a valid char was found.
+          var c = IA(sArr(s))
+          if (c >= 0) {
+            i |= (c << (18 - j * 6))
+            j += 1
+          }
+          s += 1
+        }
+
+        // Add the bytes
+        dArr(d) = (i >> 16).toByte
+        d += 1
+        if (d < len) {
+          dArr(d) = (i >> 8).toByte
+          d += 1
+          if (d < len) {
+            dArr(d) = i.toByte
+            d += 1
+          }
+        }
+      }
+
+      dArr
+    }
+    /**
+     * Encodes a raw byte array into a BASE64 <code>char[]</code> representation i accordance with RFC 2045.
+     * @param sArr The bytes to convert. If <code>null</code> or length 0 an empty array will be returned.
+     * @param lineSep Optional "\r\n" after 76 characters, unless end of file. With default value compatible with sun.misc.BASE64Encoder<br>
+     * No line separator will be in breach of RFC 2045 which specifies max 76 per line but will be a
+     * little faster.
+     * @return A BASE64 encoded array. Never <code>null</code>.
+     */
+    def encode(sArr: Array[Byte], lineSep: String = "\n"): String = {
+      // Check special case
+      val sLen = if (sArr != null) sArr.length else 0
+      if (sLen == 0)
+        return ""
+
+      val eLen = (sLen / 3) * 3 // Length of even 24-bits.
+      val cCnt = ((sLen - 1) / 3 + 1) << 2 // Returned character count
+      val dLen = if (cCnt % 76 == 0)
+        cCnt + (cCnt / 76 - 1) * lineSep.length()
+      else
+        cCnt + cCnt / 76 * lineSep.length()
+      val dArr = new Array[Char](dLen)
+
+      // Encode even 24-bits
+      var d = 0
+      var cc = 0
+      var s = 0
+      while (s < eLen) {
+        // Copy next three bytes into lower 24 bits of int, paying attension to sign.
+        val i = (sArr(s) & 0xff) << 16 | (sArr(s + 1) & 0xff) << 8 | (sArr(s + 2) & 0xff)
+        s += 3
+
+        // Encode the int into four chars
+        dArr(d) = CA((i >>> 18) & 0x3f)
+        dArr(d + 1) = CA((i >>> 12) & 0x3f)
+        dArr(d + 2) = CA((i >>> 6) & 0x3f)
+        dArr(d + 3) = CA(i & 0x3f)
+        d += 4
+
+        // Add optional line separator
+        if (lineSep.nonEmpty) {
+          cc += 1
+          if (cc == 19 && d < dLen - lineSep.length()) {
+            for (i ← 0 until lineSep.length)
+              dArr(d + i) = lineSep.charAt(i)
+            d += lineSep.length
+            cc = 0
+          }
+        }
+      }
+
+      // Pad and encode last bits if source isn't even 24 bits.
+      val left = sLen - eLen // 0 - 2.
+      if (left > 0) {
+        // Prepare the int
+        val i = ((sArr(eLen) & 0xff) << 10) | (if (left == 2) ((sArr(sLen - 1) & 0xff) << 2) else 0)
+
+        // Set last four chars
+        dArr(dLen - 4) = CA(i >> 12)
+        dArr(dLen - 3) = CA((i >>> 6) & 0x3f)
+        dArr(dLen - 2) = if (left == 2) CA(i & 0x3f) else '='
+        dArr(dLen - 1) = '='
+      }
+      String.valueOf(dArr)
+    }
+  }
+  /**
    * Descriptor of the serialized object.
    */
   object Descriptor {

@@ -45,7 +45,6 @@ import org.scalatest.{ FreeSpec, Matchers }
 import org.yaml.snakeyaml.reader.ReaderException
 import scala.collection.immutable
 import scala.collection.mutable
-import sun.misc.{ BASE64Decoder, BASE64Encoder }
 
 class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
   lazy val testTransport = Mockito.spy(new Local)
@@ -490,7 +489,7 @@ class SDataSpec extends FreeSpec with Matchers with StorageHelper with LoggingHe
         out(i) = (a(i) ^ key(i % key.length)).toByte
       out
     }
-    def base64Decode(s: String): Array[Byte] = new BASE64Decoder().decodeBuffer(s)
-    def base64Encode(bytes: Array[Byte]) = new BASE64Encoder().encode(bytes).replaceAll("\\s", "");
+    def base64Decode(s: String): Array[Byte] = Serialization.Base64.decode(s)
+    def base64Encode(bytes: Array[Byte]) = Serialization.Base64.encode(bytes).replaceAll("\\s", "");
   }
 }

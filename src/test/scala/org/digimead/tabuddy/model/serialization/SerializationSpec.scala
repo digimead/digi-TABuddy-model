@@ -22,6 +22,7 @@ import com.escalatesoft.subcut.inject.NewBindingModule
 import java.io.{ File, FilterInputStream, FilterOutputStream, InputStream, OutputStream }
 import java.net.URI
 import java.security.{ KeyPairGenerator, PublicKey }
+import java.util.Random
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
 import org.digimead.digi.lib.log.api.Loggable
@@ -38,6 +39,7 @@ import org.scalatest.{ FunSpec, Matchers }
 import scala.io.Codec.charset2codec
 
 class SerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+  val AB = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   lazy val testTransport = Mockito.spy(new Local)
 
   before {
@@ -776,8 +778,21 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
           Signature.Key.acquire -> Signature.acceptSigned))
       }
     }
-    ignore("should have proper container and content encryption for 10000 1st level nodes") {
+    it("should have proper container and content encryption for 10000 1st level nodes") {
 
+    }
+    it("should have proper Base64 implementation") {
+      val rnd = new Random
+      val e = new sun.misc.BASE64Encoder
+      for (i ← 0 until 1000) {
+        val len = 1 + rnd.nextInt(200)
+        val str = randomString(len)
+        val x = e.encode(str.getBytes())
+        val x1 = Serialization.Base64.encode(str.getBytes())
+        assert(x.trim == new String(x1).trim)
+        Serialization.Base64.decode(x) should be (str.getBytes())
+        Serialization.Base64.decode(x1) should be (str.getBytes())
+      }
     }
   }
 
@@ -792,6 +807,13 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
     for (i ← 0 until a.length)
       out(i) = (a(i) ^ key(i % key.length)).toByte
     out
+  }
+
+  def randomString(len: Int, rnd: Random = new Random) = {
+    val sb = new StringBuilder(len)
+    for (i ← 0 until len)
+      yield sb.append(AB.charAt(rnd.nextInt(AB.length())))
+    sb.toString()
   }
 
   /**
