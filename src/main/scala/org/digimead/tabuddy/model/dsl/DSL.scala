@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,17 +19,11 @@
 package org.digimead.tabuddy.model.dsl
 
 import java.util.UUID
-
-import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.Record
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.LocationGeneric
+import org.digimead.tabuddy.model.{ Model, Record }
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, LocationGeneric }
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 import org.digimead.tabuddy.model.graph.Node
-import org.digimead.tabuddy.model.predef.Note
-import org.digimead.tabuddy.model.predef.Task
+import org.digimead.tabuddy.model.predef.{ Note, Task }
 
 abstract class DSL() {
   class ElementGenericDSL(val element: Element) extends DSL.RichSpecific[Element]

@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
 import org.digimead.tabuddy.model.serialization.YAMLSerialization
@@ -30,7 +30,7 @@ import scala.collection.{ immutable, mutable }
 /**
  * YAML de/serialization helper for Axis.
  */
-object Axis extends Loggable {
+object Axis extends XLoggable {
   val tag = new Tag(Tag.PREFIX + "axis")
 
   /** Convert Axis to string. */

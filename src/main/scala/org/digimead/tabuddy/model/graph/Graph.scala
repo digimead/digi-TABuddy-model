@@ -20,12 +20,14 @@ package org.digimead.tabuddy.model.graph
 
 import java.net.URI
 import java.util.UUID
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import java.util.concurrent.ConcurrentHashMap
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.{ Coordinate, Element }
 import org.digimead.tabuddy.model.serialization.Serialization
 import scala.collection.{ immutable, mutable }
+import scala.collection.convert.Wrappers.JMapWrapperLike
 import scala.language.implicitConversions
 
 /**
@@ -36,62 +38,9 @@ import scala.language.implicitConversions
  */
 class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   val origin: Symbol)(implicit val modelType: Manifest[A]) extends Modifiable.Read with ConsumerData with mutable.Publisher[Event] with Equals {
-  /**
-   * HashMap for index of graph nodes.
-   * Please, keep it consistent.
-   */
-  val nodes = new mutable.HashMap[UUID, Node[_ <: Element]] with mutable.SynchronizedMap[UUID, Node[_ <: Element]] {
-    /** Adds a single element to the map. */
-    override def +=(kv: (UUID, Node[_ <: Element])): this.type = { put(kv._1, kv._2); this }
-    /** Removes a key from this map. */
-    override def -=(key: UUID): this.type = { remove(key); this }
-    /** Adds a new key/value pair to this map and optionally returns previously bound value. */
-    override def put(key: UUID, value: Node[_ <: Element]): Option[Node[_ <: Element]] = {
-      if (isEmpty) {
-        // 1st node MUST be always a model
-        val undoF = () ⇒ {}
-        val result = super.put(key, value)
-        Graph.this.publish(Event.GraphChange(value, null, value)(undoF))
-        result
-      } else {
-        // Nth node MUST always have parent
-        val undoF = () ⇒ {}
-        val result = super.put(key, value)
-        if (strict)
-          result.foreach { previous ⇒
-            // restore
-            super.put(key, previous)
-            throw new IllegalStateException(s"Such node ${key} is already exists.")
-          }
-        Graph.this.publish(Event.GraphChange(value.parent.get, result.getOrElse(null), value)(undoF))
-        result
-      }
-    }
-    /** Removes a key from this map, returning the value associated previously */
-    override def remove(key: UUID): Option[Node[_ <: Element]] = super.remove(key).map { node ⇒
-      if (isEmpty) {
-        // last node MUST be always a model
-        val undoF = () ⇒ {}
-        Graph.this.publish(Event.GraphChange(node, node, null)(undoF))
-      } else {
-        // Nth node MUST always have parent
-        val undoF = () ⇒ {}
-        Graph.this.publish(Event.GraphChange(node.parent.get, node, null)(undoF))
-      }
-      node
-    }
-    /** Adds a new key/value pair to this map. */
-    override def update(key: UUID, value: Node[_ <: Element]): Unit = put(key, value)
-    /**
-     * Removes all nodes from the map. After this operation has completed,
-     *  the map will be empty.
-     */
-    override def clear() = {
-      val undoF = () ⇒ {}
-      Graph.this.publish(Event.GraphReset(Graph.this)(undoF))
-      super.clear()
-    }
-  }
+  /** HashMap for index of graph nodes.   */
+  // Please, keep it consistent.
+  val nodes = NodeMap(new ConcurrentHashMap[UUID, Node[_ <: Element]])
   /** List of stored graphs. */
   @volatile var retrospective = Graph.Retrospective.empty(origin)
   /** Check if such node is already exists. */
@@ -168,9 +117,64 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   override def hashCode() = lazyHashCode
   protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.created, this.node, this.origin, this.modelType))
   override def toString() = s"Graph[${model.eId.name}@${origin.name}]#${modified}"
+
+  case class NodeMap[A, B <: Node[_ <: Element]](underlying: ConcurrentHashMap[A, B])
+    extends mutable.AbstractMap[A, B] with JMapWrapperLike[A, B, NodeMap[A, B]] {
+    override def empty = NodeMap(new ConcurrentHashMap[A, B])
+    /** Adds a single element to the map. */
+    override def +=(kv: (A, B)): this.type = { put(kv._1, kv._2); this }
+    /** Removes a key from this map. */
+    override def -=(key: A): this.type = { remove(key); this }
+    /** Adds a new key/value pair to this map and optionally returns previously bound value. */
+    override def put(key: A, value: B): Option[B] = {
+      if (isEmpty) {
+        // 1st node MUST be always a model
+        val undoF = () ⇒ {}
+        val result = super.put(key, value)
+        Graph.this.publish(Event.GraphChange(value, null, value)(undoF))
+        result
+      } else {
+        // Nth node MUST always have parent
+        val undoF = () ⇒ {}
+        val result = super.put(key, value)
+        if (strict)
+          result.foreach { previous ⇒
+            // restore
+            super.put(key, previous)
+            throw new IllegalStateException(s"Such node ${key} is already exists.")
+          }
+        Graph.this.publish(Event.GraphChange(value.parent.get, result.getOrElse(null.asInstanceOf[B]), value)(undoF))
+        result
+      }
+    }
+    /** Removes a key from this map, returning the value associated previously */
+    override def remove(key: A): Option[B] = super.remove(key).map { node ⇒
+      if (isEmpty) {
+        // last node MUST be always a model
+        val undoF = () ⇒ {}
+        Graph.this.publish(Event.GraphChange(node, node, null)(undoF))
+      } else {
+        // Nth node MUST always have parent
+        val undoF = () ⇒ {}
+        Graph.this.publish(Event.GraphChange(node.parent.get, node, null)(undoF))
+      }
+      node
+    }
+    /** Adds a new key/value pair to this map. */
+    override def update(key: A, value: B): Unit = put(key, value)
+    /**
+     * Removes all nodes from the map. After this operation has completed,
+     *  the map will be empty.
+     */
+    override def clear() = {
+      val undoF = () ⇒ {}
+      Graph.this.publish(Event.GraphReset(Graph.this)(undoF))
+      super.clear()
+    }
+  }
 }
 
-object Graph extends Loggable {
+object Graph extends XLoggable {
   implicit def graph2interface(g: Graph.type): Interface = DI.implementation
 
   trait Interface {
@@ -202,6 +206,7 @@ object Graph extends Loggable {
       if (childrenDump.isEmpty) self else self + "\n" + pad + childrenDump
     }
   }
+
   /**
    * Container with graph evolution.
    */
@@ -233,7 +238,7 @@ object Graph extends Loggable {
   /**
    * Dependency injection routines.
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     lazy val implementation = injectOptional[Interface] getOrElse new AnyRef with Interface {}
   }
 }

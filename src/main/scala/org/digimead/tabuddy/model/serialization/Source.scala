@@ -19,7 +19,7 @@
 package org.digimead.tabuddy.model.serialization
 
 import java.net.URI
-import org.digimead.digi.lib.api.DependencyInjection
+import org.digimead.digi.lib.api.XDependencyInjection
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.serialization.digest.Digest
@@ -77,7 +77,7 @@ object Source {
    * Dependency injection routines.
    */
   // ? - Any unknown.
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** Default digest algorithm. */
     lazy val calculator = injectOptional[WeightCalculator] getOrElse new DefaultCalculator
     /** Digest algorithm weights. */

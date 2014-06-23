@@ -21,13 +21,13 @@ package org.digimead.tabuddy.model
 import TestDSL._
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.{ FunSpec, Matchers }
 
-class ModelSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
+class ModelSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   before { DependencyInjection(diConfig, false) }
 

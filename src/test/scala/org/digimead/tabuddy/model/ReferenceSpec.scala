@@ -21,14 +21,14 @@ package org.digimead.tabuddy.model
 import TestDSL._
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.element.{ Element, Reference }
 import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.serialization.{ BuiltinSerialization, Serialization }
 import org.scalatest.{ FunSpec, Matchers }
 
-class ReferenceSpec extends FunSpec with StorageHelper with Matchers with LoggingHelper with Loggable {
+class ReferenceSpec extends FunSpec with StorageHelper with Matchers with LoggingHelper with XLoggable {
   before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A Reference") {

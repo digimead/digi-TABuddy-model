@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.{ Element ⇒ EElement, Stash ⇒ EStash }
 import org.digimead.tabuddy.model.element.Stash.Like
@@ -33,7 +33,7 @@ import scala.collection.JavaConverters.{ asScalaBufferConverter, seqAsJavaListCo
 /**
  * YAML de/serialization helper for Stash.
  */
-object Stash extends Loggable {
+object Stash extends XLoggable {
   val tag = new Tag(Tag.PREFIX + "stash")
   /** Value is static by default. */
   val defaultStatic = true

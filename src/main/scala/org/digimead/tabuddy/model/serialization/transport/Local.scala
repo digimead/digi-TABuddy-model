@@ -21,7 +21,7 @@ package org.digimead.tabuddy.model.serialization.transport
 import java.io.{ BufferedInputStream, BufferedOutputStream, ByteArrayOutputStream, File, FileInputStream, FileOutputStream, IOException, InputStream, OutputStream }
 import java.net.URI
 import java.util.UUID
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.{ SData, YAMLSerialization }
@@ -30,7 +30,7 @@ import org.digimead.tabuddy.model.serialization.yaml.Timestamp
 /**
  * Local transport.
  */
-class Local extends Transport with Loggable {
+class Local extends Transport with XLoggable {
   /** Node directory name template. */
   val nodeNameTemplate = "e %s {%08X}" // hash prevents case insensitivity collision
   /** Descriptor resource template. */

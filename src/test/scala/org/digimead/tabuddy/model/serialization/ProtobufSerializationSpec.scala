@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package org.digimead.tabuddy.model.serialization
 import scala.collection.mutable
 
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.LoggingHelper
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.ModelIndex
@@ -34,7 +34,7 @@ import org.digimead.tabuddy.model.element.Value
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 
-class ProtobufSerializationSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
+class ProtobufSerializationSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
   before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A ProtobufSerialization") {

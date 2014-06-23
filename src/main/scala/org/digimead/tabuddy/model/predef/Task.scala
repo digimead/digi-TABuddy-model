@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,19 +20,15 @@ package org.digimead.tabuddy.model.predef
 
 import java.io.ObjectInputStream
 import java.util.UUID
-
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, LocationGeneric }
 import org.digimead.tabuddy.model.element.Axis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.LocationGeneric
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 
 /**
  * Task element.
  */
-class Task(val eStash: Task.Stash)(@transient val eBox: ElementBox[Task]) extends Task.Like with Loggable {
+class Task(val eStash: Task.Stash)(@transient val eBox: ElementBox[Task]) extends Task.Like with XLoggable {
   type ElementType = Task
   type RelativeType = Task.Relative[ElementType]
   type StashType = Task.Stash
@@ -47,7 +43,7 @@ class Task(val eStash: Task.Stash)(@transient val eBox: ElementBox[Task]) extend
   }
 }
 
-object Task extends Loggable {
+object Task extends XLoggable {
   val scope = new Scope()
 
   /** Part of DSL.Builder for end user. */
@@ -89,7 +85,7 @@ object Task extends Loggable {
   }
   /** Base trait for all tasks. */
   trait Like extends Note.Like {
-    this: Loggable ⇒
+    this: XLoggable ⇒
     type ElementType <: Like
     type RelativeType <: Relative[ElementType]
 

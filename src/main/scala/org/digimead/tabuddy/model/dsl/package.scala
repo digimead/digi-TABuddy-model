@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,12 @@
 
 package org.digimead.tabuddy.model
 
-import org.digimead.digi.lib.DependencyInjection
-import org.digimead.tabuddy.model.dsl.BasicDSLTypes
-import org.digimead.tabuddy.model.dsl.ComplexDSLTypes
-import org.digimead.tabuddy.model.dsl.DSLType
-
 import com.escalatesoft.subcut.inject.NewBindingModule
+import org.digimead.digi.lib.DependencyInjection
+import org.digimead.tabuddy.model.dsl.{ BasicDSLTypes, ComplexDSLTypes, DSLType }
 
 package object dsl {
-  lazy val default = new NewBindingModule(module => {
+  lazy val default = new NewBindingModule(module ⇒ {
     module.bind[DSLType] identifiedBy ("DSLType.Basic") toSingle { new BasicDSLTypes }
     module.bind[DSLType] identifiedBy ("DSLType.Complex") toSingle { new ComplexDSLTypes }
     module.bind[DSLType.Interface] toSingle { new DSLType.Interface {} }

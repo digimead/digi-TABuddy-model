@@ -25,7 +25,7 @@ import java.security.{ KeyPairGenerator, PublicKey }
 import java.util.Random
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
@@ -38,7 +38,7 @@ import org.mockito.Mockito
 import org.scalatest.{ FunSpec, Matchers }
 import scala.io.Codec.charset2codec
 
-class SerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+class SerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with XLoggable {
   val AB = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   lazy val testTransport = Mockito.spy(new Local)
 

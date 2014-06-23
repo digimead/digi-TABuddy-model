@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,24 +20,16 @@ package org.digimead.tabuddy.model
 
 import java.io.ObjectInputStream
 import java.util.UUID
-
-import scala.Array.canBuildFrom
-import scala.collection.TraversableOnce.flattenTraversableOnce
-
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, LocationGeneric, Value }
 import org.digimead.tabuddy.model.element.Axis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.LocationGeneric
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.element.Value.string2someValue
 import org.digimead.tabuddy.model.graph.ElementBox
 
 /**
  * Record element.
  */
 class Record(val eStash: Record.Stash)(@transient val eBox: ElementBox[Record])
-  extends Record.Like with Loggable {
+  extends Record.Like with XLoggable {
   type ElementType = Record
   type StashType = Record.Stash
   type RelativeType = Record.Relative[ElementType]
@@ -52,13 +44,13 @@ class Record(val eStash: Record.Stash)(@transient val eBox: ElementBox[Record])
   }
 }
 
-object Record extends Loggable {
+object Record extends XLoggable {
   val scope = new Scope()
 
   /** Part of DSL.Builder for end user. */
   trait DSL {
     case class RecordLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
-        val scope: Scope = Record.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Record],
+      val scope: Scope = Record.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Record],
         val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric {
       type ElementType = Record
     }
@@ -94,7 +86,7 @@ object Record extends Loggable {
   }
   /** Base trait for all records. */
   trait Like extends Element {
-    this: Loggable ⇒
+    this: XLoggable ⇒
     type ElementType <: Like
     type RelativeType <: Relative[ElementType]
     type StashType <: Stash.Like

@@ -22,27 +22,26 @@ import com.escalatesoft.subcut.inject.NewBindingModule
 import java.io.{ BufferedOutputStream, File, FileOutputStream, FilterInputStream, FilterOutputStream, InputStream, OutputStream, PrintStream, RandomAccessFile }
 import java.net.URI
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import org.apache.log4j.Level
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
+import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
 import org.digimead.tabuddy.model.serialization.SData
 import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.digimead.tabuddy.model.serialization.yaml.Timestamp
-import org.digimead.tabuddy.model.serialization.{ Serialization, YAMLSerialization }
 import org.hamcrest.{ BaseMatcher, Description }
 import org.mockito.{ ArgumentCaptor, Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FreeSpec, Matchers }
-import scala.collection.JavaConverters.asScalaBufferConverter
-import scala.collection.{ immutable, mutable }
-import scala.ref.SoftReference
+import scala.collection.JavaConverters.{ asScalaBufferConverter, mapAsScalaConcurrentMapConverter }
 
-class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with XLoggable {
   lazy val testDigest = Mockito.spy(new TestSimple)
   lazy val testTransport = Mockito.spy(new Local)
 
@@ -1123,8 +1122,8 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
     withTempFolder { folder ⇒
       import TestDSL._
 
-      val readMap = new mutable.HashMap[URI, TestInputStream] with mutable.SynchronizedMap[URI, TestInputStream]
-      val writeMap = new mutable.HashMap[URI, TestOutputStream] with mutable.SynchronizedMap[URI, TestOutputStream]
+      val readMap = new ConcurrentHashMap[URI, TestInputStream].asScala
+      val writeMap = new ConcurrentHashMap[URI, TestOutputStream].asScala
 
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }

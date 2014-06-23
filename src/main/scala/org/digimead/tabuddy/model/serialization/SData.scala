@@ -24,7 +24,6 @@ import org.digimead.digi.lib.NotNothing
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
-import org.digimead.tabuddy.model.serialization.digest.Digest
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import scala.collection.{ GenTraversableOnce, IterableLike, immutable, mutable }
 import scala.language.implicitConversions
@@ -69,7 +68,7 @@ class SData(val underlying: Map[SData.Key[_], Any] = Map()) extends IterableLike
 object SData {
   implicit def state2underlying(s: SData): Map[SData.Key[_], Any] = s.underlying
 
-  def apply(elems: KeyValue[_]*): SData = new SData(Map(elems: _*))
+  def apply(elems: KeyValue[_]*): SData = new SData(Map(elems.map(kv ⇒ (kv._1, kv._2)): _*))
   def empty: SData = Nil
 
   /** Get key for transport parameter. */
@@ -149,7 +148,11 @@ object SData {
   /**
    * Key value class that provides type safe state pairs.
    */
-  class KeyValue[A](key: Key[A], value: A) extends Tuple2[Key[A], A](key, value)
+  class KeyValue[A](key: Key[A], value: A) extends Product2[Key[A], A] {
+    def _1 = key
+    def _2 = value
+    def canEqual(that: Any): Boolean = that.isInstanceOf[KeyValue[A]]
+  }
   /**
    * Empty state.
    */

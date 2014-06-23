@@ -19,7 +19,7 @@
 package org.digimead.tabuddy.model.serialization.yaml
 
 import java.util.{ UUID ⇒ JUUID }
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.{ Coordinate ⇒ ECoordinate, Reference ⇒ EReference }
 import org.digimead.tabuddy.model.serialization.YAMLSerialization
 import org.yaml.snakeyaml.nodes.{ Node, Tag }
@@ -29,7 +29,7 @@ import scala.collection.{ immutable, mutable }
 /**
  * YAML de/serialization helper for Reference.
  */
-object Reference extends Loggable {
+object Reference extends XLoggable {
   val tag = new Tag(Tag.PREFIX + "ref")
 
   /** Convert Reference to string. */

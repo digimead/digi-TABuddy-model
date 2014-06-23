@@ -21,7 +21,7 @@ package org.digimead.tabuddy.model.serialization
 import java.io.File
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.TestDSL
 import org.digimead.tabuddy.model.dsl.DSLType
@@ -34,7 +34,7 @@ import org.digimead.tabuddy.model.{ Model, Record }
 import org.scalatest.{ FunSpec, Matchers }
 import scala.collection.immutable
 
-class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+class YAMLSerializationSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with XLoggable {
   before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A YAMLSerialization") {

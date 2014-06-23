@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,21 +20,17 @@ package org.digimead.tabuddy.model.predef
 
 import java.io.ObjectInputStream
 import java.util.UUID
-
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Record
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, LocationGeneric }
 import org.digimead.tabuddy.model.element.Axis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.LocationGeneric
 import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.ElementBox.box2interface
 
 /**
  * Note element.
  */
 class Note(val eStash: Note.Stash)(@transient val eBox: ElementBox[Note])
-  extends Note.Like with Loggable {
+  extends Note.Like with XLoggable {
   type ElementType = Note
   type RelativeType = Note.Relative[ElementType]
   type StashType = Note.Stash
@@ -49,7 +45,7 @@ class Note(val eStash: Note.Stash)(@transient val eBox: ElementBox[Note])
   }
 }
 
-object Note extends Loggable {
+object Note extends XLoggable {
   val scope = new Scope()
 
   /** Part of DSL.Builder for end user. */
@@ -91,7 +87,7 @@ object Note extends Loggable {
   }
   /** Base trait for all records. */
   trait Like extends Record.Like {
-    this: Loggable ⇒
+    this: XLoggable ⇒
     type ElementType <: Like
     type RelativeType <: Relative[ElementType]
 

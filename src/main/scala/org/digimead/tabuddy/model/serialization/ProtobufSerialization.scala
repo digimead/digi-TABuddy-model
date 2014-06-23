@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import scala.annotation.tailrec
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.collection.mutable
 
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.ContextProtos
 import org.digimead.tabuddy.model.CoordinateProtos
 import org.digimead.tabuddy.model.ElementProtos
@@ -35,7 +35,6 @@ import org.digimead.tabuddy.model.PropertyProtos
 import org.digimead.tabuddy.model.ReferenceProtos
 import org.digimead.tabuddy.model.StashProtos
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
 import org.digimead.tabuddy.model.element.Axis
 import org.digimead.tabuddy.model.element.Coordinate
 import org.digimead.tabuddy.model.element.Element.Scope

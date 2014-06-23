@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,15 +20,10 @@ package org.digimead.tabuddy.model.element
 
 import java.io.Serializable
 import java.net.URI
-import java.util.UUID
-
-import scala.language.implicitConversions
-
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.dsl.DSLType
-import org.digimead.tabuddy.model.dsl.DSLType.dsltype2implementation
-import org.digimead.tabuddy.model.graph.ElementBox
 import org.digimead.tabuddy.model.serialization.transport.Transport
+import scala.language.implicitConversions
 
 /**
  * Trait that provide general interface for Value implementation
@@ -60,7 +55,7 @@ trait Value[T <: AnyRef with java.io.Serializable] extends Equals with java.io.S
 /**
  * Singleton that contain Static and Dynamic Value implementation.
  */
-object Value extends Loggable {
+object Value extends XLoggable {
   implicit def byte2someValue(x: Byte)(implicit container: Element = null) = Some(static(Byte.box(x)))
   implicit def byte2value(x: Byte)(implicit container: Element = null) = static(Byte.box(x))
   implicit def double2someValue(x: Double)(implicit container: Element = null) = Some(static(Double.box(x)))

@@ -18,8 +18,8 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.yaml.snakeyaml.{ DumperOptions, Yaml }
 import org.yaml.snakeyaml.constructor.{ Construct, Constructor ⇒ YAMLConstructor }
 import org.yaml.snakeyaml.error.YAMLException
@@ -31,7 +31,7 @@ import scala.collection.JavaConverters.{ asScalaBufferConverter, iterableAsScala
 /**
  * Provide YAML API for application.
  */
-object YAML extends Loggable {
+object YAML extends XLoggable {
   /** Default YAML constructor. */
   lazy val constructor = DI.constructor
   /** Default YAML representer. */
@@ -144,7 +144,7 @@ object YAML extends Loggable {
   /**
    * Dependency injection routines.
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** YAML constructor. */
     val constructor = injectOptional[Constructor] getOrElse new Constructor
     /** YAML representer. */

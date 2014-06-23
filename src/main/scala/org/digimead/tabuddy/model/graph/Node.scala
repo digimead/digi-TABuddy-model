@@ -20,8 +20,8 @@ package org.digimead.tabuddy.model.graph
 
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantReadWriteLock
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.{ Coordinate, Element }
 import scala.annotation.tailrec
@@ -264,7 +264,7 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
   override def toString = s"graph.Node[${unique}(${id})]"
 }
 
-object Node extends Loggable {
+object Node extends XLoggable {
   implicit def node2interface(g: Node.type): Interface = DI.implementation
 
   /** Simple implementation of the mutable part of a node. */
@@ -534,7 +534,7 @@ object Node extends Loggable {
   /**
    * Dependency injection routines.
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     lazy val implementation = injectOptional[Interface] getOrElse new AnyRef with Interface {}
   }
 }

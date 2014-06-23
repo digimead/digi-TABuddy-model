@@ -23,8 +23,8 @@ import java.net.URI
 import java.security.spec.{ PKCS8EncodedKeySpec, X509EncodedKeySpec }
 import java.security.{ KeyFactory, PrivateKey, PublicKey, SignatureException }
 import java.util.concurrent.atomic.AtomicReference
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
@@ -34,7 +34,7 @@ import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
 import scala.collection.immutable
 import scala.ref.SoftReference
 
-class SimpleSignature extends Mechanism with Loggable {
+class SimpleSignature extends Mechanism with XLoggable {
   /** Identifier of the digest. */
   val identifier = SimpleSignature.Identifier
 
@@ -373,7 +373,7 @@ class SimpleSignature extends Mechanism with Loggable {
 
 }
 
-object SimpleSignature extends Loggable {
+object SimpleSignature extends XLoggable {
   /** Begin of a public text key. */
   val publicBegin = "-----BEGIN PUBLIC KEY-----"
   /** End of a public text key. */
@@ -492,7 +492,7 @@ object SimpleSignature extends Loggable {
   /**
    * Dependency injection routines.
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** Default DSA signing algorithm. */
     lazy val factory = injectOptional[Factory] getOrElse new DefaultFactory
   }

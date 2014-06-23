@@ -21,8 +21,8 @@ package org.digimead.tabuddy.model.graph
 import java.net.URI
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.{ Coordinate, Element, Reference }
 import org.digimead.tabuddy.model.serialization.{ Mechanism, SData, Serialization }
@@ -109,7 +109,7 @@ abstract class ElementBox[A <: Element](val coordinate: Coordinate, val elementU
   override def toString = s"graph.Box[${coordinate}/${node.elementType};${node.id}]"
 }
 
-object ElementBox extends Loggable {
+object ElementBox extends XLoggable {
   implicit def box2interface(g: ElementBox.type): Interface = DI.implementation
 
   /**
@@ -309,7 +309,7 @@ object ElementBox extends Loggable {
   /**
    * Dependency injection routines.
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** Class for new element boxes by default. */
     lazy val elementBoxClass = injectOptional[Class[_ <: ElementBox[_]]] getOrElse classOf[Hard[_]]
     /** ElementBox implementation. */

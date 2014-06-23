@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@
 package org.digimead.tabuddy.model.dsl
 
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.LoggingHelper
 import org.scalatest.{ FunSpec, Matchers }
 
-class BasicDSLTypesSpec extends FunSpec with Matchers with LoggingHelper with Loggable {
+class BasicDSLTypesSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
   before { DependencyInjection(org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default, false) }
 
   describe("A BasicDSLTypes") {

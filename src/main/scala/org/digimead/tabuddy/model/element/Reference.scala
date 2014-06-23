@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,11 @@
 package org.digimead.tabuddy.model.element
 
 import java.util.UUID
-
-import scala.collection.immutable
-
-import org.digimead.digi.lib.api.DependencyInjection
+import org.digimead.digi.lib.api.XDependencyInjection
 import org.digimead.tabuddy.model.Model
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Graph
-
-import language.implicitConversions
+import org.digimead.tabuddy.model.graph.{ ElementBox, Graph }
+import scala.collection.immutable
+import scala.language.implicitConversions
 
 /**
  * Element reference that points to a particular unique element.
@@ -90,7 +86,7 @@ object Reference {
   /**
    * Dependency injection routines
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** Reference implementation. */
     lazy val implementation = injectOptional[Interface] getOrElse new AnyRef with Interface
   }

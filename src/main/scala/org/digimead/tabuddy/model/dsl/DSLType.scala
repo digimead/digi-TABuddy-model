@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,11 @@
 package org.digimead.tabuddy.model.dsl
 
 import java.net.URI
-
-import scala.Option.option2Iterable
-import scala.collection.immutable
-
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Value
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
+import org.digimead.tabuddy.model.element.{ Element, Value }
 import org.digimead.tabuddy.model.serialization.transport.Transport
-
+import scala.collection.immutable
 import scala.language.implicitConversions
 
 trait DSLType {
@@ -68,7 +63,7 @@ trait DSLType {
 /**
  * Object that contains all DSL types and provides conversion routines
  */
-object DSLType extends Loggable {
+object DSLType extends XLoggable {
   implicit def dsltype2implementation(m: DSLType.type): Interface = m.inner
 
   def inner = DI.implementation
@@ -157,7 +152,7 @@ object DSLType extends Loggable {
   /**
    * Dependency injection routines
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** DSLType implementation DI cache */
     lazy val implementation = inject[Interface]
     /**

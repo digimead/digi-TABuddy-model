@@ -20,12 +20,12 @@ package org.digimead.tabuddy.model.serialization
 
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass }
 import java.net.URI
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 
-class BuiltinSerialization extends Mechanism with Loggable {
+class BuiltinSerialization extends Mechanism with XLoggable {
   /** Identifier of the serialization mechanism. */
   val identifier = BuiltinSerialization.Identifier
 

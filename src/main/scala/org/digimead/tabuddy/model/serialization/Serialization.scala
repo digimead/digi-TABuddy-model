@@ -25,8 +25,8 @@ import java.util.UUID
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicReference
 import org.digimead.digi.lib.aop.log
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.{ Coordinate, Element }
 import org.digimead.tabuddy.model.graph.{ ElementBox, Graph, Node, NodeState }
@@ -44,7 +44,7 @@ import scala.util.control.ControlThrowable
 /**
  * Common serialization implementation.
  */
-class Serialization extends Serialization.Interface with Loggable {
+class Serialization extends Serialization.Interface with XLoggable {
   /** Method that loads graph with the graph loader. */
   @log(result = false) // Skip result logging. Graph contains lazy loaded elements that are loaded from toString
   def acquireGraph(loader: Serialization.Loader, graphEarlyAccess: Graph[_ <: Model.Like] ⇒ Unit, sData: SData): Graph[_ <: Model.Like] = sData.synchronized {
@@ -647,7 +647,7 @@ class Serialization extends Serialization.Interface with Loggable {
   }
 }
 
-object Serialization extends Loggable {
+object Serialization extends XLoggable {
   /** Transformation that is applied to acquiring nodes. */
   /* (parent node, child node descriptor) => transformed child node descriptor */
   type AcquireTransformation = Function2[Seq[Node.ThreadUnsafe[_ <: Element]], Descriptor.Node[Element], Descriptor.Node[Element]]
@@ -1038,7 +1038,7 @@ object Serialization extends Loggable {
    * Serialization interface.
    */
   trait Interface {
-    this: Loggable ⇒
+    this: XLoggable ⇒
     /** Add trailing slash to URI if needed. */
     def addTrailingSlash(uri: URI): URI = {
       val path = uri.getPath()
@@ -1186,7 +1186,7 @@ object Serialization extends Loggable {
   /**
    * Dependency injection routines
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** Implementation of the serialization. */
     lazy val implementation: Interface = injectOptional[Interface] getOrElse new Serialization
     /**

@@ -18,7 +18,7 @@
 
 package org.digimead.tabuddy.model.serialization.yaml
 
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.{ Axis ⇒ EAxis }
 import org.digimead.tabuddy.model.element.{ Coordinate ⇒ ECoordinate }
 import org.digimead.tabuddy.model.serialization.YAMLSerialization
@@ -27,7 +27,7 @@ import org.yaml.snakeyaml.nodes.{ Node, SequenceNode, Tag }
 import org.yaml.snakeyaml.representer.{ Represent ⇒ YAMLRepresent }
 import scala.collection.JavaConverters.{ asScalaBufferConverter, asScalaIteratorConverter, seqAsJavaListConverter }
 
-object Coordinate extends Loggable {
+object Coordinate extends XLoggable {
   val tag = new Tag(Tag.PREFIX + "coord")
 
   /** Convert Coordinate to string. */

@@ -22,7 +22,7 @@ import java.io.{ BufferedInputStream, BufferedOutputStream, BufferedReader, Inpu
 import java.net.URI
 import java.security.{ DigestInputStream, DigestOutputStream, MessageDigest }
 import java.util.concurrent.atomic.AtomicReference
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
@@ -41,7 +41,7 @@ import scala.reflect.runtime.universe
 /**
  * Provides digest mechanism for serialization process.
  */
-class SimpleDigest extends Mechanism with Loggable {
+class SimpleDigest extends Mechanism with XLoggable {
   /** Identifier of the digest. */
   val identifier = SimpleDigest.Identifier
 

@@ -21,13 +21,12 @@ package org.digimead.tabuddy.model.element
 import java.util.UUID
 import java.util.concurrent.{ ScheduledThreadPoolExecutor, ThreadFactory, TimeUnit }
 import java.util.concurrent.atomic.AtomicInteger
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.dsl.DSLType
 import org.digimead.tabuddy.model.element.compare.{ Compare, CompareByTimespamp }
 import org.digimead.tabuddy.model.graph.{ ElementBox, Event, Graph, Modifiable, Node }
 import org.digimead.tabuddy.model.serialization.Serialization
-import scala.collection.TraversableOnce.flattenTraversableOnce
 import scala.collection.immutable
 import scala.language.implicitConversions
 import scala.util.DynamicVariable
@@ -38,7 +37,7 @@ import scala.util.DynamicVariable
  * contains stash with actual data.
  */
 trait Element extends Modifiable.Read with Equals with java.io.Serializable {
-  this: Loggable ⇒
+  this: XLoggable ⇒
   /** Element type. */
   type ElementType <: Element
   /** Relative type. */
@@ -51,7 +50,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
    *
    * When (box <-> element) will be unreachable then they will be GC'ed.
    */
-  @transient val eBox: ElementBox[ElementType]
+  // @transient
+  val eBox: ElementBox[ElementType]
 
   /**
    * Get explicit general element.
@@ -177,7 +177,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
   def eRemoveAll(): ElementType = {
     Element.log.trace(s"Remove all property's values from $eId.")
     if (eStash.property.nonEmpty) {
-      val modifiedElement = eCopy(eNode, eCoordinate, this.eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
+      val modifiedElement = eCopy(eNode, eCoordinate, eStash.copy(property = new Stash.Data).asInstanceOf[ElementType#StashType], eBox.serialization)
       if (eNode.safeRead(_.state.attached)) {
         val undoF = () ⇒ {}
         eGraph.publish(Event.ValueRemove(this, null)(undoF))
@@ -191,7 +191,7 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
     Element.log.trace(s"Remove all $id from $eId.")
     eStash.property.get(id) match {
       case Some(values) ⇒
-        val modifiedElement = eCopy(eNode, eCoordinate, this.eStash.copy(property = eStash.property - id).asInstanceOf[ElementType#StashType], eBox.serialization)
+        val modifiedElement = eCopy(eNode, eCoordinate, eStash.copy(property = eStash.property - id).asInstanceOf[ElementType#StashType], eBox.serialization)
         if (eNode.safeRead(_.state.attached)) {
           val undoF = () ⇒ {}
           eGraph.publish(Event.ValueRemove(this, null)(undoF))
@@ -230,8 +230,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
               val newValue = value
-              val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(),
-                property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue))).
+              val modifiedElement = eCopy(eBox, eStash.copy(eStash.created, Element.timestamp(),
+                property = eStash.property.updated(id, valueHash.updated(typeSymbol, newValue)), eStash.scope).
                 asInstanceOf[ElementType#StashType])
               if (eNode.safeRead(_.state.attached))
                 previousValue match {
@@ -245,8 +245,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
               modifiedElement
             case None ⇒
               val newValue = value
-              val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(), property = eStash.property.updated(id,
-                immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue))).
+              val modifiedElement = eCopy(eBox, eStash.copy(eStash.created, Element.timestamp(), eStash.property.updated(id,
+                immutable.HashMap[Symbol, Value[_ <: AnyRef with java.io.Serializable]](typeSymbol -> newValue)), eStash.scope).
                 asInstanceOf[ElementType#StashType])
               if (eNode.safeRead(_.state.attached)) {
                 val undoF = () ⇒ {}
@@ -259,8 +259,8 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
           eStash.property.get(id) match {
             case Some(valueHash) ⇒
               val previousValue = valueHash.get(typeSymbol)
-              val modifiedElement = eCopy(eBox, eStash.copy(modified = Element.timestamp(),
-                property = eStash.property.updated(id, (valueHash - typeSymbol))).asInstanceOf[ElementType#StashType])
+              val modifiedElement = eCopy(eBox, eStash.copy(eStash.created, Element.timestamp(),
+                property = eStash.property.updated(id, (valueHash - typeSymbol)), eStash.scope).asInstanceOf[ElementType#StashType])
               if (eNode.safeRead(_.state.attached))
                 previousValue.foreach { previous ⇒
                   val undoF = () ⇒ {}
@@ -301,11 +301,11 @@ trait Element extends Modifiable.Read with Equals with java.io.Serializable {
     case _ ⇒ false
   }
   override def hashCode() = lazyHashCode
-  protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](this.eStash, eBox.elementUniqueId))
+  protected lazy val lazyHashCode = java.util.Arrays.hashCode(Array[AnyRef](eStash, eBox.elementUniqueId))
   override def toString() = "%s[%s@%s]".format(eStash.scope, eId.name, eCoordinate.toString)
 }
 
-object Element extends Loggable {
+object Element extends XLoggable {
   implicit def relative2absolute[A <: Element](m: A#RelativeType): A = m.absolute.asInstanceOf[A]
   /**
    * Elements and it derivative classes default ordering

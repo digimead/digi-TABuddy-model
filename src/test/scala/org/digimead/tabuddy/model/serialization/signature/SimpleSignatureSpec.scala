@@ -25,7 +25,7 @@ import java.security.{ KeyPairGenerator, PublicKey }
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
@@ -41,7 +41,7 @@ import org.scalatest.{ FreeSpec, Matchers }
 import scala.ref.SoftReference
 import sun.security.rsa.RSAPublicKeyImpl
 
-class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with LoggingHelper with XLoggable {
   lazy val testSignature = Mockito.spy(new TestSimple)
   lazy val testTransport = Mockito.spy(new Local)
 

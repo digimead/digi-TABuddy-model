@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,13 @@
 package org.digimead.tabuddy.model
 
 import java.util.UUID
-
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, Reference }
 import org.digimead.tabuddy.model.element.Axis
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Reference
 import org.digimead.tabuddy.model.graph.Node
 
 trait ModelIndex {
-  this: Model.Like with Loggable =>
+  this: Model.Like with XLoggable ⇒
 
   /** Get element for unique id at the specific coordinate. */
   def e(nodeId: UUID, coordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Option[Element] =

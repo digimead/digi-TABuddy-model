@@ -19,7 +19,7 @@
 package org.digimead.tabuddy.model.serialization
 
 import java.net.URI
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import org.digimead.tabuddy.model.serialization.transport.Transport
@@ -28,7 +28,7 @@ import org.digimead.tabuddy.model.serialization.transport.Transport
  * Interface for serialization of an element content.
  */
 trait Mechanism {
-  this: Loggable ⇒
+  this: XLoggable ⇒
   /** Identifier of the serialization mechanism. */
   val identifier: Serialization.Identifier
 

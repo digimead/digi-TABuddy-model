@@ -21,8 +21,8 @@ package org.digimead.tabuddy.model.serialization.digest
 import java.io.{ InputStream, OutputStream }
 import java.net.URI
 import java.util.concurrent.atomic.AtomicReference
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.api.XDependencyInjection
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Graph
@@ -50,7 +50,7 @@ import scala.util.control.ControlThrowable
 /**
  * Provides digest mechanism for serialization process.
  */
-class Digest extends Loggable {
+class Digest extends XLoggable {
   /** Acquire routines. */
   protected val acquire = new Acquire
   /** Freeze routines. */
@@ -380,7 +380,7 @@ class Digest extends Loggable {
   }
 }
 
-object Digest extends Loggable {
+object Digest extends XLoggable {
   implicit def digest2implementation(d: Digest.type): Digest = d.inner
   type History = Map[Element.Timestamp, (Mechanism.Parameters, AtomicReference[SoftReference[AnyRef]])]
   /**
@@ -462,7 +462,7 @@ object Digest extends Loggable {
   /**
    * Dependency injection routines.
    */
-  private object DI extends DependencyInjection.PersistentInjectable {
+  private object DI extends XDependencyInjection.PersistentInjectable {
     /** Default digest algorithm. */
     lazy val default = injectOptional[Mechanism.Parameters]("Digest.Default") getOrElse SimpleDigest("SHA-1")
     /** Digest container name. */

@@ -19,13 +19,13 @@
 package org.digimead.tabuddy.model.serialization
 
 import java.net.URI
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.{ Element, Stash }
 import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.Optional
 
-class YAMLSerialization extends Mechanism with Loggable {
+class YAMLSerialization extends Mechanism with XLoggable {
   /** Identifier of the serialization mechanism. */
   val identifier = YAMLSerialization.Identifier
 
@@ -151,7 +151,7 @@ class YAMLSerialization extends Mechanism with Loggable {
 
 */
 
-object YAMLSerialization extends Loggable {
+object YAMLSerialization extends XLoggable {
   /** SnakeYAML is unstable. */
   protected val globalLock = new Object()
 

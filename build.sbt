@@ -44,15 +44,16 @@ inConfig(OSGiConf)({
   )
 })
 
-crossScalaVersions := Seq("2.10.4")
+crossScalaVersions := Seq("2.11.1")
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.1"
 
-scalacOptions ++= Seq("-encoding", "UTF-8", "-deprecation", "-unchecked", "-Xcheckinit", "-feature") ++
-  (if (true || (System getProperty "java.runtime.version" startsWith "1.7")) Seq() else Seq("-optimize")) // -optimize fails with jdk7
+scalacOptions ++= Seq("-encoding", "UTF-8", "-deprecation", "-unchecked", "-Xcheckinit", "-feature")
 
 // http://vanillajava.blogspot.ru/2012/02/using-java-7-to-target-much-older-jvms.html
-javacOptions ++= Seq("-Xlint:unchecked", "-Xlint:deprecation", "-source", "1.6", "-target", "1.6")
+javacOptions ++= Seq("-Xlint:unchecked", "-Xlint:deprecation", "-source", "1.7", "-target", "1.7")
+
+javacOptions in doc := Seq("-source", "1.7")
 
 if (sys.env.contains("XBOOTCLASSPATH")) Seq(javacOptions += "-Xbootclasspath:" + sys.env("XBOOTCLASSPATH")) else Seq()
 
@@ -70,9 +71,9 @@ resolvers += "digimead-maven" at "http://storage.googleapis.com/maven.repository
 
 libraryDependencies ++= Seq(
   "com.google.protobuf" % "protobuf-java" % "2.5.0",
-  "org.digimead" %% "digi-lib" % "0.2.3.5-SNAPSHOT",
+  "org.digimead" %% "digi-lib" % "0.3.0.0-SNAPSHOT",
   "org.yaml" % "snakeyaml" % "1.12",
-  "org.digimead" %% "digi-lib-test" % "0.2.2.5-SNAPSHOT" % "test"
+  "org.digimead" %% "digi-lib-test" % "0.3.0.0-SNAPSHOT" % "test"
 )
 
 //

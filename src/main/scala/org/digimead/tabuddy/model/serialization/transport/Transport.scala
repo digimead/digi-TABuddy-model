@@ -21,7 +21,7 @@ package org.digimead.tabuddy.model.serialization.transport
 import java.io.{ DataInputStream, DataOutputStream, InputStream, OutputStream }
 import java.net.{ URI, URLEncoder }
 import java.util.UUID
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.tabuddy.model.element.Element
 import org.digimead.tabuddy.model.graph.Node
 import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
@@ -30,7 +30,7 @@ import org.digimead.tabuddy.model.serialization.{ SData, Serialization }
  * Serialization transport that provides implementation for the specific URI scheme.
  */
 trait Transport {
-  this: Loggable ⇒
+  this: XLoggable ⇒
   /** Box prefix. */
   val boxPrefix = "box"
   /** Graph directory name. */

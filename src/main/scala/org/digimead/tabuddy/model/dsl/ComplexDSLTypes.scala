@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,10 @@
 package org.digimead.tabuddy.model.dsl
 
 import java.net.URI
-
-import scala.Array.canBuildFrom
-import scala.collection.immutable
-
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.Reference
+import org.digimead.tabuddy.model.element.{ Element, Reference }
 import org.digimead.tabuddy.model.serialization.transport.Transport
 import org.digimead.tabuddy.model.serialization.yaml.YAML
+import scala.collection.immutable
 
 class ComplexDSLTypes extends DSLType {
   protected lazy val typeClassSymbolMap = immutable.HashMap[Class[_], Symbol](

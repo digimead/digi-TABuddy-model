@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2013 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,30 +19,17 @@
 package org.digimead.tabuddy.model
 
 import java.io.ObjectInputStream
-import java.net.URI
 import java.util.UUID
-
-import scala.Array.canBuildFrom
-import scala.collection.mutable
-import scala.util.DynamicVariable
-
-import org.digimead.digi.lib.aop.log
-import org.digimead.digi.lib.api.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
-import org.digimead.tabuddy.model.element.Coordinate
-import org.digimead.tabuddy.model.element.Element
-import org.digimead.tabuddy.model.element.LocationGeneric
-import org.digimead.tabuddy.model.element.Value
-import org.digimead.tabuddy.model.graph.ElementBox
-import org.digimead.tabuddy.model.graph.Node
-
+import org.digimead.digi.lib.log.api.XLoggable
+import org.digimead.tabuddy.model.element.{ Coordinate, Element, LocationGeneric }
+import org.digimead.tabuddy.model.graph.{ ElementBox, Node }
 import scala.language.implicitConversions
 
 /**
  * Common model.
  */
 class Model(val eStash: Model.Stash)(@transient val eBox: ElementBox[Model])
-  extends Model.Like with ModelIndex with Loggable {
+  extends Model.Like with ModelIndex with XLoggable {
   type StashType = Model.Stash
   type RelativeType = Model.Relative[ElementType]
   type ElementType = Model
@@ -63,7 +50,7 @@ class Model(val eStash: Model.Stash)(@transient val eBox: ElementBox[Model])
  * - control context of elements
  * - save and retrieve element and context information
  */
-object Model extends Loggable {
+object Model extends XLoggable {
   val scope = new Scope()
 
   /** Assert that A is not generic. */
@@ -93,7 +80,7 @@ object Model extends Loggable {
    * Any concrete model may be represent as this trait.
    */
   trait Like extends Record.Like with ModelIndex {
-    this: Loggable ⇒
+    this: XLoggable ⇒
     type ElementType <: Like
     type RelativeType <: Relative[ElementType]
     type StashType <: Model.Stash.Like

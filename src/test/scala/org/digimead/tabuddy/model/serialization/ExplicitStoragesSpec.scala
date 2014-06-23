@@ -23,7 +23,7 @@ import java.io.File
 import java.net.URI
 import java.util.UUID
 import org.digimead.digi.lib.DependencyInjection
-import org.digimead.digi.lib.log.api.Loggable
+import org.digimead.digi.lib.log.api.XLoggable
 import org.digimead.lib.test.{ LoggingHelper, StorageHelper }
 import org.digimead.tabuddy.model.Model
 import org.digimead.tabuddy.model.TestDSL
@@ -32,7 +32,7 @@ import org.digimead.tabuddy.model.serialization.transport.{ Local, Transport }
 import org.mockito.{ Matchers ⇒ MM, Mockito }
 import org.scalatest.{ FunSpec, Matchers }
 
-class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with Loggable {
+class ExplicitStoragesSpec extends FunSpec with Matchers with StorageHelper with LoggingHelper with XLoggable {
   lazy val testTransport = Mockito.spy(new Local)
 
   before {
