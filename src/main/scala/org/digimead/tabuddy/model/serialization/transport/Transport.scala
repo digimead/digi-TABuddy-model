@@ -65,6 +65,10 @@ trait Transport {
   def getNodeURI(ancestors: Seq[Node[_ <: Element]], nodeId: Symbol, nodeModified: Element.Timestamp, sData: SData): URI
   /** Get sub element URI. */
   def getSubElementURI(ancestors: Seq[Node[_ <: Element]], elementUniqueId: UUID, elementModified: Element.Timestamp, sData: SData, part: String*): URI
+  /** Checks whether the URI denoted by this abstract pathname is a directory. */
+  def isDirectory(uri: URI): Option[Boolean]
+  /** Get an array of strings naming the files and directories in the directory denoted by this abstract pathname. */
+  def list(uri: URI): Option[Seq[String]]
   /** Open input stream. */
   def openRead(uri: URI, sData: SData): InputStream
   /** Open output stream. */

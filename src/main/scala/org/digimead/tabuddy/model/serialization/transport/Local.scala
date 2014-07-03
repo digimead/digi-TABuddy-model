@@ -75,6 +75,13 @@ class Local extends Transport with XLoggable {
     log.debug("Check is exists " + uri)
     new File(uri).canRead()
   }
+  /** Checks whether the URI denoted by this abstract pathname is a directory. */
+  def isDirectory(uri: URI): Option[Boolean] = Option(new File(uri).isDirectory())
+  /** Get a sequence of strings naming the files and directories in the directory denoted by this abstract pathname. */
+  def list(uri: URI): Option[Seq[String]] = Option(new File(uri).list) match {
+    case Some(names) ⇒ Some(names)
+    case None ⇒ Some(Seq.empty)
+  }
   /** Open input stream. */
   def openRead(uri: URI, sData: SData): InputStream = {
     log.debug("Open for reading " + uri)
