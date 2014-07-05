@@ -43,8 +43,8 @@ class YAMLSerialization extends Mechanism with XLoggable {
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
     val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
-    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
-    val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension.name)
+    val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension.name)
     log.debug(s"Load ${elementBox} from ${elementURI}.")
     val elementContent = transport.read(Serialization.inner.encode(elementURI, sData), sData)
     log.debug(s"Load optional ${elementBox} from ${optionalURI}.")
@@ -66,8 +66,8 @@ class YAMLSerialization extends Mechanism with XLoggable {
   def save[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData) = {
     val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
     val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
-    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension)
-    val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + YAMLSerialization.Identifier.extension.name)
+    val optionalURI = transport.append(elementContainerURI, transport.optionalResourceName + "." + YAMLSerialization.Identifier.extension.name)
     val optional = yaml.Optional.getOptional(elementBox.e.eStash)
     log.debug(s"Save ${elementBox} to ${elementURI}.")
     transport.write(Serialization.inner.encode(elementURI, sData),
@@ -169,5 +169,8 @@ object YAMLSerialization extends XLoggable {
   /**
    * YAMLSerialization identifier.
    */
-  object Identifier extends Serialization.Identifier { val extension = "yaml" }
+  object Identifier extends Serialization.Identifier {
+    val description = "YAML serialization mechanism based SnakeYAML emitter"
+    val extension = 'yaml
+  }
 }

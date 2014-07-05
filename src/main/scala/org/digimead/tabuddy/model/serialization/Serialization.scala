@@ -410,7 +410,7 @@ class Serialization extends Serialization.Interface with XLoggable {
     descriptorMap.put("class", elementBox.node.elementType.runtimeClass.getName)
     descriptorMap.put("element_unique_id", elementBox.elementUniqueId)
     descriptorMap.put("modified", elementBox.modified)
-    descriptorMap.put("serialization_identifier", sData.get(SData.Key.explicitSerializationType).map(_.extension) getOrElse elementBox.serialization.extension)
+    descriptorMap.put("serialization_identifier", sData.get(SData.Key.explicitSerializationType).map(_.extension.name) getOrElse elementBox.serialization.extension.name)
     YAMLSerialization.wrapper(yaml.YAML.block.dump(descriptorMap).getBytes(io.Codec.UTF8.charSet), descriptorMap)
   }
   /** Internal method that saves the element content. */
@@ -921,7 +921,7 @@ object Serialization extends XLoggable {
             map("modified").asInstanceOf[TAElement.Timestamp],
             {
               val value = map("serialization_identifier").asInstanceOf[String]
-              Serialization.perIdentifier.keys.find(_.extension == value) getOrElse
+              Serialization.perIdentifier.keys.find(_.extension.name == value) getOrElse
                 { throw new IllegalStateException(s"Unable to find serialization mechanism for '${value}'.") }
             })
       }
@@ -1023,7 +1023,10 @@ object Serialization extends XLoggable {
    * Serialization identifier that is associated with serialization mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
-    val extension: String
+    /** Mechanism description. */
+    val description: String
+    /** File extension. */
+    val extension: Symbol
 
     override def canEqual(that: Any) = that.isInstanceOf[Identifier]
     override def equals(that: Any): Boolean = that match {

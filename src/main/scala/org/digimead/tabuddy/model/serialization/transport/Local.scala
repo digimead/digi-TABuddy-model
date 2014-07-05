@@ -34,9 +34,9 @@ class Local extends Transport with XLoggable {
   /** Node directory name template. */
   val nodeNameTemplate = "e %s {%08X}" // hash prevents case insensitivity collision
   /** Descriptor resource template. */
-  val descriptorResourceSimple = descriptorResourceName + "." + YAMLSerialization.Identifier.extension
+  val descriptorResourceSimple = descriptorResourceName + "." + YAMLSerialization.Identifier.extension.name
   /** Descriptor resource template. */
-  val descriptorResourceNameTemplate = descriptorResourceName + "-%s." + YAMLSerialization.Identifier.extension
+  val descriptorResourceNameTemplate = descriptorResourceName + "-%s." + YAMLSerialization.Identifier.extension.name
   /** Transport scheme. */
   val scheme: String = "file"
 

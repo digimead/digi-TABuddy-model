@@ -52,5 +52,8 @@ object StubSerialization {
   /**
    * StubSerialization identifier.
    */
-  object Identifier extends Serialization.Identifier { val extension = "stub" }
+  object Identifier extends Serialization.Identifier {
+    val description = "Stub serialization mechanism"
+    val extension = 'stub
+  }
 }

@@ -44,7 +44,7 @@ class BuiltinSerialization extends Mechanism with XLoggable {
       throw new IllegalArgumentException("Element type is undefined.")
     val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
     val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
-    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension.name)
     val elementContent = transport.read(Serialization.inner.encode(elementURI, sData), sData)
     Serialization.stash.set(elementBox)
     val bais = new ByteArrayInputStream(elementContent)
@@ -63,7 +63,7 @@ class BuiltinSerialization extends Mechanism with XLoggable {
   def save[A <: Element](elementBox: ElementBox[A], transport: Transport, sData: SData) {
     val ancestors = elementBox.node.safeRead(node ⇒ node.ancestors.reverse)
     val elementContainerURI = transport.getSubElementURI(ancestors, elementBox.elementUniqueId, elementBox.modified, sData)
-    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension)
+    val elementURI = transport.append(elementContainerURI, transport.elementResourceName + "." + BuiltinSerialization.Identifier.extension.name)
     log.debug(s"Save ${elementBox} to ${elementURI}.")
     val baos = new ByteArrayOutputStream()
     val out = new ObjectOutputStream(baos)
@@ -90,5 +90,8 @@ object BuiltinSerialization {
   /**
    * BuiltinSerialization identifier.
    */
-  object Identifier extends Serialization.Identifier { val extension = "bcode" }
+  object Identifier extends Serialization.Identifier {
+    val description = "Builtin serialization mechanism based on internal JVM API"
+    val extension = 'bcode
+  }
 }
