@@ -56,7 +56,10 @@ object Mechanism {
    * Identifier that is associated with digest mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
+    /** Mechanism name. */
     val name: String
+    /** Mechanism description. */
+    val description: String
 
     override def canEqual(that: Any) = that.isInstanceOf[Identifier]
     override def equals(that: Any): Boolean = that match {
@@ -70,7 +73,7 @@ object Mechanism {
   /**
    * Mechanism parameters.
    */
-  trait Parameters {
+  trait Parameters extends Product with java.io.Serializable {
     /** Digest algorithm name. */
     def algorithm: String
     /** Digest parameters as sequence of strings. */

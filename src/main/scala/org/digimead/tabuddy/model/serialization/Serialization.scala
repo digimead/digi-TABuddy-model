@@ -1023,7 +1023,7 @@ object Serialization extends XLoggable {
    * Serialization identifier that is associated with serialization mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
-    /** Mechanism description. */
+    /** Serialization description. */
     val description: String
     /** File extension. */
     val extension: Symbol

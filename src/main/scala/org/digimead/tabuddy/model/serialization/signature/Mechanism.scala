@@ -57,7 +57,10 @@ object Mechanism {
    * Identifier that is associated with the signature mechanism.
    */
   trait Identifier extends Equals with java.io.Serializable {
+    /** Mechanism name. */
     val name: String
+    /** Mechanism description. */
+    val description: String
 
     override def canEqual(that: Any) = that.isInstanceOf[Identifier]
     override def equals(that: Any): Boolean = that match {
@@ -71,7 +74,7 @@ object Mechanism {
   /**
    * Mechanism parameters.
    */
-  trait Parameters {
+  trait Parameters extends Product with java.io.Serializable {
     /** Signature algorithm name. */
     def algorithm: String
     /** Signature parameters as sequence of strings. */

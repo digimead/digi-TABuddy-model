@@ -91,7 +91,9 @@ object BuiltinSerialization {
    * BuiltinSerialization identifier.
    */
   object Identifier extends Serialization.Identifier {
-    val description = "Builtin serialization mechanism based on internal JVM API"
+    /** Serialization description. */
+    val description = "builtin binary serialization format"
+    /** File extension. */
     val extension = 'bcode
   }
 }

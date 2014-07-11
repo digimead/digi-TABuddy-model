@@ -414,7 +414,12 @@ object SimpleSignature extends XLoggable {
   /**
    * SimpleSignature mechanism identifier.
    */
-  object Identifier extends Mechanism.Identifier { val name = "simple" }
+  object Identifier extends Mechanism.Identifier {
+    /** Mechanism name. */
+    val name: String = "simple"
+    /** Mechanism description. */
+    val description: String = "simple and straight signature generator"
+  }
   /*
    * Signature.MD2withRSA
    * Signature.MD5andSHA1withRSA

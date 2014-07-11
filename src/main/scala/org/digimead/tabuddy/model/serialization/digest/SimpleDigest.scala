@@ -249,7 +249,11 @@ object SimpleDigest {
   /**
    * SimpleDigest mechanism identifier.
    */
-  object Identifier extends Mechanism.Identifier { val name = "simple" }
+  object Identifier extends Mechanism.Identifier {
+    val name = "simple"
+    /** Mechanism description. */
+    val description: String = "simple and straight digest calculator"
+  }
   /**
    * SimpleDigest parameters.
    */

@@ -170,7 +170,9 @@ object YAMLSerialization extends XLoggable {
    * YAMLSerialization identifier.
    */
   object Identifier extends Serialization.Identifier {
-    val description = "YAML serialization mechanism based SnakeYAML emitter"
+    /** Serialization description. */
+    val description = "a human-readable data serialization format"
+    /** File extension. */
     val extension = 'yaml
   }
 }
