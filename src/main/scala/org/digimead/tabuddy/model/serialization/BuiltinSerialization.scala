@@ -92,7 +92,7 @@ object BuiltinSerialization {
    */
   object Identifier extends Serialization.Identifier {
     /** Serialization description. */
-    val description = "builtin binary serialization format"
+    val description = "a builtin binary serialization format"
     /** File extension. */
     val extension = 'bcode
   }

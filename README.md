@@ -5,6 +5,8 @@ TA Buddy: Model - a human-centric K,V framework
 
 [See TA Buddy: Model documentation](http://digimead.github.io/digi-TABuddy-model/).
 
+__Required Java 7 or higher__
+
 AUTHORS
 -------
 

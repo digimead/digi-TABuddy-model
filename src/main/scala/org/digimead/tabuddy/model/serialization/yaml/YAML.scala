@@ -120,7 +120,7 @@ object YAML extends XLoggable {
   class Representer extends YAMLRepresenter {
     // Overriding protected methods is workaround for java.lang.IllegalAccessError
     def getMultiRepresenters = this.multiRepresenters
-    override def representMapping(tag: Tag, mapping: java.util.Map[_, AnyRef], flowStyle: java.lang.Boolean): Node = {
+    override def representMapping(tag: Tag, mapping: java.util.Map[_, _], flowStyle: java.lang.Boolean): Node = {
       // workaround for proper null representation
       this.objectToRepresent = new Object
       super.representMapping(tag, mapping, flowStyle)
