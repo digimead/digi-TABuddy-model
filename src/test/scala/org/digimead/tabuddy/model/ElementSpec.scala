@@ -37,11 +37,11 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
   before { DependencyInjection(diConfig, false) }
 
   def multithread[A](nIterations: Int, nThreads: Int, visible: Boolean = true)(f: Int ⇒ A) {
-    if (org.apache.log4j.Logger.getRootLogger().getAllAppenders().nextElement().getClass().getSimpleName() != "NullAppender") {
-      log.___glance("Debug logging enabled - multithreading disabled.")
-      f(0)
-      return
-    }
+    //if (org.apache.log4j.Logger.getRootLogger().getAllAppenders().nextElement().getClass().getSimpleName() != "NullAppender") {
+    //  log.___glance("Debug logging enabled - multithreading disabled.")
+    //  f(0)
+    //  return
+    //}
     val ts = System.currentTimeMillis()
     val threads = for (t ← 0 until nThreads * 2 if t % 2 == 0) yield {
       val x = t * nIterations
@@ -100,8 +100,8 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       graph should not be null
       val myModel = graph.model
       myModel should not be null
-      // 100000 iterations x 10 threads x 3 elements = 3000000 elements
-      // 3000000 is about 4.5GB mem
+      // 10000 iterations x 10 threads x 3 elements = 300000 elements
+      // 300000 is about 450MB mem
       // 300000/10Th processed within 3000ms = ~100000 operations per second on notebook/home pc
       // ~?/1Th eCopy(write) ops in single thread
       // ~?/10Th eCopy(write) ops in multi thread

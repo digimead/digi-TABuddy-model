@@ -27,8 +27,10 @@ import org.digimead.tabuddy.model.graph.Graph
 import org.digimead.tabuddy.model.serialization.StubSerialization
 import org.scalatest.{ FunSpec, Matchers }
 import scala.language.implicitConversions
+import scala.util.Random
 
 class NodeSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
+  val AB = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   lazy val diConfig = org.digimead.digi.lib.default ~ org.digimead.tabuddy.model.default
   before { DependencyInjection(diConfig, false) }
 
@@ -73,6 +75,45 @@ class NodeSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
       graph1.nodes.size should be(size)
       rA1NodeCopyNA.safeRead(_.state.attached) should be(true)
       modifiedAfterCopyWithAttach should be < (graph1.modified)
+    }
+    it("should provide flatten method.") {
+      val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val level1 = for (i ← 1 to 3) yield {
+        val name = randomString(5)
+        graph.model.takeRecord(Symbol(name)) { r ⇒ }
+      }
+      val level2 = level1.map { r ⇒
+        for (i ← 1 to 3) yield {
+          val name = randomString(5)
+          r.takeRecord(Symbol(name)) { r ⇒ }
+        }
+      }
+      val level3 = level2.flatten.map { r ⇒
+        for (i ← 1 to 3) yield {
+          val name = randomString(5)
+          r.takeRecord(Symbol(name)) { r ⇒ }
+        }
+      }
+      val flatten = graph.model.eNode.safeRead(_.flatten(_.sortBy(_.id.name), (node, transform) ⇒ node.safeRead(transform)))
+      flatten.size should be(3 + 3 * 3 + 3 * 3 * 3)
+      val l1Sorted = level1.sortBy(_.eNode.id.name)
+      flatten(0).id.name should be(l1Sorted(0).eNode.id.name)
+      flatten(1 + 3 + 3 * 3).id.name should be(l1Sorted(1).eNode.id.name)
+      flatten(2 + 2 * 3 + 2 * 3 * 3).id.name should be(l1Sorted(2).eNode.id.name)
+
+      val flatten1 = graph.model.eNode.safeRead(_.flatten(_.sortBy(_.id.name)(Ordering[String].reverse), (node, f) ⇒ node.safeRead(f)))
+      flatten1.size should be(3 + 3 * 3 + 3 * 3 * 3)
+      val l1Sorted1 = level1.sortBy(_.eNode.id.name)(Ordering[String].reverse)
+      flatten1(0).id.name should be(l1Sorted1(0).eNode.id.name)
+      flatten1(1 + 3 + 3 * 3).id.name should be(l1Sorted1(1).eNode.id.name)
+      flatten1(2 + 2 * 3 + 2 * 3 * 3).id.name should be(l1Sorted1(2).eNode.id.name)
+    }
+
+    def randomString(len: Int, rnd: Random = new Random) = {
+      val sb = new StringBuilder(len)
+      for (i ← 0 until len)
+        yield sb.append(AB.charAt(rnd.nextInt(AB.length())))
+      sb.toString()
     }
   }
 

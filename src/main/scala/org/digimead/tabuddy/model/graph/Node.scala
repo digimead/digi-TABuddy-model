@@ -425,6 +425,10 @@ object Node extends XLoggable {
      * @return  an empty set of type `Node`.
      */
     override def empty = new ThreadUnsafe(id, unique, internalState.copy(children = Seq()), Element.timestamp())
+    /** Flattens arbitrarily-nested nodes. */
+    def flatten(fn: Seq[Node[_ <: Element]] ⇒ Seq[Node[_ <: Element]],
+      safeFn: (Node[_ <: Element], ThreadUnsafe[_ <: Element] ⇒ Seq[Node[_ <: Element]]) ⇒ Seq[Node[_ <: Element]]): Seq[Node[_ <: Element]] =
+      fn(internalState.children).flatMap { a ⇒ a +: safeFn(a, _.flatten(fn, safeFn)) }
     /** Applies a function `f` to all children of this Node. */
     override def foreach[U](f: Node[_ <: Element] ⇒ U) = internalState.children.foreach(f)
     /** Creates a new iterator over all children contained in this node. */
@@ -447,6 +451,7 @@ object Node extends XLoggable {
         nextChild
       } else Iterator.empty.next()
     }
+
     /** Removes a single element from the set. */
     override def remove(elem: Node[_ <: Element]): Boolean = if (internalState.children.contains(elem)) {
       /* remove node */
