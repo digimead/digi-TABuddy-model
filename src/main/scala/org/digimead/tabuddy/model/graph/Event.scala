@@ -37,12 +37,9 @@ sealed trait Event extends PropertyChangeEvent with mutable.Undoable {
  * In the moment of the node modification (include/remove/...), all ancestors MUST be valid.
  * Old values may contains NULL for the compatibility with the plain PropertyChangeEvent.
  */
-object Event extends mutable.Publisher[Event] {
+object Event {
   import scala.language.existentials
 
-  /** This event is generated when element is changed. */
-  case class ElementBoxChange[A <: Element](sourceArg: ElementBox[A], oldValueArg: Element, newValueArg: Element)(val undoF: () ⇒ Unit)
-    extends PropertyChangeEvent(sourceArg, sourceArg.node.id.name, oldValueArg, newValueArg) with Event
   /** This event is generated when new node is added or exists node is removed from graph. */
   case class GraphChange(parentNodeArg: Node[_ <: Element], oldChildNodeArg: Node[_ <: Element], newChildNodeArg: Node[_ <: Element])(val undoF: () ⇒ Unit)
     extends PropertyChangeEvent(parentNodeArg, parentNodeArg.id.name, oldChildNodeArg, newChildNodeArg) with Event

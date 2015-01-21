@@ -211,11 +211,23 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       record.eReference.node should not be (copy.eReference.node)
       val newRecord = record.eSet('test, Some(copyValue))
       val recordValue = newRecord.eGet[Integer]('test).get
+      val graphSize = graph.nodes.size
+      val saveSize = save.eNode.safeRead(_.flatten(a ⇒ a, (a, b) ⇒ a.safeRead(b))).size + 1
       recordValue.get should be(copyValue.get)
       myModel.e(save.eReference) should be('nonEmpty)
+      record.eNode.safeRead(_.children) should have size (1)
       record.eNode.safeWrite(_ -= save.eNode)
+      graph.nodes.size should be(graphSize - saveSize)
+      record.eNode.safeRead(_.children) should have size (0)
       myModel.e(save.eReference) should be(None)
       record.eNode.safeWrite(_ += save.eNode)
+      record.eNode.safeRead(_.children) should have size (1)
+      graph.nodes.size should be(graphSize)
+      save.eNode.detach()
+      graph.nodes.size should be(graphSize - saveSize)
+      record.eNode.safeRead(_.children) should have size (0)
+      record.eNode.safeWrite(_ += save.eNode)
+      graph.nodes.size should be(graphSize)
       myModel.e(save.eReference) should be('nonEmpty)
       save.eModel should be(myModel)
       var newChild: Node[_ <: Element] = null

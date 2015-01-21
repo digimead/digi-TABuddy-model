@@ -46,6 +46,14 @@ class Graph[A <: Model.Like](val created: Element.Timestamp, val node: Node[A],
   /** Check if such node is already exists. */
   @volatile var strict = true
 
+  /**
+   * Get explicit general graph.
+   *
+   * Derivative from Model.Like trait is invariant.
+   * Model.Like trait itself returns common type.
+   * Using .asInstanceOf[Graph[Model.Like]] here since A+ is not suitable.
+   */
+  def **(): Graph[Model.Like] = this.asInstanceOf[Graph[Model.Like]]
   /** Copy graph. */
   def copy(created: Element.Timestamp = created,
     id: Symbol = node.id,

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
+// Copyright (c) 2012-2015 Alexey Aksenov ezh@ezh.msk.ru
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ inConfig(OSGiConf)({
   import OSGiKey._
   Seq[Project.Setting[_]](
     osgiBndBundleSymbolicName := "org.digimead.tabuddy.model",
-    osgiBndBundleCopyright := "Copyright © 2013-2014 Alexey B. Aksenov/Ezh. All rights reserved.",
+    osgiBndBundleCopyright := "Copyright © 2013-2015 Alexey B. Aksenov/Ezh. All rights reserved.",
     osgiBndExportPackage := List("org.digimead.*"),
     osgiBndImportPackage := List("!org.aspectj.*", "*"),
     osgiBndBundleLicense := "http://www.apache.org/licenses/LICENSE-2.0.txt;description=The Apache Software License, Version 2.0"
@@ -66,8 +66,8 @@ resolvers += "digimead-maven" at "http://storage.googleapis.com/maven.repository
 
 libraryDependencies ++= Seq(
   "com.google.protobuf" % "protobuf-java" % "2.5.0",
-  "org.digimead" %% "digi-lib" % "0.3.0.1",
-  "org.digimead" %% "digi-lib-test" % "0.3.0.1" % "test",
+  "org.digimead" %% "digi-lib" % "0.3.0.2",
+  "org.digimead" %% "digi-lib-test" % "0.3.0.2" % "test",
   "org.yaml" % "snakeyaml" % "1.14"
 )
 

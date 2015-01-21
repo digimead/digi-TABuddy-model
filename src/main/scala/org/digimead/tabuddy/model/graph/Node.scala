@@ -145,7 +145,6 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
     if (!node.state.attached)
       throw new IllegalStateException(s"${node} is already detached.")
     node.parent.get.safeWrite { parent ⇒
-      parent.remove(node)
       if (!parent.remove(node))
         throw new IllegalStateException(s"Unable to remove ${node} from ${parent}.")
     }
