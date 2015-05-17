@@ -35,7 +35,7 @@ version <<= (baseDirectory) { (b) => scala.io.Source.fromFile(b / "version").mkS
 
 inConfig(OSGiConf)({
   import OSGiKey._
-  Seq[Project.Setting[_]](
+  Seq(
     osgiBndBundleSymbolicName := "org.digimead.tabuddy.model",
     osgiBndBundleCopyright := "Copyright © 2013-2015 Alexey B. Aksenov/Ezh. All rights reserved.",
     osgiBndExportPackage := List("org.digimead.*"),
@@ -44,9 +44,9 @@ inConfig(OSGiConf)({
   )
 })
 
-crossScalaVersions := Seq("2.11.2")
+crossScalaVersions := Seq("2.11.6")
 
-scalaVersion := "2.11.2"
+scalaVersion := "2.11.6"
 
 scalacOptions ++= Seq("-encoding", "UTF-8", "-deprecation", "-unchecked", "-Xcheckinit", "-feature")
 
@@ -66,9 +66,9 @@ resolvers += "digimead-maven" at "http://storage.googleapis.com/maven.repository
 
 libraryDependencies ++= Seq(
   "com.google.protobuf" % "protobuf-java" % "2.5.0",
-  "org.digimead" %% "digi-lib" % "0.3.0.2",
-  "org.digimead" %% "digi-lib-test" % "0.3.0.2" % "test",
-  "org.yaml" % "snakeyaml" % "1.14"
+  "org.digimead" %% "digi-lib" % "0.3.0.3",
+  "org.digimead" %% "digi-lib-test" % "0.3.0.3" % "test",
+  "org.yaml" % "snakeyaml" % "1.15"
 )
 
 //
@@ -82,7 +82,7 @@ testGrouping in Test <<= (definedTests in Test, javaOptions in run) map { (tests
     new Tests.Group(
       name = test.name,
       tests = Seq(test),
-      runPolicy = Tests.SubProcess(javaOptions = javaOptions))
+      runPolicy = Tests.SubProcess(ForkOptions(runJVMOptions = Seq.empty[String])))
   }
 }
 

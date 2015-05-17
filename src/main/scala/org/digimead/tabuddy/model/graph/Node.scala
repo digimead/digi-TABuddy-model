@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2015 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
     if (target == null) {
       // Copy this node to the same parent.
       currentNode.parent.getOrElse { throw new IllegalArgumentException("Parent not found.") }.safeWrite {
-        case target: Node.ThreadUnsafe[B] ⇒
+        case target: Node.ThreadUnsafe[B @unchecked] ⇒
           val copyNode = fn(target)
           if (attach) {
             if (copyNode == this)
