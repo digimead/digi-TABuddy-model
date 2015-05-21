@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2015 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,7 +119,37 @@ class RecordSpec extends FunSpec with Matchers with LoggingHelper with XLoggable
       model.eNode.safeRead { _.iteratorRecursive.find(_.id == 'level2a) }.
         flatMap(_.rootBox.e.eAs[Record].map(_.name)) should be(Some("ok"))
     }
+    it("should support nested elements with custom scope") {
+      import TestDSL._
+
+      val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
+      val record_common_0 = graph.model.record('a_c)
+      val record_common_1 = graph.model.withRecord('b_c) { r ⇒ r }
+      val record_common_2 = graph.model.takeRecord('c_c) { r ⇒ }
+
+      record_common_0.eStash.scope.modificator.name should be("Record")
+      record_common_0.eNode.id.name should be("a_c")
+      record_common_1.eStash.scope.modificator.name should be("Record")
+      record_common_1.eNode.id.name should be("b_c")
+      record_common_2.eStash.scope.modificator.name should be("Record")
+      record_common_2.eNode.id.name should be("c_c")
+
+      val scope = new CustomScope
+
+      val record_custom_0 = graph.model.record('x_c, scope)
+      val record_custom_1 = graph.model.withRecord('y_c, scope) { r ⇒ r }
+      val record_custom_2 = graph.model.takeRecord('z_c, scope) { r ⇒ }
+
+      record_custom_0.eStash.scope.modificator.name should be("CustomRecord")
+      record_custom_0.eNode.id.name should be("x_c")
+      record_custom_1.eStash.scope.modificator.name should be("CustomRecord")
+      record_custom_1.eNode.id.name should be("y_c")
+      record_custom_2.eStash.scope.modificator.name should be("CustomRecord")
+      record_custom_2.eNode.id.name should be("z_c")
+    }
   }
+
+  class CustomScope extends Record.Scope('CustomRecord)
 
   override def beforeAll(configMap: org.scalatest.ConfigMap) { adjustLoggingBeforeAll(configMap) }
 }

@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2015 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,6 +60,9 @@ object Task extends XLoggable {
       /** Create a new task or retrieve exists one. */
       def task(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Task =
         withTask(id, rawCoordinate: _*)(x ⇒ x.absolute)
+      /** Create a new task or retrieve exists one. */
+      def task(id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Task =
+        withTask(id, scope, rawCoordinate: _*)(x ⇒ x.absolute)
       /**
        * Create a new task or retrieve exists one and apply fTransform to
        *
@@ -68,6 +71,13 @@ object Task extends XLoggable {
       def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
         withTask(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
+       * Create a new task or retrieve exists one and apply fTransform to
+       *
+       * @return task
+       */
+      def takeTask[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
+        withTask(id, scope, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
+      /**
        * Create a new task or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
@@ -75,6 +85,15 @@ object Task extends XLoggable {
       def withTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         withElement[Task, A](id, coordinate, Task.scope, classOf[Task.Stash], (task) ⇒ fTransform(new Relative(task)))
+      }
+      /**
+       * Create a new task or retrieve exists one and apply fTransform to.
+       *
+       * @return fTransform result
+       */
+      def withTask[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): A = {
+        val coordinate = Coordinate(rawCoordinate: _*)
+        withElement[Task, A](id, coordinate, scope, classOf[Task.Stash], (task) ⇒ fTransform(new Relative(task)))
       }
       /** Safe cast element to Task.Like. */
       def asTask = element.eAs[Task.Like]

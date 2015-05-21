@@ -1,7 +1,7 @@
 /**
  * TABuddy-Model - a human-centric K,V framework
  *
- * Copyright (c) 2012-2014 Alexey Aksenov ezh@ezh.msk.ru
+ * Copyright (c) 2012-2015 Alexey Aksenov ezh@ezh.msk.ru
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,6 +61,9 @@ object Record extends XLoggable {
       /** Create a new record or retrieve exists one. */
       def record(id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Record =
         withRecord(id, rawCoordinate: _*)(x ⇒ x.absolute)
+      /** Create a new record or retrieve exists one. */
+      def record(id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*): Record =
+        withRecord(id, scope, rawCoordinate: _*)(x ⇒ x.absolute)
       /**
        * Create a new record or retrieve exists one and apply fTransform to
        *
@@ -69,6 +72,13 @@ object Record extends XLoggable {
       def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
         withRecord(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
+       * Create a new record or retrieve exists one and apply fTransform to
+       *
+       * @return record
+       */
+      def takeRecord[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
+        withRecord(id, scope, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
+      /**
        * Create a new record or retrieve exists one and apply fTransform to.
        *
        * @return fTransform result
@@ -76,6 +86,15 @@ object Record extends XLoggable {
       def withRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): A = {
         val coordinate = Coordinate(rawCoordinate: _*)
         withElement[Record, A](id, coordinate, Record.scope, classOf[Record.Stash], (record) ⇒ fTransform(new Relative(record)))
+      }
+      /**
+       * Create a new record or retrieve exists one and apply fTransform to.
+       *
+       * @return fTransform result
+       */
+      def withRecord[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): A = {
+        val coordinate = Coordinate(rawCoordinate: _*)
+        withElement[Record, A](id, coordinate, scope, classOf[Record.Stash], (record) ⇒ fTransform(new Relative(record)))
       }
       /** Safe cast element to Record.Like. */
       def asRecord = element.eAs[Record.Like]
