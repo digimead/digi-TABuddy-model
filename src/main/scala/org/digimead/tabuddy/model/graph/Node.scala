@@ -124,7 +124,7 @@ trait Node[A <: Element] extends Modifiable.Write with ConsumerData with Equals 
         case target: Node.ThreadUnsafe[B @unchecked] ⇒
           val copyNode = fn(target)
           if (attach) {
-            if (copyNode == this)
+            if (copyNode.unique == this.unique)
               target.remove(this) // replace
             if (!target.add(copyNode))
               throw new IllegalStateException(s"Unable to add ${copyNode} to ${target}.")
