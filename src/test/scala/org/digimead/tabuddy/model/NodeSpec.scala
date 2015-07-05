@@ -39,9 +39,9 @@ class NodeSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
       import TestDSL._
       val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val rA1 = model1.takeRecord('rA) { r ⇒
-        r.takeRecord('rAB) { r ⇒
-          r.takeRecord('rLeaf) { r ⇒
+      val rA1 = model1.getRecord('rA) { r ⇒
+        r.getRecord('rAB) { r ⇒
+          r.getRecord('rLeaf) { r ⇒
             r.name = "123"
           }
         }
@@ -80,18 +80,18 @@ class NodeSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
       val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val level1 = for (i ← 1 to 3) yield {
         val name = randomString(5)
-        graph.model.takeRecord(Symbol(name)) { r ⇒ }
+        graph.model.getRecord(Symbol(name)) { r ⇒ }
       }
       val level2 = level1.map { r ⇒
         for (i ← 1 to 3) yield {
           val name = randomString(5)
-          r.takeRecord(Symbol(name)) { r ⇒ }
+          r.getRecord(Symbol(name)) { r ⇒ }
         }
       }
       val level3 = level2.flatten.map { r ⇒
         for (i ← 1 to 3) yield {
           val name = randomString(5)
-          r.takeRecord(Symbol(name)) { r ⇒ }
+          r.getRecord(Symbol(name)) { r ⇒ }
         }
       }
       val flatten = graph.model.eNode.safeRead(_.flatten(_.sortBy(_.id.name), (node, transform) ⇒ node.safeRead(transform)))

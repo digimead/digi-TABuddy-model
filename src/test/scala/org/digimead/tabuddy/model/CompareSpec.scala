@@ -58,8 +58,8 @@ class CompareSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
         val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         var myModel1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB")
         var save: Record = null
-        val record = myModel1.takeRecord('root) { r ⇒
-          save = r.takeRecord('level2) { r ⇒
+        val record = myModel1.getRecord('root) { r ⇒
+          save = r.getRecord('level2) { r ⇒
             r.name = "123"
           }
         }
@@ -130,9 +130,9 @@ class CompareSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       multithread(1000, 10) { i ⇒
         val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        val rA1 = model1.takeRecord('rA) { r ⇒
-          r.takeRecord('rB) { r ⇒
-            r.takeRecord('rLeaf) { r ⇒
+        val rA1 = model1.getRecord('rA) { r ⇒
+          r.getRecord('rB) { r ⇒
+            r.getRecord('rLeaf) { r ⇒
               r.name = "123"
             }
           }

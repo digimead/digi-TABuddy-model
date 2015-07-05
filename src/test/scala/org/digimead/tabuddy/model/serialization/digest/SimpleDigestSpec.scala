@@ -74,15 +74,15 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒
-          r.takeRecord('level1a) { r ⇒
-            r.takeRecord('level2a) { r ⇒
+        model.getRecord('baseLevel) { r ⇒
+          r.getRecord('level1a) { r ⇒
+            r.getRecord('level2a) { r ⇒
               r.name = "record_2a"
             }
             r.name = "record_1a"
           }
-          r.takeRecord('level1b) { r ⇒
-            r.takeRecord('level2b) { r ⇒
+          r.getRecord('level1b) { r ⇒
+            r.getRecord('level2b) { r ⇒
               r.name = "record_2b"
             }
             r.name = "record_1b"
@@ -430,15 +430,15 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒
-          r.takeRecord('level1a) { r ⇒
-            r.takeRecord('level2a) { r ⇒
+        model.getRecord('baseLevel) { r ⇒
+          r.getRecord('level1a) { r ⇒
+            r.getRecord('level2a) { r ⇒
               r.name = "record_2a"
             }
             r.name = "record_1a"
           }
-          r.takeRecord('level1b) { r ⇒
-            r.takeRecord('level2b) { r ⇒
+          r.getRecord('level1b) { r ⇒
+            r.getRecord('level2b) { r ⇒
               r.name = "record_2b"
             }
             r.name = "record_1b"
@@ -540,7 +540,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+        model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
         val folderA = new File(folder, "A")
         val folderB = new File(folder, "B")
@@ -605,7 +605,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+        model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
         val folderA = new File(folder, "A")
         val folderB = new File(folder, "B")
@@ -683,7 +683,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+        model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
         val folderA = new File(folder, "A")
         val folderB = new File(folder, "B")
@@ -744,9 +744,9 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒
-          r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } }
-          r.takeRecord('level1b) { r ⇒ r.takeRecord('level2b) { r ⇒ } }
+        model.getRecord('baseLevel) { r ⇒
+          r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } }
+          r.getRecord('level1b) { r ⇒ r.getRecord('level2b) { r ⇒ } }
         }
 
         val folderA = new File(folder, "A")
@@ -854,7 +854,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
+        model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ r.name = "111" } } }
 
         val folderA = new File(folder, "A")
         val folderB = new File(folder, "B")
@@ -869,10 +869,10 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
         // modify
-        graph2.model.takeRecord('baseLevel) { r ⇒
-          r.takeRecord('level1a) { r ⇒
-            r.takeRecord('level2a) { r ⇒ r.name = "222" }
-            r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+        graph2.model.getRecord('baseLevel) { r ⇒
+          r.getRecord('level1a) { r ⇒
+            r.getRecord('level2a) { r ⇒ r.name = "222" }
+            r.getRecord('level2aX) { r ⇒ r.name = "222" }
           }
         }
         val sDataFreeze2 = SData(Digest.Key.freeze ->
@@ -880,7 +880,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
         val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
-        graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
+        graph3.model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ r.name = "333" } } }
         val sDataFreeze3 = SData(Digest.Key.freeze ->
           Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
         Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -924,7 +924,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         // graph
         val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
+        model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ r.name = "111" } } }
 
         val folderA = new File(folder, "A")
         val folderB = new File(folder, "B")
@@ -939,10 +939,10 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
         // modify
-        graph2.model.takeRecord('baseLevel) { r ⇒
-          r.takeRecord('level1a) { r ⇒
-            r.takeRecord('level2a) { r ⇒ r.name = "222" }
-            r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+        graph2.model.getRecord('baseLevel) { r ⇒
+          r.getRecord('level1a) { r ⇒
+            r.getRecord('level2a) { r ⇒ r.name = "222" }
+            r.getRecord('level2aX) { r ⇒ r.name = "222" }
           }
         }
         val sDataFreeze2 = SData(Digest.Key.freeze ->
@@ -950,7 +950,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
         Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
         val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
-        graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
+        graph3.model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ r.name = "333" } } }
         val sDataFreeze3 = SData(Digest.Key.freeze ->
           Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
         Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -990,7 +990,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "111" } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ r.name = "111" } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1005,10 +1005,10 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val graph2 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
       // modify
-      graph2.model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒
-          r.takeRecord('level2a) { r ⇒ r.name = "222" }
-          r.takeRecord('level2aX) { r ⇒ r.name = "222" }
+      graph2.model.getRecord('baseLevel) { r ⇒
+        r.getRecord('level1a) { r ⇒
+          r.getRecord('level2a) { r ⇒ r.name = "222" }
+          r.getRecord('level2aX) { r ⇒ r.name = "222" }
         }
       }
       val sDataFreeze2 = SData(Digest.Key.freeze ->
@@ -1016,7 +1016,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       Serialization.freeze(graph2, sDataFreeze2, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
       val graph3 = Serialization.acquire(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> false))
 
-      graph3.model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ r.name = "333" } } }
+      graph3.model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ r.name = "333" } } }
       val sDataFreeze3 = SData(Digest.Key.freeze ->
         Map(folderA.toURI -> SimpleDigest("MD2"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> Digest.NoDigest))
       Serialization.freeze(graph3, sDataFreeze3, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
@@ -1045,7 +1045,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1055,11 +1055,11 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
       // modify
-      graph.model.takeRecord('baseLevel) { _.takeRecord('level1a) { _.takeRecord('level2aX) { _.name = "222" } } }
+      graph.model.getRecord('baseLevel) { _.getRecord('level1a) { _.getRecord('level2aX) { _.name = "222" } } }
       Serialization.freeze(graph)
 
       // modify
-      graph.model.takeRecord('baseLevel) { _.takeRecord('level1a) { _.takeRecord('level2aX) { _.name = "333" } } }
+      graph.model.getRecord('baseLevel) { _.getRecord('level1a) { _.getRecord('level2aX) { _.name = "333" } } }
       Serialization.freeze(graph)
 
       val graph2Loader = Serialization.acquireLoader(folderB.getAbsoluteFile().toURI(), SData(Digest.Key.acquire -> true))
@@ -1087,7 +1087,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1096,7 +1096,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI())
 
       // modify
-      graph.model.takeRecord('baseLevel) { _.takeRecord('level1a) { _.takeRecord('level2aX) { _.name = "222" } } }
+      graph.model.getRecord('baseLevel) { _.getRecord('level1a) { _.getRecord('level2aX) { _.name = "222" } } }
       val folderC = new File(folder, "C")
       Serialization.freeze(graph, folderC.getAbsoluteFile().toURI())
 
@@ -1128,7 +1128,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1176,7 +1176,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1205,7 +1205,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1227,7 +1227,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       h1l.size should be(1)
       h1l.head._2.size should be(3)
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "222" }
       Serialization.freeze(graph)
       val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
@@ -1240,7 +1240,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val h2keys = h2l.keys.toSeq
       h2l(h2keys.head) should be(h2l(h2keys.last))
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "333" }
       Serialization.freeze(graph, SData(Digest.Key.freeze ->
         Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
@@ -1271,7 +1271,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1293,7 +1293,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       h1l.size should be(1)
       h1l.head._2.size should be(3)
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "222" }
       Serialization.freeze(graph)
       val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
@@ -1322,7 +1322,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val h2keysx = h2lx.keys.toSeq
       h2lx(h2keysx.head) should not be (h2lx(h2keysx.last))
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "333" }
       Serialization.freeze(graph)
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
@@ -1352,7 +1352,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1374,7 +1374,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       h1l.size should be(1)
       h1l.head._2.size should be(3)
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "222" }
       Serialization.freeze(graph)
       val graphLoaderWith2Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
@@ -1403,7 +1403,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       val h2keysx = h2lx.keys.toSeq
       h2lx(h2keysx.head) should not be (h2lx(h2keysx.last))
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "333" }
       Serialization.freeze(graph)
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
 
@@ -1467,7 +1467,7 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1477,9 +1477,9 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
 
       Serialization.freeze(graph, sDataFreeze, folderA.getAbsoluteFile().toURI(), folderB.getAbsoluteFile().toURI(), folderC.getAbsoluteFile().toURI())
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "222" }
       Serialization.freeze(graph)
-      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "333" }
       Serialization.freeze(graph, SData(Digest.Key.freeze ->
         Map(folderA.toURI -> SimpleDigest("MD5"), folderB.toURI -> SimpleDigest("MD5"), folderC.toURI -> SimpleDigest("MD5"))))
       val graphLoaderWith3Records = Serialization.acquireLoader(folderA.toURI(), SData(Digest.Key.acquire -> false))
@@ -1598,8 +1598,8 @@ class SimpleDigestSpec extends FreeSpec with Matchers with StorageHelper with Lo
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
-      graph.model.takeRecord('rA) { _.name = "1" }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
+      graph.model.getRecord('rA) { _.name = "1" }
 
       val writeFilter = (os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ new TestOutputStream2(os)
 

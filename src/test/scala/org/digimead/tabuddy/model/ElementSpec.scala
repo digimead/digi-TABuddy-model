@@ -61,9 +61,9 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       // graph 1
       val graph1 = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model1 = graph1.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val rA1 = model1.takeRecord('rA) { r ⇒
-        r.takeRecord('rAB) { r ⇒
-          r.takeRecord('rLeaf) { r ⇒
+      val rA1 = model1.getRecord('rA) { r ⇒
+        r.getRecord('rAB) { r ⇒
+          r.getRecord('rLeaf) { r ⇒
             r.name = "123"
           }
         }
@@ -178,16 +178,16 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val myModel = graph.model
       var save: Record = null
-      val record: Record = myModel.takeRecord('root) { r1 ⇒
+      val record: Record = myModel.getRecord('root) { r1 ⇒
         r1.name = "root"
         r1.eGet[String]('name).get.get should be("root")
         r1.name should be("root")
         val a: Record = r1
         a.name should be("root")
-        save = r1.takeRecord('level2) { r2 ⇒
+        save = r1.getRecord('level2) { r2 ⇒
           r2.name = "level2"
           r2.eGet[String]('name).get.get should be("level2")
-          r2.takeRecord('level3) { r3 ⇒
+          r2.getRecord('level3) { r3 ⇒
             r3.name = "level3"
             r3.name should be("level3")
           }
@@ -252,8 +252,8 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       val myModel = graph.model
       var recordL2: Record = null
       var recordL3: Record = null
-      val recordL1 = myModel.takeRecord('level1) { r1 ⇒
-        recordL2 = r1.takeRecord('level2) { r2 ⇒
+      val recordL1 = myModel.getRecord('level1) { r1 ⇒
+        recordL2 = r1.getRecord('level2) { r2 ⇒
           recordL3 = r2.record('level3)
         }
       }
@@ -288,11 +288,11 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       val myModel = graph.model
       var e2: Record = null
       var e3: Record = null
-      val e1 = myModel.takeRecord('root) { r ⇒
+      val e1 = myModel.getRecord('root) { r ⇒
         r.name = "root"
-        e2 = r.takeRecord('level2) { r ⇒
+        e2 = r.getRecord('level2) { r ⇒
           r.name = "level2"
-          e3 = r.takeRecord('level3) { r ⇒
+          e3 = r.getRecord('level3) { r ⇒
             r.name = "level3"
           }
         }
@@ -312,11 +312,11 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
       val myModel = graph.model
       var e2: Note = null
       var e3: Task = null
-      val e1 = myModel.takeRecord('root) { r ⇒
+      val e1 = myModel.getRecord('root) { r ⇒
         r.name = "root"
-        e2 = r.takeNote('level2) { r ⇒
+        e2 = r.getNote('level2) { r ⇒
           r.name = "level2"
-          e3 = r.takeTask('level3) { r ⇒
+          e3 = r.getTask('level3) { r ⇒
             r.name = "level3"
           }
         }
@@ -345,11 +345,11 @@ class ElementSpec extends FunSpec with Matchers with LoggingHelper with XLoggabl
     it("should be compatible with visitor pattern") {
       import TestDSL._
       val graph = Graph[Model]('john, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
-      graph.model.takeRecord('root) { r ⇒
+      graph.model.getRecord('root) { r ⇒
         r.name = "root"
-        r.takeNote('level2) { r ⇒
+        r.getNote('level2) { r ⇒
           r.name = "level2"
-          r.takeTask('level3) { r ⇒
+          r.getTask('level3) { r ⇒
             r.name = "level3"
           }
         }

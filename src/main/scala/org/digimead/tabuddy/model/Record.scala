@@ -29,7 +29,7 @@ import org.digimead.tabuddy.model.graph.ElementBox
  * Record element.
  */
 class Record(val eStash: Record.Stash)(@transient val eBox: ElementBox[Record])
-  extends Record.Like with XLoggable {
+    extends Record.Like with XLoggable {
   type ElementType = Record
   type StashType = Record.Stash
   type RelativeType = Record.Relative[ElementType]
@@ -50,8 +50,8 @@ object Record extends XLoggable {
   /** Part of DSL.Builder for end user. */
   trait DSL {
     case class RecordLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
-      val scope: Scope = Record.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Record],
-        val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric {
+        val scope: Scope = Record.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Record],
+            val stashClass: Class[_ <: Record#StashType]) extends LocationGeneric {
       type ElementType = Record
     }
   }
@@ -69,14 +69,14 @@ object Record extends XLoggable {
        *
        * @return record
        */
-      def takeRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
+      def getRecord[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
         withRecord(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new record or retrieve exists one and apply fTransform to
        *
        * @return record
        */
-      def takeRecord[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
+      def getRecord[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Record] ⇒ A): Record =
         withRecord(id, scope, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new record or retrieve exists one and apply fTransform to.
@@ -158,7 +158,7 @@ object Record extends XLoggable {
     val modified: Element.Timestamp,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
     val scope: Scope)
-    extends Stash.Like {
+      extends Stash.Like {
     /** Stash type. */
     type StashType = Record.Stash
     /** Scope type. */

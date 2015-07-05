@@ -988,7 +988,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val modification = Timestamp.dump(graph.modified)
       val folderA = new File(folder, "A")
@@ -1031,7 +1031,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       scala.io.Source.fromFile(fileCSignatureData).getLines.size should be(2)
 
       model.eSet('AAAKey, "AAA1").eSet('BBBKey, "BBB1").eRelative
-      model.takeRecord('baseLevel1) { r ⇒ r.name = "123" }
+      model.getRecord('baseLevel1) { r ⇒ r.name = "123" }
       Serialization.freeze(graph, sDataFreeze)
       val modification2 = Timestamp.dump(graph.modified)
       modification should not be (modification2)
@@ -1074,7 +1074,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       val keyGenRSA2 = KeyPairGenerator.getInstance("RSA")
       keyGenRSA.initialize(1024)
       val pairRSA2 = keyGenRSA.genKeyPair()
-      graph2.model.takeRecord('baseLevel2) { r ⇒ r.name = "234" }
+      graph2.model.getRecord('baseLevel2) { r ⇒ r.name = "234" }
       pairRSA2.getPublic() should not be (pairRSA.getPublic())
 
       val sDataFreeze2 = SData(Signature.Key.freeze -> Map(folderA.toURI -> Signature.NoSignature,
@@ -1130,7 +1130,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1160,7 +1160,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       s1l.size should be(1)
       s1l.head._2.size should be(3)
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "222" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "222" }
       val keyGenDSA2 = KeyPairGenerator.getInstance("DSA")
       keyGenDSA2.initialize(1024)
       val pairDSA2 = keyGenDSA2.genKeyPair()
@@ -1179,7 +1179,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       val s2keys = s2l.keys.toSeq
       s2l(s2keys.head) should not be (s2l(s2keys.last))
 
-      model.takeRecord('baseLevel) { r ⇒ r.name = "333" }
+      model.getRecord('baseLevel) { r ⇒ r.name = "333" }
       val keyGenRSA3 = KeyPairGenerator.getInstance("RSA")
       keyGenRSA3.initialize(1024)
       val pairRSA3 = keyGenRSA3.genKeyPair()
@@ -1229,7 +1229,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel1) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel1) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       val folderA = new File(folder, "A")
       val folderB = new File(folder, "B")
@@ -1291,7 +1291,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
         def describeTo(description: Description) {}
       }), MM.any())
 
-      model.takeRecord('baseLevel2) { r ⇒ r.name = "222" }
+      model.getRecord('baseLevel2) { r ⇒ r.name = "222" }
       val keyGenDSA2 = KeyPairGenerator.getInstance("DSA")
       keyGenDSA2.initialize(1024)
       val pairDSA2 = keyGenDSA2.genKeyPair()
@@ -1310,7 +1310,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       val s2keys = s2l.keys.toSeq
       s2l(s2keys.head) should not be (s2l(s2keys.last))
 
-      model.takeRecord('baseLevel3) { r ⇒ r.name = "333" }
+      model.getRecord('baseLevel3) { r ⇒ r.name = "333" }
       val keyGenRSA3 = KeyPairGenerator.getInstance("RSA")
       keyGenRSA3.initialize(1024)
       val pairRSA3 = keyGenRSA3.genKeyPair()
@@ -1485,7 +1485,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       assert(true)
     }
@@ -1497,7 +1497,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       assert(true)
     }
@@ -1509,7 +1509,7 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
 
       assert(true)
     }
@@ -1525,8 +1525,8 @@ class SimpleSignatureSpec extends FreeSpec with Matchers with StorageHelper with
       // graph
       val graph = Graph[Model]('john1, Model.scope, YAMLSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      model.takeRecord('baseLevel) { r ⇒ r.takeRecord('level1a) { r ⇒ r.takeRecord('level2a) { r ⇒ } } }
-      graph.model.takeRecord('rA) { _.name = "1" }
+      model.getRecord('baseLevel) { r ⇒ r.getRecord('level1a) { r ⇒ r.getRecord('level2a) { r ⇒ } } }
+      graph.model.getRecord('rA) { _.name = "1" }
 
       val writeFilter = (os: OutputStream, uri: URI, transport: Transport, sData: SData) ⇒ new TestOutputStream(os)
 

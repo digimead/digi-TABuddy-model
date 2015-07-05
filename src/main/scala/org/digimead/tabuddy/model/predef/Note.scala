@@ -30,7 +30,7 @@ import org.digimead.tabuddy.model.graph.ElementBox
  * Note element.
  */
 class Note(val eStash: Note.Stash)(@transient val eBox: ElementBox[Note])
-  extends Note.Like with XLoggable {
+    extends Note.Like with XLoggable {
   type ElementType = Note
   type RelativeType = Note.Relative[ElementType]
   type StashType = Note.Stash
@@ -51,8 +51,8 @@ object Note extends XLoggable {
   /** Part of DSL.Builder for end user. */
   trait DSL {
     case class NoteLocation(val id: Symbol, val coordinate: Coordinate = Coordinate.root,
-      val scope: Scope = Note.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Note],
-        val stashClass: Class[_ <: Note#StashType]) extends LocationGeneric {
+        val scope: Scope = Note.scope, val unique: Option[UUID] = None)(implicit val elementType: Manifest[Note],
+            val stashClass: Class[_ <: Note#StashType]) extends LocationGeneric {
       type ElementType = Note
     }
   }
@@ -70,14 +70,14 @@ object Note extends XLoggable {
        *
        * @return note
        */
-      def takeNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
+      def getNote[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
         withNote(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new note or retrieve exists one and apply fTransform to
        *
        * @return note
        */
-      def takeNote[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
+      def getNote[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Note] ⇒ A): Note =
         withNote(id, scope, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new note or retrieve exists one and apply fTransform to.
@@ -123,7 +123,7 @@ object Note extends XLoggable {
     val modified: Element.Timestamp,
     val property: org.digimead.tabuddy.model.element.Stash.Data,
     val scope: Scope)
-    extends Stash.Like {
+      extends Stash.Like {
     /** Stash type. */
     type StashType = Note.Stash
     /** Scope type. */

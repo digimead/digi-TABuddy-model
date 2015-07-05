@@ -56,15 +56,15 @@ class BuiltinSerializationSpec extends FunSpec with Matchers with StorageHelper 
         // graph
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        val record_0 = model.takeRecord('baseLevel) { r ⇒
-          r.takeRecord('level1a) { r ⇒
-            r.takeRecord('level2a) { r ⇒
+        val record_0 = model.getRecord('baseLevel) { r ⇒
+          r.getRecord('level1a) { r ⇒
+            r.getRecord('level2a) { r ⇒
               r.name = "record_2a"
             }
             r.name = "record_1a"
           }
-          r.takeRecord('level1b) { r ⇒
-            r.takeRecord('level2b) { r ⇒
+          r.getRecord('level1b) { r ⇒
+            r.getRecord('level2b) { r ⇒
               r.name = "record_2b"
             }
             r.name = "record_1b"
@@ -265,10 +265,10 @@ class BuiltinSerializationSpec extends FunSpec with Matchers with StorageHelper 
 
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        val record_root = model.takeRecord('root) { r ⇒
-          r.takeRecord('level2) { r ⇒
+        val record_root = model.getRecord('root) { r ⇒
+          r.getRecord('level2) { r ⇒
             r.name = "123"
-            r.takeRecord('level3) { r ⇒
+            r.getRecord('level3) { r ⇒
               r.name = "456"
             }
           }
@@ -346,10 +346,10 @@ class BuiltinSerializationSpec extends FunSpec with Matchers with StorageHelper 
 
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        val record_root = model.takeRecord('root) { r ⇒
-          r.takeRecord('level2) { r ⇒
+        val record_root = model.getRecord('root) { r ⇒
+          r.getRecord('level2) { r ⇒
             r.name = "123"
-            r.takeRecord('level3) { r ⇒
+            r.getRecord('level3) { r ⇒
               r.name = "456"
             }
           }
@@ -427,10 +427,10 @@ class BuiltinSerializationSpec extends FunSpec with Matchers with StorageHelper 
 
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-        val record_root = model.takeRecord('root) { r ⇒
-          r.takeRecord('level2) { r ⇒
+        val record_root = model.getRecord('root) { r ⇒
+          r.getRecord('level2) { r ⇒
             r.name = "123"
-            r.takeRecord('level3) { r ⇒
+            r.getRecord('level3) { r ⇒
               r.name = "456"
             }
           }

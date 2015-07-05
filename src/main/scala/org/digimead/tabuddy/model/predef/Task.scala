@@ -68,14 +68,14 @@ object Task extends XLoggable {
        *
        * @return task
        */
-      def takeTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
+      def getTask[A](id: Symbol, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
         withTask(id, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new task or retrieve exists one and apply fTransform to
        *
        * @return task
        */
-      def takeTask[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
+      def getTask[A](id: Symbol, scope: Scope, rawCoordinate: Axis[_ <: AnyRef with java.io.Serializable]*)(fTransform: Relative[Task] ⇒ A): Task =
         withTask(id, scope, rawCoordinate: _*)((x) ⇒ { fTransform(x); x.absolute })
       /**
        * Create a new task or retrieve exists one and apply fTransform to.

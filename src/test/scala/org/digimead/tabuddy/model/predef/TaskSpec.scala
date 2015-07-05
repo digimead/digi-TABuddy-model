@@ -39,7 +39,7 @@ class TaskSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val task_common_0 = graph.model.task('a_c)
       val task_common_1 = graph.model.withTask('b_c) { r ⇒ r }
-      val task_common_2 = graph.model.takeTask('c_c) { r ⇒ }
+      val task_common_2 = graph.model.getTask('c_c) { r ⇒ }
 
       task_common_0.eStash.scope.modificator.name should be("Task")
       task_common_0.eNode.id.name should be("a_c")
@@ -52,7 +52,7 @@ class TaskSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
 
       val task_custom_0 = graph.model.task('x_c, scope)
       val task_custom_1 = graph.model.withTask('y_c, scope) { r ⇒ r }
-      val task_custom_2 = graph.model.takeTask('z_c, scope) { r ⇒ }
+      val task_custom_2 = graph.model.getTask('z_c, scope) { r ⇒ }
 
       task_custom_0.eStash.scope.modificator.name should be("CustomTask")
       task_custom_0.eNode.id.name should be("x_c")

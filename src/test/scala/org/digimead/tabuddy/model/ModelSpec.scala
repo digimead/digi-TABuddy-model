@@ -37,9 +37,9 @@ class ModelSpec extends FunSpec with Matchers with LoggingHelper with XLoggable 
 
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val rA1 = model1.takeRecord('rA) { r ⇒
-        r.takeRecord('rB) { r ⇒
-          r.takeRecord('rLeaf) { r ⇒
+      val rA1 = model1.getRecord('rA) { r ⇒
+        r.getRecord('rB) { r ⇒
+          r.getRecord('rLeaf) { r ⇒
             r.name = "123"
           }
         }
@@ -79,9 +79,9 @@ class ModelSpec extends FunSpec with Matchers with LoggingHelper with XLoggable 
 
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model1 = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val rA1 = model1.takeRecord('rA) { r ⇒
-        r.takeRecord('rB) { r ⇒
-          r.takeRecord('rLeaf) { r ⇒
+      val rA1 = model1.getRecord('rA) { r ⇒
+        r.getRecord('rB) { r ⇒
+          r.getRecord('rLeaf) { r ⇒
             r.name = "123"
           }
         }

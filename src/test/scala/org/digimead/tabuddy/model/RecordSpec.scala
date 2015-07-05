@@ -78,15 +78,15 @@ class RecordSpec extends FunSpec with Matchers with LoggingHelper with XLoggable
       // define record
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val model = graph.model.eSet('AAAKey, "AAA").eSet('BBBKey, "BBB").eRelative
-      val record_0 = model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒
-          r.takeRecord('level2a) { r ⇒
+      val record_0 = model.getRecord('baseLevel) { r ⇒
+        r.getRecord('level1a) { r ⇒
+          r.getRecord('level2a) { r ⇒
             r.name = "record_2a"
           }
           r.name = "record_1a"
         }
-        r.takeRecord('level1b) { r ⇒
-          r.takeRecord('level2b) { r ⇒
+        r.getRecord('level1b) { r ⇒
+          r.getRecord('level2b) { r ⇒
             r.name = "record_2b"
           }
           r.name = "record_1b"
@@ -108,9 +108,9 @@ class RecordSpec extends FunSpec with Matchers with LoggingHelper with XLoggable
       val record_2b = record_0 & RecordLocation('level1b) & RecordLocation('level2b)
       record_1b.eNode.safeRead(_.children.map(_.rootBox.e).toSet) should equal(Set(record_2b))
 
-      val treeA = model.takeRecord('baseLevel) { r ⇒
-        r.takeRecord('level1a) { r ⇒
-          r.takeRecord('level2a) { r ⇒
+      val treeA = model.getRecord('baseLevel) { r ⇒
+        r.getRecord('level1a) { r ⇒
+          r.getRecord('level2a) { r ⇒
             r.name should be("record_2a")
             r.name = "ok"
           }
@@ -125,7 +125,7 @@ class RecordSpec extends FunSpec with Matchers with LoggingHelper with XLoggable
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val record_common_0 = graph.model.record('a_c)
       val record_common_1 = graph.model.withRecord('b_c) { r ⇒ r }
-      val record_common_2 = graph.model.takeRecord('c_c) { r ⇒ }
+      val record_common_2 = graph.model.getRecord('c_c) { r ⇒ }
 
       record_common_0.eStash.scope.modificator.name should be("Record")
       record_common_0.eNode.id.name should be("a_c")
@@ -138,7 +138,7 @@ class RecordSpec extends FunSpec with Matchers with LoggingHelper with XLoggable
 
       val record_custom_0 = graph.model.record('x_c, scope)
       val record_custom_1 = graph.model.withRecord('y_c, scope) { r ⇒ r }
-      val record_custom_2 = graph.model.takeRecord('z_c, scope) { r ⇒ }
+      val record_custom_2 = graph.model.getRecord('z_c, scope) { r ⇒ }
 
       record_custom_0.eStash.scope.modificator.name should be("CustomRecord")
       record_custom_0.eNode.id.name should be("x_c")

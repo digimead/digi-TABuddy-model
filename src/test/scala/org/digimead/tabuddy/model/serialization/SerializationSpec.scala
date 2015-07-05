@@ -348,7 +348,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         }
 
         info("freeze modification 1 of graph to folderA and copy to folderB")
-        graph.model.takeRecord('rA) { _.name = "1" }
+        graph.model.getRecord('rA) { _.name = "1" }
         val modificationA = graph.modified
         Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(
           folderA.toURI -> SimpleSignature(Alice.getPublic(), Alice.getPrivate()))), folderA.toURI)
@@ -380,7 +380,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         testBA()
 
         info("freeze modification 2 of graph to folderB and copy to folderC")
-        graph.model.takeRecord('rB) { _.name = "2" }
+        graph.model.getRecord('rB) { _.name = "2" }
         val modificationB = graph.modified
         Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(
           folderA.toURI -> SimpleSignature(Mallory.getPublic(), Mallory.getPrivate()),
@@ -406,7 +406,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         testBB()
 
         info("freeze modification 3 of graph to folderC and copy to folderD")
-        graph.model.takeRecord('rC) { _.name = "3" }
+        graph.model.getRecord('rC) { _.name = "3" }
         val modificationC = graph.modified
         Serialization.freeze(graph, SData(Signature.Key.freeze -> Map(
           folderA.toURI -> SimpleSignature(Trudy.getPublic(), Trudy.getPrivate()),
@@ -615,26 +615,26 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
 
         info("freeze modification 1 of graph to folderA and copy to folderB")
-        graph.model.takeRecord('rA) { _.name = "1" }
+        graph.model.getRecord('rA) { _.name = "1" }
         val modificationA = graph.modified
         Serialization.freeze(graph, folderA.toURI)
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
           Serialization.Storages.append(graph, folderB.toURI)))
 
         info("freeze modification 2 of graph to folderB and copy to folderC")
-        graph.model.takeRecord('rB) { _.name = "2" }
+        graph.model.getRecord('rB) { _.name = "2" }
         val modificationB = graph.modified
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
           Serialization.Storages(Serialization.Storages.Simple(folderB.toURI), Serialization.Storages.Simple(folderC.toURI))))
 
         info("freeze modification 3 of graph to folderC and copy to folderD")
-        graph.model.takeRecord('rC) { _.name = "3" }
+        graph.model.getRecord('rC) { _.name = "3" }
         val modificationC = graph.modified
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
           Serialization.Storages(Serialization.Storages.Simple(folderC.toURI), Serialization.Storages.Simple(folderD.toURI))))
 
         info("freeze modification 4 of graph to folderE")
-        graph.model.takeRecord('rE) { _.name = "4" }
+        graph.model.getRecord('rE) { _.name = "4" }
         val modificationE = graph.modified
         Serialization.freeze(graph, SData(SData.Key.explicitStorages ->
           Serialization.Storages(Serialization.Storages.Simple(folderE.toURI))))
@@ -690,7 +690,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
         val graph = Graph[Model]('john1, Model.scope, BuiltinSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
         // TODO ! should pass 10000
         for (i ← 0 until 100)
-          graph.model.takeRecord(Symbol("rA" + i)) { _.name = "1" }
+          graph.model.getRecord(Symbol("rA" + i)) { _.name = "1" }
 
         val keyGenRSA = KeyPairGenerator.getInstance("RSA")
         keyGenRSA.initialize(1024)
@@ -700,7 +700,7 @@ class SerializationSpec extends FunSpec with Matchers with StorageHelper with Lo
           if (sData(SData.Key.storageURI) == folderA.toURI()) new TestOutputStream(os) else os
         }
 
-        graph.model.takeRecord('rA) { _.name = "1" }
+        graph.model.getRecord('rA) { _.name = "1" }
         Serialization.freeze(graph, SData(
           SData.Key.writeFilter -> writeFilter,
           SData.Key.convertURI ->

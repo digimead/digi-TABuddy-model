@@ -39,7 +39,7 @@ class NoteSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
       val graph = Graph[Model]('john1, Model.scope, StubSerialization.Identifier, UUID.randomUUID()) { g ⇒ }
       val note_common_0 = graph.model.note('a_c)
       val note_common_1 = graph.model.withNote('b_c) { r ⇒ r }
-      val note_common_2 = graph.model.takeNote('c_c) { r ⇒ }
+      val note_common_2 = graph.model.getNote('c_c) { r ⇒ }
 
       note_common_0.eStash.scope.modificator.name should be("Note")
       note_common_0.eNode.id.name should be("a_c")
@@ -52,7 +52,7 @@ class NoteSpec extends FunSpec with Matchers with LoggingHelper with XLoggable {
 
       val note_custom_0 = graph.model.note('x_c, scope)
       val note_custom_1 = graph.model.withNote('y_c, scope) { r ⇒ r }
-      val note_custom_2 = graph.model.takeNote('z_c, scope) { r ⇒ }
+      val note_custom_2 = graph.model.getNote('z_c, scope) { r ⇒ }
 
       note_custom_0.eStash.scope.modificator.name should be("CustomNote")
       note_custom_0.eNode.id.name should be("x_c")
